@@ -3,7 +3,9 @@ import CoreGraphics
 
 /// Globaler Hotkey-Watcher für fn+Shift, fn+Control, fn+Option.
 /// Nutzt CGEventTap auf .flagsChanged, weil fn nicht via Carbon RegisterEventHotKey abfangbar ist.
-/// Braucht Accessibility-Permission (TCC). Ohne diese Permission liefert eventTapCreate `nil`.
+/// Braucht Accessibility-Permission (TCC). Ohne diese Permission liefert `eventTapCreate` `nil` —
+/// wir pollen `AXIsProcessTrusted()` mit 1 Hz und installieren den Tap automatisch nach,
+/// sobald der User die Permission erteilt.
 final class HotkeyManager: @unchecked Sendable {
 
     enum Action: Sendable {
@@ -17,6 +19,7 @@ final class HotkeyManager: @unchecked Sendable {
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var permissionTimer: DispatchSourceTimer?
 
     private var currentMode: Mode?
     private var lastTriggerAt: Date = .distantPast
@@ -29,10 +32,29 @@ final class HotkeyManager: @unchecked Sendable {
     func start() {
         let trusted = ensureAccessibilityPermission()
         Log.write("HotkeyManager.start() — AXIsProcessTrusted = \(trusted)")
-        guard trusted else {
-            Log.write("Accessibility fehlt — Hotkeys aus.")
-            return
+        if trusted {
+            installEventTap()
+        } else {
+            Log.write("Accessibility fehlt — Hotkeys aus, beobachte TCC-Status (1 Hz Polling).")
+            startPermissionWatcher()
         }
+    }
+
+    func stop() {
+        permissionTimer?.cancel()
+        permissionTimer = nil
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+        }
+        if let src = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), src, .commonModes)
+        }
+        eventTap = nil
+        runLoopSource = nil
+    }
+
+    private func installEventTap() {
+        guard eventTap == nil else { return }   // idempotent — kein doppelter Tap
         let mask = (1 << CGEventType.flagsChanged.rawValue) | (1 << CGEventType.keyDown.rawValue)
         let unmanagedSelf = Unmanaged.passUnretained(self)
 
@@ -67,15 +89,21 @@ final class HotkeyManager: @unchecked Sendable {
         Log.write("CGEventTap aktiv — fn-Modifier wird beobachtet.")
     }
 
-    func stop() {
-        if let tap = eventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
+    private func startPermissionWatcher() {
+        guard permissionTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 1.0, repeating: 1.0)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            if AXIsProcessTrusted() {
+                Log.write("HotkeyManager: Accessibility erteilt — Tap wird gestartet.")
+                self.permissionTimer?.cancel()
+                self.permissionTimer = nil
+                self.installEventTap()
+            }
         }
-        if let src = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), src, .commonModes)
-        }
-        eventTap = nil
-        runLoopSource = nil
+        timer.resume()
+        permissionTimer = timer
     }
 
     // MARK: - Debounce
