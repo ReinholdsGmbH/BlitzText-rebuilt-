@@ -25,7 +25,11 @@
   2. Hotkey-Debounce-Wert ist in `HotkeyManager.swift` und `ARCHITECTURE.md` identisch und mit kurzer Begründung dokumentiert
   3. Nach Erteilen der Accessibility-Permission funktionieren Hotkeys ohne App-Relaunch (Tap startet automatisch neu)
   4. `ARCHITECTURE.md` und `RISKS.md` beschreiben `LocalWhisperClient` als echte WhisperKit-Implementierung (kein Stub-Wording mehr)
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] 01-01-PLAN.md — STAB-01: API-Key in Keychain + UserDefaults-Migration
+- [ ] 01-02-PLAN.md — STAB-02: Hotkey-Debounce-Konstanten extrahieren + Doku-Sync
+- [ ] 01-03-PLAN.md — STAB-03: CGEventTap Auto-Restart nach Permission-Grant
+- [ ] 01-04-PLAN.md — STAB-04: RISKS.md + ARCHITECTURE.md LocalWhisper-Drift entfernen
 
 ### Phase 2: Test-Fundament
 **Goal**: Automatisierte Test-Pipeline existiert und deckt die fragilsten Codepfade ab
@@ -104,6 +108,22 @@ Eingeplante Initiativen für künftige Milestones — werden bei Bedarf via `/gs
 **Depends on**: Phase 999.2
 **Requirements**: BL-MEET-S
 **Notes**: Apple Foundation Models ab macOS 26 als lokale Alternative prüfen
+
+### Phase 999.4: Übersetzung einer Transkription (BACKLOG)
+**Goal**: [Captured for future planning] Transkriptionsergebnis optional in eine Zielsprache übersetzen
+**Requirements**: TBD
+**Plans**: 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.5: Übersetzung einer Meeting-Zusammenfassung (BACKLOG)
+**Goal**: [Captured for future planning] Meeting-Zusammenfassung optional in eine Zielsprache übersetzen
+**Requirements**: TBD
+**Plans**: 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
 
 ## Progress
 
