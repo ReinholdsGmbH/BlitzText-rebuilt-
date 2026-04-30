@@ -206,6 +206,10 @@
 - Location: `BlitzText/Hotkeys/HotkeyManager.swift:29`
 - Triggers: any global key event (`.flagsChanged` / `.keyDown`) once Accessibility is granted.
 - Responsibilities: decode `fn`+modifier combos, debounce (50 ms hold, 300 ms toggle), bridge to `ModeProcessor` on the main queue.
+- Debounce-Rationale: Der Hold-Wert (50 ms) ist auf CGEvent-Doppelfeuer-Suppression
+  ausgelegt, ohne kurze fn+Shift-Antipper zu verlieren; der Toggle-Wert (300 ms)
+  blockt unbeabsichtigte Doppeltipps, die sonst ein Toggle-Paar (start→stop)
+  ausgelöst hätten. Werte leben als `static let` in `HotkeyManager.swift`.
 
 **Menu-bar click (`MenuBarController.togglePopover`)**
 - Location: `BlitzText/MenuBar/MenuBarController.swift:68`
