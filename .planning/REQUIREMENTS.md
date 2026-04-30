@@ -74,34 +74,32 @@ Werden als 999.x-Backlog-Phasen in ROADMAP.md registriert:
 
 ## Traceability
 
-Wird beim Roadmap-Erstellen ausgefüllt.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPK-01 | TBD | Pending |
-| SPK-02 | TBD | Pending |
-| SPK-03 | TBD | Pending |
-| SPK-04 | TBD | Pending |
-| SPK-05 | TBD | Pending |
-| SPK-06 | TBD | Pending |
-| SPK-07 | TBD | Pending |
-| SPK-08 | TBD | Pending |
-| DIA-01 | TBD | Pending |
-| DIA-02 | TBD | Pending |
-| STAB-01 | TBD | Pending |
-| STAB-02 | TBD | Pending |
-| STAB-03 | TBD | Pending |
-| STAB-04 | TBD | Pending |
-| TEST-01 | TBD | Pending |
-| TEST-02 | TBD | Pending |
-| TEST-03 | TBD | Pending |
-| TEST-04 | TBD | Pending |
+| SPK-01 | Phase 4 | Pending |
+| SPK-02 | Phase 4 | Pending |
+| SPK-03 | Phase 4 | Pending |
+| SPK-04 | Phase 5 | Pending |
+| SPK-05 | Phase 5 | Pending |
+| SPK-06 | Phase 5 | Pending |
+| SPK-07 | Phase 5 | Pending |
+| SPK-08 | Phase 6 | Pending |
+| DIA-01 | Phase 3 | Pending |
+| DIA-02 | Phase 3 | Pending |
+| STAB-01 | Phase 1 | Pending |
+| STAB-02 | Phase 1 | Pending |
+| STAB-03 | Phase 1 | Pending |
+| STAB-04 | Phase 1 | Pending |
+| TEST-01 | Phase 2 | Pending |
+| TEST-02 | Phase 2 | Pending |
+| TEST-03 | Phase 4 | Pending |
+| TEST-04 | Phase 2 | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 0 (wird durch Roadmapper gefüllt)
-- Unmapped: 18 ⚠️ (initial)
+- Mapped to phases: 18
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after initialization*
+*Last updated: 2026-04-30 — traceability table populated by roadmapper*
