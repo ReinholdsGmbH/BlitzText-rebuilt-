@@ -23,23 +23,22 @@ final class SettingsStore: ObservableObject {
 
     // MARK: - API-Key
 
-    /// Liegt in UserDefaults, nicht im Keychain.
-    /// Grund: Bei Self-Signed-Dev-Builds ist die Keychain-ACL Code-Hash-gebunden →
-    /// jedes Rebuild triggert einen Schlüsselbund-Prompt, „Immer erlauben" hält
-    /// nicht. UserDefaults ist genauso File-system-protected (User-Login), kein
-    /// meaningful Security-Verlust für Personal-Use.
+    /// Liegt in der macOS-Keychain (Service `de.reinholds.blitztext`,
+    /// Account `openai-api-key`). Synchroner Zugriff bleibt erhalten —
+    /// Keychain.read/write sind blockierend und Sendable-safe.
     var apiKey: String {
-        get { UserDefaults.standard.string(forKey: Self.apiKeyDefaultsKey) ?? "" }
+        get { Keychain.shared.read(account: Self.apiKeyKeychainAccount) ?? "" }
         set {
             if newValue.isEmpty {
-                UserDefaults.standard.removeObject(forKey: Self.apiKeyDefaultsKey)
+                Keychain.shared.delete(account: Self.apiKeyKeychainAccount)
             } else {
-                UserDefaults.standard.set(newValue, forKey: Self.apiKeyDefaultsKey)
+                Keychain.shared.write(value: newValue, account: Self.apiKeyKeychainAccount)
             }
             objectWillChange.send()
         }
     }
-    private static let apiKeyDefaultsKey = "de.reinholds.blitztext.apiKey"
+    private static let apiKeyLegacyDefaultsKey = "de.reinholds.blitztext.apiKey"
+    private static let apiKeyKeychainAccount = "openai-api-key"
 
     // MARK: - Lifecycle
 
@@ -48,11 +47,31 @@ final class SettingsStore: ObservableObject {
 
     init() {
         load()
+        migrateAPIKeyFromUserDefaultsIfNeeded()
         // Auto-Persist bei jeder Änderung
         objectWillChange
             .debounce(for: .milliseconds(150), scheduler: RunLoop.main)
             .sink { [weak self] _ in self?.save() }
             .store(in: &cancellables)
+    }
+
+    /// Einmalige Migration: alter UserDefaults-Eintrag → Keychain.
+    /// Idempotent (kein Eintrag = No-Op). Bei Keychain-Fehler bleibt der
+    /// Legacy-Eintrag erhalten, damit der User den Key nicht verliert.
+    private func migrateAPIKeyFromUserDefaultsIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard let legacy = defaults.string(forKey: Self.apiKeyLegacyDefaultsKey),
+              !legacy.isEmpty else { return }
+
+        if Keychain.shared.read(account: Self.apiKeyKeychainAccount) == nil {
+            if Keychain.shared.write(value: legacy, account: Self.apiKeyKeychainAccount) {
+                Log.write("SettingsStore: API-Key von UserDefaults nach Keychain migriert")
+            } else {
+                Log.write("SettingsStore: API-Key Migration fehlgeschlagen — UserDefaults-Eintrag bleibt erhalten")
+                return
+            }
+        }
+        defaults.removeObject(forKey: Self.apiKeyLegacyDefaultsKey)
     }
 
     private struct Snapshot: Codable {
