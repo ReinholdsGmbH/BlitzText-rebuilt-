@@ -3,8 +3,10 @@ import Security
 
 /// Klassischer macOS-Keychain (file-based login keychain).
 /// Beim ersten Schreiben/Lesen prompted der Schlüsselbund einmal — auf
-/// "Immer erlauben" klicken, dann fragt er nicht mehr (solange unsere
-/// Code-Signing-Identity stabil bleibt).
+/// "Immer erlauben" klicken, dann fragt er nicht mehr, solange das
+/// "BlitzText Local Dev"-Cert (Scripts/create-signing-cert.sh) verwendet
+/// wird. Bei ad-hoc-Signing wechselt der Code-Hash bei jedem Build und der
+/// Prompt erscheint erneut.
 ///
 /// Hinweis: kSecUseDataProtectionKeychain wäre prompt-frei, braucht aber
 /// eine echte Apple-Team-ID — funktioniert mit Self-signed-Cert nicht.

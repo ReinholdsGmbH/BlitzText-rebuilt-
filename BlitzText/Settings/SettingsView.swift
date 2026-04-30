@@ -206,7 +206,7 @@ private struct ZugangTab: View {
                         PermissionsHelper.openMicrophoneSettings()
                     }
                 }
-                Text("Nach dem Erteilen der Bedienungshilfen-Berechtigung BlitzText einmal beenden und neu starten — sonst greift sie nicht für den Hotkey-Tap.")
+                Text("Nach dem Erteilen der Bedienungshilfen-Berechtigung sind die Hotkeys sofort aktiv — kein App-Neustart nötig.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Status aktualisieren") { permissionRefresh += 1 }
             }
