@@ -1,0 +1,177 @@
+import Foundation
+import AVFoundation
+
+/// Nimmt Mikrofon nach `start()` auf, schreibt eine 16 kHz mono 16-bit WAV. Stoppt mit `stop()` und liefert die URL.
+final class AudioRecorder: ObservableObject, @unchecked Sendable {
+
+    /// Aktueller Pegel (0…1, RMS-basiert mit weichem Decay) — für Live-Visualisierung im Recording-HUD.
+    @MainActor @Published private(set) var currentLevel: Float = 0
+
+    private let engine = AVAudioEngine()
+    private var file: AVAudioFile?
+    private var fileURL: URL?
+    private var converter: AVAudioConverter?
+    private var targetFormat: AVAudioFormat?
+    private var startedAt: Date?
+    private var peakAmplitude: Float = 0
+
+    /// Pegel-Schwelle (Peak): unter diesem Wert gilt die Aufnahme als Stille.
+    private let silenceThreshold: Float = 0.005
+    /// Mindestlänge der Aufnahme in Sekunden, sonst verworfen.
+    private let minDuration: TimeInterval = 0.3
+
+    /// Letzte Aufnahme zu kurz oder zu leise — Pipeline soll überspringen.
+    private(set) var lastRecordingWasSilence: Bool = false
+
+    func start() throws -> URL {
+        try ensureMicrophonePermissionSync()
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("blitztext-\(UUID().uuidString).wav")
+        self.fileURL = url
+
+        let input = engine.inputNode
+        let inFormat = input.outputFormat(forBus: 0)
+
+        guard let target = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 16_000,
+            channels: 1,
+            interleaved: true
+        ) else {
+            throw NSError(domain: "BlitzText", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "Kann Ziel-Audio-Format nicht erstellen."])
+        }
+        self.targetFormat = target
+
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: target.sampleRate,
+            AVNumberOfChannelsKey: target.channelCount,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false
+        ]
+        self.file = try AVAudioFile(forWriting: url, settings: settings,
+                                    commonFormat: .pcmFormatInt16, interleaved: true)
+        self.converter = AVAudioConverter(from: inFormat, to: target)
+
+        input.installTap(onBus: 0, bufferSize: 4096, format: inFormat) { [weak self] buffer, _ in
+            self?.measurePeak(buffer: buffer)
+            self?.write(buffer: buffer)
+        }
+        engine.prepare()
+        try engine.start()
+        self.startedAt = Date()
+        self.peakAmplitude = 0
+        self.lastRecordingWasSilence = false
+        Task { @MainActor in self.currentLevel = 0 }
+        return url
+    }
+
+    @discardableResult
+    func stop() -> URL? {
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        let url = fileURL
+        let duration = startedAt.map { Date().timeIntervalSince($0) } ?? 0
+        let peak = peakAmplitude
+        self.file = nil
+        self.fileURL = nil
+        self.converter = nil
+        self.startedAt = nil
+
+        let tooShort = duration < minDuration
+        let tooQuiet = peak < silenceThreshold
+        Task { @MainActor in self.currentLevel = 0 }
+        if tooShort || tooQuiet {
+            Log.write("Aufnahme verworfen — duration=\(String(format: "%.2f", duration))s peak=\(String(format: "%.3f", peak)) (silenceThreshold=\(silenceThreshold))")
+            self.lastRecordingWasSilence = true
+            if let url { try? FileManager.default.removeItem(at: url) }
+            return nil
+        }
+        Log.write("Aufnahme ok — duration=\(String(format: "%.2f", duration))s peak=\(String(format: "%.3f", peak))")
+        return url
+    }
+
+    private func measurePeak(buffer: AVAudioPCMBuffer) {
+        guard let channels = buffer.floatChannelData else { return }
+        let frames = Int(buffer.frameLength)
+        var localPeak: Float = 0
+        var sumSquares: Float = 0
+        var count: Int = 0
+        for ch in 0..<Int(buffer.format.channelCount) {
+            let data = channels[ch]
+            for i in 0..<frames {
+                let v = data[i]
+                let absV = abs(v)
+                if absV > localPeak { localPeak = absV }
+                sumSquares += v * v
+                count += 1
+            }
+        }
+        if localPeak > peakAmplitude { peakAmplitude = localPeak }
+
+        let rms = count > 0 ? sqrtf(sumSquares / Float(count)) : 0
+        // Logarithmische Skalierung auf 0…1 für UI-tauglichen Pegel.
+        // Floor bei -50 dB, Ceiling bei -10 dB → mappt aus realistischer Sprach-Range.
+        let db = 20 * log10f(max(rms, 0.0001))
+        let normalized = max(0, min(1, (db + 50) / 40))
+        let smoothed = normalized
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            // Schneller Anstieg, langsames Abklingen
+            if smoothed > self.currentLevel {
+                self.currentLevel = smoothed
+            } else {
+                self.currentLevel = self.currentLevel * 0.85 + smoothed * 0.15
+            }
+        }
+    }
+
+    private func write(buffer: AVAudioPCMBuffer) {
+        guard let target = targetFormat,
+              let converter,
+              let file else { return }
+        let ratio = target.sampleRate / buffer.format.sampleRate
+        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio + 1024)
+        guard let outBuffer = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return }
+
+        var error: NSError?
+        var consumed = false
+        let status = converter.convert(to: outBuffer, error: &error) { _, outStatus in
+            if consumed {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+            consumed = true
+            outStatus.pointee = .haveData
+            return buffer
+        }
+        if status == .error || error != nil { return }
+        guard outBuffer.frameLength > 0 else { return }
+        do { try file.write(from: outBuffer) } catch {
+            NSLog("[BlitzText] AudioFile write failed: \(error)")
+        }
+    }
+
+    // MARK: - Permission
+
+    private func ensureMicrophonePermissionSync() throws {
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        switch status {
+        case .authorized: return
+        case .notDetermined:
+            let sema = DispatchSemaphore(value: 0)
+            var granted = false
+            AVCaptureDevice.requestAccess(for: .audio) { ok in granted = ok; sema.signal() }
+            sema.wait()
+            if !granted { throw RecorderError.micDenied }
+        case .denied, .restricted: throw RecorderError.micDenied
+        @unknown default: throw RecorderError.micDenied
+        }
+    }
+
+    enum RecorderError: Error { case micDenied }
+}

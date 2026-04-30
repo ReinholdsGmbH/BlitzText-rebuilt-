@@ -1,0 +1,258 @@
+import Foundation
+import AppKit
+
+/// Orchestriert die Pipeline: Aufnahme → Whisper → (optional Rewrite) → Output (Clipboard / Auto-Paste).
+@MainActor
+final class ModeProcessor: ObservableObject {
+
+    enum State: Equatable {
+        case idle
+        case recording(Mode)
+        case transcribing(Mode)
+        case rewriting(Mode)
+        case error(String)
+    }
+
+    @Published private(set) var state: State = .idle
+
+    private let settings: SettingsStore
+    let history: HistoryStore
+    let recorder = AudioRecorder()
+    let suggestionPresenter: SuggestionPresenter
+    let modelManager: LocalModelManager
+    private lazy var openAITranscriber: TranscriptionService = WhisperAPIClient(settings: settings)
+    private lazy var localClient = LocalWhisperClient(modelManager: modelManager)
+    private lazy var localTranscriber: TranscriptionService = localClient
+    private lazy var parakeetClient = ParakeetClient(settings: settings)
+    private lazy var parakeetTranscriber: TranscriptionService = parakeetClient
+    private lazy var rewriter: RewriteService = OpenAIChatClient(settings: settings)
+    private let inserter = TextInserter()
+
+    private var activeMode: Mode?
+    private var currentRecordingURL: URL?
+
+    init(settings: SettingsStore, history: HistoryStore, modelManager: LocalModelManager) {
+        self.settings = settings
+        self.history = history
+        self.modelManager = modelManager
+        self.suggestionPresenter = SuggestionPresenter(settings: settings)
+    }
+
+    /// Lädt das aktuell aktivierte lokale Modell vorab (im Hintergrund). Nach Modell-Aktivierung
+    /// oder beim App-Start aufrufen, damit die erste echte Aufnahme nicht 1–3 min wartet.
+    func preloadLocalModelIfActive() {
+        switch settings.backend {
+        case .openAI:
+            return
+        case .local:
+            guard modelManager.activeID != nil else { return }
+            let client = localClient
+            Task.detached { await client.warmUp() }
+        case .parakeet:
+            let client = parakeetClient
+            Task.detached { await client.warmUp() }
+        }
+    }
+
+    // MARK: - Public API
+
+    func start(mode: Mode) async {
+        guard activeMode == nil else { return }
+        activeMode = mode
+        do {
+            let url = try recorder.start()
+            currentRecordingURL = url
+            state = .recording(mode)
+        } catch {
+            state = .error(humanReadable(error))
+            activeMode = nil
+            currentRecordingURL = nil
+        }
+    }
+
+    func stop() async {
+        guard let mode = activeMode else { return }
+        let url = recorder.stop()
+        activeMode = nil
+        currentRecordingURL = nil
+        guard let url else {
+            // zu kurz / zu leise → still verwerfen, kein Whisper-Call (verhindert Halluzinationen)
+            state = .idle
+            return
+        }
+        await runPipeline(mode: mode, audioURL: url)
+    }
+
+    func toggle(mode: Mode) async {
+        if activeMode == nil {
+            await start(mode: mode)
+        } else if activeMode == mode {
+            await stop()
+        } else {
+            await stop()
+            await start(mode: mode)
+        }
+    }
+
+    // MARK: - Pipeline
+
+    private func runPipeline(mode: Mode, audioURL: URL) async {
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+
+        let transcriber: TranscriptionService = {
+            switch settings.backend {
+            case .openAI:   return openAITranscriber
+            case .local:    return localTranscriber
+            case .parakeet: return parakeetTranscriber
+            }
+        }()
+        state = .transcribing(mode)
+        let raw: String
+        do {
+            raw = try await transcriber.transcribe(
+                audioURL: audioURL,
+                language: settings.transcriptionLanguage.isEmpty ? nil : settings.transcriptionLanguage,
+                prompt: makeWhisperPrompt()
+            )
+        } catch {
+            state = .error(humanReadable(error))
+            return
+        }
+        guard !raw.isEmpty else {
+            state = .idle
+            return
+        }
+        if isLikelyHallucination(raw) {
+            Log.write("Whisper-Halluzination erkannt, verworfen: \(raw)")
+            state = .idle
+            return
+        }
+
+        let output: String
+        let polished: String?
+        switch mode {
+        case .blitztext:
+            output = raw
+            polished = nil
+        case .blitztextPlus, .blitztextRant:
+            state = .rewriting(mode)
+            do {
+                let p = try await rewriter.rewrite(
+                    input: raw,
+                    systemPrompt: makeRewriteSystemPrompt(for: mode),
+                    model: settings.rewriteModel
+                )
+                output = p
+                polished = p
+            } catch {
+                state = .error(humanReadable(error))
+                return
+            }
+        }
+
+        deliver(output)
+        history.append(mode: mode, rawTranscript: raw, polished: polished)
+        state = .idle
+
+        // Eigennamen-Vorschläge: Heuristik (sofort) + AI (asynchron), beide enqueued.
+        let heuristic = EigennamenAnalyzer.candidates(rawTranscript: raw, polished: polished)
+        if !heuristic.isEmpty {
+            suggestionPresenter.enqueue(heuristic)
+        }
+        if settings.aiSuggestProperNouns {
+            let textForAI = polished ?? raw
+            let apiKey = settings.apiKey
+            let presenter = suggestionPresenter
+            Task.detached {
+                let aiCandidates = await EigennamenAISuggester.extract(from: textForAI, apiKey: apiKey)
+                if !aiCandidates.isEmpty {
+                    await MainActor.run { presenter.enqueue(aiCandidates) }
+                }
+            }
+        }
+    }
+
+    // MARK: - Prompt-Komposition
+
+    private func makeWhisperPrompt() -> String? {
+        var pieces: [String] = []
+        if !settings.context.isEmpty {
+            pieces.append(settings.context)
+        }
+        if !settings.properNouns.isEmpty {
+            pieces.append("Eigennamen: " + settings.properNouns.joined(separator: ", "))
+        }
+        let combined = pieces.joined(separator: "\n")
+        return combined.isEmpty ? nil : combined
+    }
+
+    private func makeRewriteSystemPrompt(for mode: Mode) -> String {
+        var parts: [String] = []
+        switch mode {
+        case .blitztextPlus:
+            parts.append(settings.customPromptPlus.isEmpty
+                         ? Mode.blitztextPlus.defaultRewritePrompt
+                         : settings.customPromptPlus)
+            parts.append(settings.styleForPlus.promptHint)
+        case .blitztextRant:
+            parts.append(settings.customPromptRant.isEmpty
+                         ? Mode.blitztextRant.defaultRewritePrompt
+                         : settings.customPromptRant)
+        case .blitztext:
+            break
+        }
+        if !settings.context.isEmpty {
+            parts.append("Kontext der sprechenden Person: \(settings.context)")
+        }
+        if !settings.properNouns.isEmpty {
+            parts.append("Schreibe folgende Eigennamen exakt richtig: " + settings.properNouns.joined(separator: ", ") + ".")
+        }
+        parts.append("Gib ausschließlich den umgeschriebenen Text zurück, keine Vorbemerkungen, keine Anführungszeichen.")
+        return parts.joined(separator: "\n\n")
+    }
+
+    // MARK: - Output
+
+    private func deliver(_ text: String) {
+        inserter.copyToClipboard(text)
+        if settings.autoInsert {
+            inserter.simulatePaste()
+        }
+    }
+
+    // MARK: - Hallucination filter
+
+    /// Whisper halluziniert bei Stille gerne YouTube-Untertitel-Phrasen.
+    /// Wir filtern bekannte Phrasen heuristisch (Substring-Match, case-insensitive).
+    private func isLikelyHallucination(_ text: String) -> Bool {
+        let lowered = text.lowercased()
+        let needles = [
+            "amara.org",
+            "untertitel der amara",
+            "untertitel im auftrag",
+            "untertitelung des zdf",
+            "untertitel von stephanie geiges",
+            "vielen dank fürs zuschauen",
+            "vielen dank für eure aufmerksamkeit",
+            "untertitel der videos",
+            "thanks for watching",
+            "subtitles by the amara.org",
+            "♪",
+            "[musik]",
+            "[music]"
+        ]
+        return needles.contains { lowered.contains($0) }
+    }
+
+    // MARK: - Helpers
+
+    private func humanReadable(_ error: Error) -> String {
+        if let e = error as? TranscriptionError, let msg = e.errorDescription { return msg }
+        if let e = error as? AudioRecorder.RecorderError {
+            switch e {
+            case .micDenied: return "Mikrofon-Zugriff verweigert. Bitte in Systemeinstellungen → Datenschutz → Mikrofon erlauben."
+            }
+        }
+        return error.localizedDescription
+    }
+}
