@@ -27,7 +27,11 @@
 - Ohne Code-Sign mit Developer-ID kann die App nicht weitergegeben werden (Gatekeeper). Für Eigenverwendung ad-hoc-sign reicht.
 - Kein Update-Mechanismus im MVP. Sparkle/macOS-eigenes Update später.
 - Kein Onboarding-Flow im MVP — der User (du) weiß, was er tut. Nutzer-Flow kommt mit Distribution.
-- Lokales Whisper-Modell ist nur ein Stub. Echter Einbau (whisper.cpp) ist eigene Phase.
+- Lokales Whisper läuft über WhisperKit/CoreML (siehe `BlitzText/Transcription/LocalWhisperClient.swift`).
+  Modelle werden beim ersten Aktivieren aus HuggingFace heruntergeladen und unter
+  `~/Library/Application Support/BlitzText/Models/<variant>/` abgelegt. Risiko: Cold-Start
+  des CoreML-Compile-Schritts beim ersten Lauf liegt bei 1–3 Minuten — daher Warm-Up via
+  `LocalModelManager.onActivate` beim Modellwechsel und in `AppDelegate.bootstrap`.
 - Kein Offline-Modus. Ohne Netz: Hinweis im HUD.
 
 ## Roadmap (geplant, nicht im MVP)
