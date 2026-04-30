@@ -78,6 +78,18 @@ final class HotkeyManager: @unchecked Sendable {
         runLoopSource = nil
     }
 
+    // MARK: - Debounce
+
+    /// Mindestabstand zwischen zwei Hold-Mode-Übergängen.
+    /// 50 ms reicht, um CGEvent-Doppelfeuer beim Tasten-Loslassen zu schlucken,
+    /// ist aber kurz genug, dass man fn+Shift „antippen" kann, ohne die Aufnahme
+    /// zu verlieren. Quelle: empirisch ermittelt am M1, siehe ARCHITECTURE.md.
+    private static let holdDebounce: TimeInterval = 0.05
+
+    /// Mindestabstand zwischen zwei Toggle-Edges. 300 ms verhindert, dass ein
+    /// Doppeltipp ungewollt zweimal toggelt (start → stop sofort danach).
+    private static let toggleDebounce: TimeInterval = 0.30
+
     // MARK: - Detection
 
     private func handleFlagsChanged(event: CGEvent) {
@@ -107,8 +119,7 @@ final class HotkeyManager: @unchecked Sendable {
 
     private func handleHoldTransition(newMode: Mode?) {
         if newMode == currentMode { return }
-        // Debounce
-        if Date().timeIntervalSince(lastTriggerAt) < 0.05 { return }
+        if Date().timeIntervalSince(lastTriggerAt) < Self.holdDebounce { return }
         lastTriggerAt = Date()
 
         let trigger = self.onTrigger
@@ -125,7 +136,7 @@ final class HotkeyManager: @unchecked Sendable {
     private func handleToggleTransition(newMode: Mode?) {
         // Nur die "Drücken"-Edge zählt: Übergang von kein Mode → ein Mode.
         guard let next = newMode else { return }
-        if Date().timeIntervalSince(lastTriggerAt) < 0.3 { return }
+        if Date().timeIntervalSince(lastTriggerAt) < Self.toggleDebounce { return }
         lastTriggerAt = Date()
         let trigger = self.onTrigger
         DispatchQueue.main.async { trigger(next, .toggle) }
