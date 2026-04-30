@@ -7,7 +7,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Stabilisierung & Doku-Drift** — Keychain-Migration, Hotkey-Debounce, Tap-Auto-Restart, Doku-Aktualisierung
+- [x] **Phase 1: Stabilisierung & Doku-Drift** — Keychain-Migration, Hotkey-Debounce, Tap-Auto-Restart, Doku-Aktualisierung
 - [ ] **Phase 2: Test-Fundament** — XCTest-Target plus Tests für Hotkey-Statemachine und Pipeline-Fehlerpfade
 - [ ] **Phase 3: Diarization-UX** — Sichtbarer Modell-Download mit Progress und Retry
 - [ ] **Phase 4: Sprecher-Profile Core** — Persistenter Store + Integration mit `DiarizerManager.speakerManager`
@@ -26,10 +26,10 @@
   3. Nach Erteilen der Accessibility-Permission funktionieren Hotkeys ohne App-Relaunch (Tap startet automatisch neu)
   4. `ARCHITECTURE.md` und `RISKS.md` beschreiben `LocalWhisperClient` als echte WhisperKit-Implementierung (kein Stub-Wording mehr)
 **Plans**: 4 plans
-- [ ] 01-01-PLAN.md — STAB-01: API-Key in Keychain + UserDefaults-Migration
-- [ ] 01-02-PLAN.md — STAB-02: Hotkey-Debounce-Konstanten extrahieren + Doku-Sync
-- [ ] 01-03-PLAN.md — STAB-03: CGEventTap Auto-Restart nach Permission-Grant
-- [ ] 01-04-PLAN.md — STAB-04: RISKS.md + ARCHITECTURE.md LocalWhisper-Drift entfernen
+- [x] 01-01-PLAN.md — STAB-01: API-Key in Keychain + UserDefaults-Migration
+- [x] 01-02-PLAN.md — STAB-02: Hotkey-Debounce-Konstanten extrahieren + Doku-Sync
+- [x] 01-03-PLAN.md — STAB-03: CGEventTap Auto-Restart nach Permission-Grant
+- [x] 01-04-PLAN.md — STAB-04: RISKS.md + ARCHITECTURE.md LocalWhisper-Drift entfernen
 
 ### Phase 2: Test-Fundament
 **Goal**: Automatisierte Test-Pipeline existiert und deckt die fragilsten Codepfade ab
