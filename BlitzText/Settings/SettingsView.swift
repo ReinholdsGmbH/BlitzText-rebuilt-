@@ -242,7 +242,7 @@ private struct ZugangTab: View {
                         }
                     }
                 }
-                Text("Der Schlüssel liegt in den User-Defaults unter `~/Library/Preferences/de.reinholds.blitztext.plist` (geschützt durch dein User-Login). Bei späterer Distribution mit Apple-Developer-ID wechseln wir zur macOS-Keychain.")
+                Text("Der Schlüssel liegt in deinem macOS-Schlüsselbund (Service `de.reinholds.blitztext`, Account `openai-api-key`). Beim ersten Speichern und Lesen fragt der Schlüsselbund einmal nach Bestätigung — auf „Immer erlauben\" klicken.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
