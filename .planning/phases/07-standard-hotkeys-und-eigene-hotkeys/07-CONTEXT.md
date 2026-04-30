@@ -1,8 +1,8 @@
-# Phase 999.6 Context: Standard-Hotkeys und Vergabe eigener Hotkeys
+# Phase 7 Context: Standard-Hotkeys und Vergabe eigener Hotkeys
 
-**Captured:** 2026-04-30
-**Phase status:** BACKLOG (999.x — unsequenced parking lot)
-**Source:** `/gsd-discuss-phase 999.6`
+**Captured:** 2026-04-30 (originally 999.6)
+**Phase status:** ACTIVE — promoted from backlog 2026-04-30
+**Source:** `/gsd-discuss-phase 999.6` → `/gsd-review-backlog`
 
 ## <domain>
 

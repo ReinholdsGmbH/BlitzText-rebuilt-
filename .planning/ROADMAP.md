@@ -13,6 +13,7 @@
 - [ ] **Phase 4: Sprecher-Profile Core** — Persistenter Store + Integration mit `DiarizerManager.speakerManager`
 - [ ] **Phase 5: Sprecher-Profile UI** — Settings-Tab "Sprecher" mit Verwaltung, Threshold und Zuordnung
 - [ ] **Phase 6: Sprecher-Enrollment** — Optionaler Erst-Enrollment-Flow für gezielte Profil-Anlage
+- [ ] **Phase 7: Standard-Hotkeys & eigene Hotkeys** — Default-Hotkey-Set + freie Tastenkombo-Vergabe pro Mode (Hybrid CGEventTap + SPM-Hotkey-Package)
 
 ## Phase Details
 
@@ -87,6 +88,19 @@
 **Plans**: TBD
 **UI hint**: yes
 
+### Phase 7: Standard-Hotkeys & eigene Hotkeys
+**Goal**: Sinnvolle Default-Hotkeys ausliefern und Nutzer:innen erlauben, eigene Hotkeys frei zu vergeben
+**Depends on**: Phase 1 (Hotkey-Debounce / Tap-Auto-Restart sollten vorher konsolidiert sein)
+**Requirements**: keine v1-Mapping (milestone-erweiternd, aus Backlog 999.6 promoted)
+**Success Criteria** (what must be TRUE):
+  1. Hold-Pfad behält die existierenden fn+Shift / fn+Ctrl / fn+Option-Defaults und funktioniert unverändert für Bestandsnutzer
+  2. Pro Mode kann optional eine freie Tastenkombo (z.B. ⌘⇧B) für den Toggle-Pfad gesetzt werden — registriert via SPM-Hotkey-Package, persistiert im `SettingsStore`-Snapshot
+  3. Neuer Settings-Tab "Hotkeys" zeigt eine Tabelle mit Hold-/Toggle-Bindings, Recorder-Widget, "Auf Standard zurücksetzen"-Button pro Zeile
+  4. Bei Verdacht auf System-Konflikt erscheint ein dezentes Warn-Banner; In-App-Doppelbelegungen werden im Recorder vorab verhindert
+**Plans**: TBD
+**UI hint**: yes
+**Context**: 07-CONTEXT.md (gathered 2026-04-30 als 999.6, promoted via /gsd-review-backlog)
+
 ## Backlog
 
 Eingeplante Initiativen für künftige Milestones — werden bei Bedarf via `/gsd-insert-phase` oder neuem Milestone aktiviert.
@@ -125,14 +139,6 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
-### Phase 999.6: Standard-Hotkeys und Vergabe eigener Hotkeys (BACKLOG)
-**Goal**: [Captured for future planning] Sinnvolle Default-Hotkeys ausliefern und Nutzer:innen erlauben, eigene Hotkeys frei zu vergeben
-**Requirements**: TBD
-**Plans**: 0 plans
-
-Plans:
-- [ ] TBD (promote with /gsd-review-backlog when ready)
-
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -143,9 +149,12 @@ Plans:
 | 4. Sprecher-Profile Core | 0/0 | Not started | - |
 | 5. Sprecher-Profile UI | 0/0 | Not started | - |
 | 6. Sprecher-Enrollment | 0/0 | Not started | - |
+| 7. Standard-Hotkeys & eigene Hotkeys | 0/0 | Not started | - |
 | 999.1. iOS-/iPadOS-Port | 0/0 | Backlog | - |
 | 999.2. Meeting-Transkription | 0/0 | Backlog | - |
 | 999.3. Meeting-Zusammenfassungen | 0/0 | Backlog | - |
+| 999.4. Übersetzung einer Transkription | 0/0 | Backlog | - |
+| 999.5. Übersetzung einer Meeting-Zusammenfassung | 0/0 | Backlog | - |
 
 ## Coverage
 
@@ -159,6 +168,7 @@ All 18 v1 requirements mapped to exactly one phase. No orphans.
 | Phase 4 | SPK-01, SPK-02, SPK-03, TEST-03 |
 | Phase 5 | SPK-04, SPK-05, SPK-06, SPK-07 |
 | Phase 6 | SPK-08 |
+| Phase 7 | — (milestone-erweiternd, kein v1-Requirement; promoted aus Backlog 999.6) |
 
 **Note on TEST-03 placement:** TEST-03 (Sprecher-Profil-Matching-Tests) lebt in Phase 4 statt Phase 2, weil die zu testenden Komponenten (Persistenz, EMA-Update, Threshold-Matching) erst in Phase 4 entstehen. Phase 2 etabliert das Test-Target und deckt Hotkey + Pipeline-Fehlerpfade ab; Phase 4 erweitert die Suite parallel zur Implementierung.
 
