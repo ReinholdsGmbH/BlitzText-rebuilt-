@@ -78,9 +78,9 @@ Keine.
 
 ## Session Continuity
 
-**Letzte Aktion:** Phase 3 Discuss abgeschlossen — 03-CONTEXT.md mit 18 Decisions in 7 Bereichen (sofortiger Download bei Toggle-On, Toggle-Replacement durch Status-Label, eigener Downloader analog LocalModelManager, Pre-Warm beim App-Start). Researcher-Aufgaben markiert. 1 Commit (314652f) auf main.
+**Letzte Aktion:** Phase 3 Discuss + UI-Phase abgeschlossen. 03-CONTEXT.md (18 Decisions) + 03-UI-SPEC.md APPROVED 6/6 dimensions (vier States: Toggle / Downloading / Installed / Error). Researcher-FLAG (.title3 frontmatter) angewandt. 3 Commits auf main (314652f, da44bf1, e8ecc6b).
 
-**Nächste Aktion:** `/gsd-ui-phase 3` (chained → `/gsd-plan-phase 3`) — UI-SPEC fuer Diarization-Block (Toggle-or-Status-Label-Modus, Progress-Bar, Status-Pill, Retry-Button).
+**Nächste Aktion:** `/gsd-plan-phase 3 --chain` — Plan fuer Diarization-UX (DiarizerModelManager + Settings-UI-Block + AppDelegate-PreWarm).
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*
