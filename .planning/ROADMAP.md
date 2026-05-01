@@ -41,7 +41,11 @@
   2. Hotkey-State-Machine (Halten-/Drücken-Modus, Modifier-Kombinationen, schnelles Loslassen) ist durch Unit-Tests abgedeckt
   3. Pipeline-Fehlerpfade (Whisper-API-Fehler, fehlendes Parakeet-Modell, Diarization-Fehlschlag) sind durch Tests abgedeckt
   4. Test-Suite läuft lokal in unter 30 Sekunden und produziert keine Flakes über drei Durchläufe
-**Plans**: TBD
+**Plans**: 3 plans
+
+- [x] 02-01-PLAN.md — Wave 0: BlitzTextTests-Target + Hotkey/ModeProcessor/Recorder-Test-Seams + Fakes + SmokeTests
+- [ ] 02-02-PLAN.md — Hotkey-State-Machine-Tests (Hold/Toggle, Modifier-Matrix, Debounce)
+- [ ] 02-03-PLAN.md — Pipeline-Fehlerpfade (Whisper-API-Fehler, Parakeet-Modell, Diarization-Fehlschlag)
 
 ### Phase 3: Diarization-UX
 **Goal**: Diarization-Modell-Download wird sichtbar, fehlerfest und vom Nutzer kontrollierbar

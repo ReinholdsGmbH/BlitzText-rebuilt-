@@ -30,7 +30,7 @@
 
 ### Test-Fundament
 
-- [ ] **TEST-01**: `project.yml` enthält ein XCTest-Target `BlitzTextTests` mit funktionierender Build-Pipeline.
+- [x] **TEST-01**: `project.yml` enthält ein XCTest-Target `BlitzTextTests` mit funktionierender Build-Pipeline.
 - [ ] **TEST-02**: Tests existieren für die Hotkey-State-Machine (Halten/Drücken-Modus, Modifier-Kombinationen, Edge-Cases wie schnelles Loslassen).
 - [ ] **TEST-03**: Tests existieren für Sprecher-Profil-Matching (cosine-similarity-Threshold, EMA-Update, Persistierung Round-Trip).
 - [ ] **TEST-04**: Tests existieren für die Pipeline-Fehlerpfade (Whisper-API-Fail, Parakeet-Modell fehlt, Diarization-Fail bei aktiviertem Setting).
@@ -90,7 +90,7 @@ Werden als 999.x-Backlog-Phasen in ROADMAP.md registriert:
 | STAB-02 | Phase 1 | Pending |
 | STAB-03 | Phase 1 | Pending |
 | STAB-04 | Phase 1 | Pending |
-| TEST-01 | Phase 2 | Pending |
+| TEST-01 | Phase 2 | Done (02-01) |
 | TEST-02 | Phase 2 | Pending |
 | TEST-03 | Phase 4 | Pending |
 | TEST-04 | Phase 2 | Pending |
