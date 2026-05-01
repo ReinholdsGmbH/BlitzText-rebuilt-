@@ -78,9 +78,9 @@ Keine.
 
 ## Session Continuity
 
-**Letzte Aktion:** Phase 3 Discuss + UI-Phase abgeschlossen. 03-CONTEXT.md (18 Decisions) + 03-UI-SPEC.md APPROVED 6/6 dimensions (vier States: Toggle / Downloading / Installed / Error). Researcher-FLAG (.title3 frontmatter) angewandt. 3 Commits auf main (314652f, da44bf1, e8ecc6b).
+**Letzte Aktion:** Phase 8 UI-Phase abgeschlossen. 08-UI-SPEC.md APPROVED 6/6 dimensions (drei Surfaces: zwei RewriteBackendPicker im Anpassen-Tab, FoundationAvailabilityBanner mit vier States A/B/C/D, BackendBadge im Recording-HUD). Auto-Mode-Annahmen dokumentiert (Banner-Position, modelNotReady ohne .red, HUD-Position rechts neben langBadge, nicht-dismissbar v1, Picker-Items mit Privacy-Klammer). Commit: 2dde62a.
 
-**Nächste Aktion:** `/gsd-plan-phase 3 --chain` — Plan fuer Diarization-UX (DiarizerModelManager + Settings-UI-Block + AppDelegate-PreWarm).
+**Nächste Aktion:** `/gsd-plan-phase 8` — Plan für Apple Foundation Rewrite-Backend (AppleFoundationRewriteClient + RewriteBackend-Enum + Modi-Tab-Erweiterung + HUD-Indikator).
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*

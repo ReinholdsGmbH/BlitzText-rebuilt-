@@ -1,7 +1,8 @@
 ---
 phase: 8
 slug: apple-foundation-rewrite-backend
-status: draft
+status: approved
+reviewed_at: 2026-05-01
 shadcn_initialized: false
 preset: none
 platform: macOS-native (SwiftUI + AppKit)
