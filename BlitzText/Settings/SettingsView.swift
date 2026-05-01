@@ -214,7 +214,9 @@ private struct ZugangTab: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("API-KEY").font(.caption).foregroundStyle(.secondary).bold()
+                Text("OPENAI-API-KEY").font(.caption).foregroundStyle(.secondary).bold()
+                Text("Wird gebraucht für: Cloud-Whisper-Backend, Blitztext+ / $%&! (Rewrite via gpt-4o-mini), KI-Eigennamen-Vorschläge. Bei rein lokalem Setup (Parakeet/Whisper-Local + Roh-Modus + KI-Vorschläge aus) ist er optional.")
+                    .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     if showKey {
                         TextField("sk-…", text: $draftKey)

@@ -95,15 +95,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Settings öffnen, wenn noch kein API-Key hinterlegt ist
-        // ODER wenn die App mit `--settings` gestartet wurde.
-        // Workaround für volle Menubar — du brauchst das Icon nicht zu finden.
+        // Settings nur dann automatisch öffnen, wenn der User OpenAI braucht aber
+        // keinen Key hinterlegt hat. Bei rein lokalem Setup (Whisper/Parakeet,
+        // KI-Vorschläge aus) ist der Key irrelevant und der Auto-Open nervt.
         let forceSettings = CommandLine.arguments.contains("--settings")
-        if settingsStore.apiKey.isEmpty || forceSettings {
+        if forceSettings || needsOpenAIKey() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
                 self?.settingsWindow.show()
             }
         }
+    }
+
+    /// True, wenn der OpenAI-Key bei aktueller Config gebraucht wird, aber fehlt.
+    /// Gebraucht wird er, wenn das Cloud-Backend aktiv ist ODER KI-Eigennamen-Vorschläge an sind.
+    /// Rewrite (Blitztext+, $%&!) braucht ihn auch — aber das fängt der Pipeline-Fehler später ab,
+    /// kein Grund für Auto-Open beim Start.
+    private func needsOpenAIKey() -> Bool {
+        guard settingsStore.apiKey.isEmpty else { return false }
+        if settingsStore.backend == .openAI { return true }
+        if settingsStore.aiSuggestProperNouns { return true }
+        return false
     }
 
     nonisolated func applicationWillTerminate(_ notification: Notification) {
