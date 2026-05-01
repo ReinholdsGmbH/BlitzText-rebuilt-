@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00134ED66A51EB46DA7FEB55 /* DiarizerModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF01A1EE86A9F31E83A2C47 /* DiarizerModelManager.swift */; };
 		01CEDC617A5EA474A5559B0C /* ModeProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35E5D8D952B9F0B86094205 /* ModeProcessor.swift */; };
 		07383E5ABBA5D989EB43DF31 /* LocalWhisperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D48C58EC4522B0B55F71E50 /* LocalWhisperClient.swift */; };
 		15FD98B4114E1CB5D3004BE6 /* WhisperAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ED20D298E2E13975A8DE892 /* WhisperAPIClient.swift */; };
@@ -84,6 +85,7 @@
 		3F7B3C57134FCC4C8115A5CC /* RecordingHUDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingHUDController.swift; sourceTree = "<group>"; };
 		48C13BC8FEDE1C3912CDE458 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		5979B1D34E929ACE08145C36 /* DiarizerModelManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiarizerModelManagerTests.swift; sourceTree = "<group>"; };
+		5AF01A1EE86A9F31E83A2C47 /* DiarizerModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiarizerModelManager.swift; sourceTree = "<group>"; };
 		5B401387CEF06487D70D2639 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
 		5E1E474CF8226C104EB674C4 /* HotkeyStateMachineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyStateMachineTests.swift; sourceTree = "<group>"; };
 		63CC93F3BF4D7DB8B1DD340A /* FakeRewriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeRewriter.swift; sourceTree = "<group>"; };
@@ -194,6 +196,7 @@
 			isa = PBXGroup;
 			children = (
 				3925FA0463AF1B23B45E07CB /* DiarizerLoaderProtocol.swift */,
+				5AF01A1EE86A9F31E83A2C47 /* DiarizerModelManager.swift */,
 				D6E67FF7B7EA8F79E8466984 /* ETAEstimator.swift */,
 				A92E7667465F9F3D734C1FBA /* LocalModelManager.swift */,
 				6D48C58EC4522B0B55F71E50 /* LocalWhisperClient.swift */,
@@ -461,6 +464,7 @@
 				824A5F8EE95939A1D5CF064E /* AudioRecorder.swift in Sources */,
 				CC6729E1E9DD4CA00AF097A9 /* BlitzTextApp.swift in Sources */,
 				81007A765D04267EE02B00DC /* DiarizerLoaderProtocol.swift in Sources */,
+				00134ED66A51EB46DA7FEB55 /* DiarizerModelManager.swift in Sources */,
 				388A20FFA327573617E38D13 /* ETAEstimator.swift in Sources */,
 				308AADD4F997689906E454F6 /* EigennamenAISuggester.swift in Sources */,
 				83CB9CC4E6AFF69C80A73269 /* EigennamenAnalyzer.swift in Sources */,
