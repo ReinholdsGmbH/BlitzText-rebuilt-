@@ -9,7 +9,7 @@
 
 - [x] **Phase 1: Stabilisierung & Doku-Drift** — Keychain-Migration, Hotkey-Debounce, Tap-Auto-Restart, Doku-Aktualisierung
 - [x] **Phase 2: Test-Fundament** — XCTest-Target plus Tests für Hotkey-Statemachine und Pipeline-Fehlerpfade
-- [ ] **Phase 3: Diarization-UX** — Sichtbarer Modell-Download mit Progress und Retry
+- [x] **Phase 3: Diarization-UX** — Sichtbarer Modell-Download mit Progress und Retry (verification pending)
 - [ ] **Phase 4: Sprecher-Profile Core** — Persistenter Store + Integration mit `DiarizerManager.speakerManager`
 - [ ] **Phase 5: Sprecher-Profile UI** — Settings-Tab "Sprecher" mit Verwaltung, Threshold und Zuordnung
 - [ ] **Phase 6: Sprecher-Enrollment** — Optionaler Erst-Enrollment-Flow für gezielte Profil-Anlage
@@ -56,7 +56,11 @@
   1. Beim ersten Aktivieren von Diarization sieht der Nutzer im Settings-Tab einen Progress-Indikator mit Prozent und ungefährer Restzeit für den ~80 MB-Download
   2. Schlägt der Download fehl, erscheint im Settings-Tab eine deutsche Fehlermeldung mit Retry-Button, der den Download neu anstößt
   3. Solange das Modell nicht vollständig geladen ist, ist der Diarization-Toggle deaktiviert oder klar als "wird geladen" markiert
-**Plans**: TBD
+**Plans**: 2 plans
+
+- [x] 03-01-PLAN.md — Wave 0: DiarizerModelManager-Foundation + ETAEstimator + Loader-Protokoll + Tests (15 Tests)
+- [x] 03-02-PLAN.md — Wave 2: Vier-State-UI in SettingsView + SettingsStore-didSet + ParakeetClient-Refactor + AppDelegate-Prewarm (39/39 Tests, 3x grün)
+
 **UI hint**: yes
 
 ### Phase 4: Sprecher-Profile Core

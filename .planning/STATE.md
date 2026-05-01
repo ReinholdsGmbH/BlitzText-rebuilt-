@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-01T06:50:00.000Z"
+last_updated: "2026-05-01T08:19:00.000Z"
 progress:
   total_phases: 12
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 9
   percent: 100
 ---
 
@@ -20,18 +20,18 @@ progress:
 
 **Core Value:** Vom gedrückten Hotkey bis zum eingefügten Text wenige Sekunden — Text muss benutzbar sein, ohne nachzubearbeiten.
 
-**Current Focus:** Phase 3 (Diarization-UX) — Plans READY, naechster Schritt: /gsd-execute-phase 3
+**Current Focus:** Phase 3 (Diarization-UX) — Wave 1 + Wave 2 EXECUTED, naechster Schritt: /gsd-verify-phase 3
 
 ## Current Position
 
-Phase: 2 (Test-Fundament) — COMPLETE
-Plan: 3 of 3 — alle abgeschlossen
+Phase: 3 (Diarization-UX) — EXECUTION COMPLETE
+Plan: 2 of 2 — beide abgeschlossen (03-01 Wave 0, 03-02 Wave 2)
 
 - **Milestone:** Sprecher-Profile + Stabilisierung
-- **Phase:** Phase 2 vollstaendig — Wave 0 (02-01) + Wave 1 (02-02 + 02-03) abgeschlossen
-- **Plan:** 02-03 ✅ — Pipeline-Error-Path-Tests: 3 TEST-04-Pin-Tests, 3x consecutive gruen, volle Suite 22/22
-- **Status:** Phase 3 Discuss + UI + Plan abgeschlossen — 2 Plans (03-01 Wave 0, 03-02 Wave 2) verified 12/12 dimensions
-- **Progress:** 2/6 phases complete (Phase 3 ready zur Ausfuehrung)
+- **Phase:** Phase 3 ausgefuehrt — Wave 0 (03-01: Manager-Foundation) + Wave 2 (03-02: UI + AppDelegate-Wiring)
+- **Plan:** 03-02 ✅ — Vier-State-UI in SettingsView, Manager-konsumierender ParakeetClient, AppDelegate-Prewarm, 39/39 Tests gruen, 3x consecutive
+- **Status:** Phase 3 Plans complete; manuelle UI-Verifikation steht noch aus (/gsd-verify-phase 3)
+- **Progress:** 2/6 phases complete (Phase 3 awaiting verification)
 
 ```
 [██████░░░░░░░░░░░░░░] 33% (2/6 phases)
@@ -47,6 +47,8 @@ Plan: 3 of 3 — alle abgeschlossen
 | Plan 02-01 Dauer | — | ~5 min, 5 Commits, 8 Files |
 | Plan 02-02 Dauer | — | ~4 min, 1 Commit, 1 Testfile (220 LOC, 17 Tests) |
 | Plan 02-03 Dauer | — | ~6 min, 1 Commit, 1 Testfile (~155 LOC, 3 Tests) |
+| Plan 03-01 Dauer | — | ~25 min, 4 Commits, 6 Files (Manager + ETAEstimator + Tests, 15 Tests) |
+| Plan 03-02 Dauer | — | ~8 min, 5 Commits, 9 Files modified (4-State UI + DI-Wiring, 39/39 Tests 3x grün) |
 
 ## Accumulated Context
 
@@ -63,6 +65,11 @@ Plan: 3 of 3 — alle abgeschlossen
 - AppDelegate `enforceSingleInstance` skippt unter XCTest, damit hosted Tests nicht durch parallel laufende BlitzText.app terminiert werden (Phase 2, 02-01)
 - Hotkey-State-Machine-Tests pinnen Wave-0-Realitaet: Release innerhalb 50 ms holdDebounce wird verschluckt (Phase 2, 02-02)
 - Pipeline-Error-Path-Tests pinnen ParakeetClient Diarization-Silent-Fallback als CURRENT-Verhalten (state==.idle nach erfolgreichem Backend-Fake; future Phase 3 darf Pin bewusst aendern) (Phase 2, 02-03)
+- DiarizerModelManager als @MainActor ObservableObject wraps FluidAudio.DiarizerModels.downloadIfNeeded(progressHandler:) (Variant A) — keine eigene URLSession (Phase 3, 03-01)
+- ParakeetClient ruft `manager.ensureInstalled()` statt `DiarizerModels.downloadIfNeeded()` direkt — Manager ist Single-Source-of-Truth (D-16, Phase 3, 03-02)
+- SettingsStore.parakeetDiarization didSet feuert manager.start() via Task @MainActor (D-01, Phase 3, 03-02)
+- AppDelegate.bootstrap prewarmt Diarizer als detached MainActor-Task wenn parakeetDiarization persistiert (D-13/D-14, Phase 3, 03-02)
+- DiarizerStatusBlock rendert vier visuell distinkte States (notInstalled / downloading / installed / failed) via switch über manager.state — Toggle wird im Downloading-State nicht disabled, sondern komplett ersetzt (D-03, D-18, Phase 3, 03-02)
 
 ### Open Todos
 
@@ -78,10 +85,11 @@ Keine.
 
 ## Session Continuity
 
-**Letzte Aktion:** Phase 3 Plan-Phase abgeschlossen. 03-RESEARCH.md (FluidAudio 0.14.3 Live-Inspection, progressHandler-API gefunden), 03-01-PLAN.md (Wave 0: DiarizerModelManager + ETAEstimator + Loader-Protokoll + Tests, ADR Variant A vs B), 03-02-PLAN.md (Wave 2: SettingsStore didSet, ParakeetClient-Refactor, vier-State SettingsView-Block, AppDelegate Pre-Warm). Plan-Checker 12/12 dimensions PASSED. Commits: 75ab422 (Plans), a5b9486 (Research).
+**Letzte Aktion:** Phase 3 Plan 03-02 (Wave 2) ausgefuehrt. 5 Commits (da4a4e9, e92bac7, b9e7be9, e584e80, daf66f2), 9 Files modified (AppDelegate, SettingsStore, SettingsView, SettingsWindowController, ParakeetClient, DiarizerModelManager, ModeProcessor, PipelineErrorPathTests, DiarizerModelManagerTests). DiarizerStatusBlock ersetzt heutigen Single-Toggle, Manager-Konsumpunkt ueber ensureInstalled async, AppDelegate-DI in alle drei Konsumenten. Tests: 39/39 gruen, 3x consecutive ohne Flake.
 
-**Nächste Aktion:** `/gsd-execute-phase 3` — Wave 0 (Manager + Tests) parallel-safe; Wave 2 (UI + Integration) sequentiell danach.
+**Nächste Aktion:** `/gsd-verify-phase 3` — manuelle visuelle Inspektion der vier UI-States (Toggle/Lädt/Modell vorhanden/Fehler+Retry), App-Start-Prewarm-Verifikation, Netzwerk-Fehler-Pfad mit "Erneut versuchen".
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*
 *Phase 2 abgeschlossen: 2026-05-01*
+*Phase 3 Plans ausgefuehrt: 2026-05-01 (verification pending)*
