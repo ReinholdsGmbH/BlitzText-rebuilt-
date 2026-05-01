@@ -7,11 +7,13 @@ import SwiftUI
 final class SettingsWindowController {
     private let settings: SettingsStore
     private let modelManager: LocalModelManager
+    private let diarizerManager: DiarizerModelManager
     private var window: NSWindow?
 
-    init(settings: SettingsStore, modelManager: LocalModelManager) {
+    init(settings: SettingsStore, modelManager: LocalModelManager, diarizerManager: DiarizerModelManager) {
         self.settings = settings
         self.modelManager = modelManager
+        self.diarizerManager = diarizerManager
     }
 
     func show() {
@@ -25,6 +27,7 @@ final class SettingsWindowController {
             rootView: SettingsView()
                 .environmentObject(settings)
                 .environmentObject(modelManager)
+                .environmentObject(diarizerManager)
         )
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 700),

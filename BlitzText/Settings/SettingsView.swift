@@ -382,9 +382,7 @@ private struct LokalTab: View {
                         .font(.caption).foregroundStyle(.secondary)
                     Text("Wähle oben Backend: 'Parakeet TDT v3 (Lokal)' aus, um Parakeet aktiv zu nutzen.")
                         .font(.caption2).foregroundStyle(.tertiary)
-                    Toggle("Sprechererkennung (Diarization)", isOn: $settings.parakeetDiarization)
-                    Text("Aktiviert Sprecher-Annotationen (\"Sprecher 1: …\"). Lädt zusätzlich ein Diarizer-Modell (~80 MB). Beim ersten Aktivieren dauert es etwas länger.")
-                        .font(.caption2).foregroundStyle(.tertiary)
+                    DiarizerStatusBlock()
                 }
 
                 Text("Speicherort: \(LocalModelManager.modelsRoot.path)")
@@ -495,6 +493,109 @@ private struct FlowLayout: Layout {
             v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+// MARK: - Diarizer Status Block (Phase 3 Wave 1)
+
+/// Vier-State-Block für den Diarizer-Modell-Lifecycle.
+/// Spec: 03-UI-SPEC.md § State-by-State Visual Spec.
+/// Strings sind LOCKED durch UI-SPEC § Copywriting Contract — NICHT paraphrasieren.
+private struct DiarizerStatusBlock: View {
+    @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var diarizerManager: DiarizerModelManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            content
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch diarizerManager.state {
+        case .notInstalled:
+            toggleAndSubtitle
+        case .downloading(let progress, let eta):
+            downloadingView(progress: progress, eta: eta)
+            // Subtitle bleibt sichtbar (UI-SPEC: "darf während Download sichtbar bleiben")
+            Text("Aktiviert Sprecher-Annotationen (\"Sprecher 1: …\"). Lädt zusätzlich ein Diarizer-Modell (~80 MB).")
+                .font(.caption2).foregroundStyle(.tertiary)
+        case .installed:
+            Toggle("Sprechererkennung (Diarization)", isOn: $settings.parakeetDiarization)
+            if settings.parakeetDiarization {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Text("Modell vorhanden").font(.caption).foregroundStyle(.green)
+                }
+            }
+            Text("Aktiviert Sprecher-Annotationen (\"Sprecher 1: …\"). Lädt zusätzlich ein Diarizer-Modell (~80 MB).")
+                .font(.caption2).foregroundStyle(.tertiary)
+        case .failed(let message):
+            errorView(message: message)
+        }
+    }
+
+    @ViewBuilder
+    private var toggleAndSubtitle: some View {
+        Toggle("Sprechererkennung (Diarization)", isOn: $settings.parakeetDiarization)
+        Text("Aktiviert Sprecher-Annotationen (\"Sprecher 1: …\"). Lädt zusätzlich ein Diarizer-Modell (~80 MB).")
+            .font(.caption2).foregroundStyle(.tertiary)
+    }
+
+    @ViewBuilder
+    private func downloadingView(progress: Double, eta: Double?) -> some View {
+        // D-03: Toggle ist NICHT gerendert (auch nicht disabled) — komplett ersetzt.
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "arrow.down.circle").foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Lädt Diarizer-Modell …").font(.subheadline)
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+                    .frame(maxWidth: 280)
+                Text(progressDetailText(progress: progress, eta: eta))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private func errorView(message: String) -> some View {
+        // D-12: Toggle visuell weg, logisch bleibt parakeetDiarization == true.
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Diarizer-Modell konnte nicht geladen werden").font(.subheadline)
+                Text(message).font(.caption).foregroundStyle(.red)
+                Button("Erneut versuchen") { diarizerManager.retry() }
+                    .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    // MARK: - ETA formatting (UI-SPEC § ETA-Algorithmus)
+
+    private func progressDetailText(progress: Double, eta: Double?) -> String {
+        let percent = Int((progress * 100).rounded())
+        let etaText = formatETA(eta)
+        return "\(percent) % · \(etaText)"
+    }
+
+    /// Mapping per UI-SPEC § ETA-Algorithmus:
+    ///   nil               → "Geschwindigkeit wird ermittelt …"
+    ///   0..<60            → "noch ~N s"
+    ///   60..<3600         → "noch ~N min"
+    ///   >= 3600           → "noch ~N h"
+    private func formatETA(_ eta: Double?) -> String {
+        guard let eta else { return "Geschwindigkeit wird ermittelt …" }
+        if eta < 60 {
+            return "noch ~\(Int(eta.rounded())) s"
+        } else if eta < 3600 {
+            return "noch ~\(Int((eta / 60).rounded())) min"
+        } else {
+            return "noch ~\(Int((eta / 3600).rounded())) h"
         }
     }
 }
