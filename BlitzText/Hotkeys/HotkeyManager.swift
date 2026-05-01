@@ -14,6 +14,25 @@ final class HotkeyManager: @unchecked Sendable {
         case toggle
     }
 
+    /// Wert-Input fuer die pure Uebergangsfunktion `decideTransition` —
+    /// haelt die fuer die Hotkey-Logik relevanten CGEvent-Modifier-Flags als
+    /// reine Booleans. Wird in den Tests direkt instanziiert (kein CGEvent noetig).
+    struct FlagsInput: Equatable, Sendable {
+        var fn: Bool
+        var shift: Bool
+        var control: Bool
+        var option: Bool
+    }
+
+    /// Ergebnis einer State-Machine-Entscheidung. Eine `decideTransition`-Auswertung
+    /// kann mehrere Outcomes liefern (z. B. erst stop des alten Mode, dann start des neuen).
+    enum Outcome: Equatable, Sendable {
+        case none
+        case start(Mode)
+        case stop(Mode)
+        case toggle(Mode)
+    }
+
     private let settings: SettingsStore
     private let onTrigger: @Sendable (Mode, Action) -> Void
 
@@ -122,52 +141,79 @@ final class HotkeyManager: @unchecked Sendable {
 
     private func handleFlagsChanged(event: CGEvent) {
         let flags = event.flags
-        let fn = flags.contains(.maskSecondaryFn)
-        let shift = flags.contains(.maskShift)
-        let control = flags.contains(.maskControl)
-        let option = flags.contains(.maskAlternate)
+        let input = FlagsInput(
+            fn: flags.contains(.maskSecondaryFn),
+            shift: flags.contains(.maskShift),
+            control: flags.contains(.maskControl),
+            option: flags.contains(.maskAlternate)
+        )
+        Log.write("flagsChanged raw=0x\(String(flags.rawValue, radix: 16)) fn=\(input.fn) shift=\(input.shift) ctrl=\(input.control) opt=\(input.option)")
 
-        Log.write("flagsChanged raw=0x\(String(flags.rawValue, radix: 16)) fn=\(fn) shift=\(shift) ctrl=\(control) opt=\(option)")
+        let outcomes = decideTransition(flags: input, triggerMode: settings.triggerMode, now: Date())
+        let trigger = self.onTrigger
+        for outcome in outcomes {
+            switch outcome {
+            case .none:
+                continue
+            case .start(let m):
+                DispatchQueue.main.async { trigger(m, .start) }
+            case .stop(let m):
+                DispatchQueue.main.async { trigger(m, .stop) }
+            case .toggle(let m):
+                DispatchQueue.main.async { trigger(m, .toggle) }
+            }
+        }
+    }
 
-        let mode: Mode? = {
-            guard fn else { return nil }
-            if shift { return .blitztext }
-            if control { return .blitztextPlus }
-            if option { return .blitztextRant }
+    /// Pure Uebergangsfunktion (Test-Seam) — kein I/O, kein CGEvent, kein DispatchQueue.
+    /// Mode-/Timestamp-State auf `self` wird deterministisch auf Basis von `now` aktualisiert,
+    /// damit Tests Sequenzen mit kontrollierter Wallclock fahren koennen.
+    /// Produktionsverhalten ist byte-identisch zur vorherigen handleHold/Toggle-Implementierung
+    /// (gleiche Debounce-Konstanten, gleiche Mode-Mapping-Reihenfolge, gleiche Edge-Semantik).
+    internal func decideTransition(
+        flags: FlagsInput,
+        triggerMode: TriggerMode,
+        now: Date
+    ) -> [Outcome] {
+        let newMode: Mode? = {
+            guard flags.fn else { return nil }
+            if flags.shift { return .blitztext }
+            if flags.control { return .blitztextPlus }
+            if flags.option { return .blitztextRant }
             return nil
         }()
 
-        switch settings.triggerMode {
+        switch triggerMode {
         case .hold:
-            handleHoldTransition(newMode: mode)
+            return holdOutcomes(newMode: newMode, now: now)
         case .toggle:
-            handleToggleTransition(newMode: mode)
+            return toggleOutcomes(newMode: newMode, now: now)
         }
     }
 
-    private func handleHoldTransition(newMode: Mode?) {
-        if newMode == currentMode { return }
-        if Date().timeIntervalSince(lastTriggerAt) < Self.holdDebounce { return }
-        lastTriggerAt = Date()
+    private func holdOutcomes(newMode: Mode?, now: Date) -> [Outcome] {
+        if newMode == currentMode { return [] }
+        if now.timeIntervalSince(lastTriggerAt) < Self.holdDebounce { return [] }
+        lastTriggerAt = now
 
-        let trigger = self.onTrigger
+        var result: [Outcome] = []
         if let active = currentMode, newMode != active {
             currentMode = nil
-            DispatchQueue.main.async { trigger(active, .stop) }
+            result.append(.stop(active))
         }
         if let next = newMode, currentMode == nil {
             currentMode = next
-            DispatchQueue.main.async { trigger(next, .start) }
+            result.append(.start(next))
         }
+        return result
     }
 
-    private func handleToggleTransition(newMode: Mode?) {
+    private func toggleOutcomes(newMode: Mode?, now: Date) -> [Outcome] {
         // Nur die "Drücken"-Edge zählt: Übergang von kein Mode → ein Mode.
-        guard let next = newMode else { return }
-        if Date().timeIntervalSince(lastTriggerAt) < Self.toggleDebounce { return }
-        lastTriggerAt = Date()
-        let trigger = self.onTrigger
-        DispatchQueue.main.async { trigger(next, .toggle) }
+        guard let next = newMode else { return [] }
+        if now.timeIntervalSince(lastTriggerAt) < Self.toggleDebounce { return [] }
+        lastTriggerAt = now
+        return [.toggle(next)]
     }
 
     // MARK: - Permission
