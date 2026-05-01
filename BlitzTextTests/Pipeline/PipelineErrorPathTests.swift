@@ -46,10 +46,16 @@ final class PipelineErrorPathTests: XCTestCase {
         settings.backend = backend
         let history = HistoryStore()
         let modelManager = LocalModelManager()
+        // Test-isolierter Manager: FakeDiarizerLoader, kein Netzwerk, kein Disk.
+        // Manager-State irrelevant für diese Pipeline-Tests, weil der echte
+        // ParakeetClient gar nicht aktiviert wird (parakeetTranscriber ist Fake
+        // oder backend != .parakeet).
+        let diarizerManager = DiarizerModelManager(loader: FakeDiarizerLoader())
         return ModeProcessor(
             settings: settings,
             history: history,
             modelManager: modelManager,
+            diarizerManager: diarizerManager,
             openAITranscriber: openAITranscriber,
             localTranscriber: nil,
             parakeetTranscriber: parakeetTranscriber,
@@ -137,19 +143,21 @@ final class PipelineErrorPathTests: XCTestCase {
 
     // MARK: - TEST-04 (c): Diarization-Fehlschlag — silent fallback
 
-    /// Pinnt CURRENT-Verhalten (RESEARCH.md § Pattern 3 + ParakeetClient.swift:51-53):
-    /// Diarization-Fehler werden in `ParakeetClient.applyDiarization` verschluckt,
-    /// der Roh-Transkript-String wird zurueckgegeben — observable als `.idle`-State
-    /// nach erfolgreichem Pipeline-Lauf, KEIN `.error`.
+    /// Pinnt CURRENT-Verhalten (Phase 3 Wave 1, ParakeetClient.swift):
+    /// Diarization-Fehler werden zweistufig graceful behandelt —
+    ///   1. `DiarizerModelManager.state == .failed` → ParakeetClient setzt `diarizer = nil`
+    ///      (Phase-3-Verhalten, in `ensureLoaded`).
+    ///   2. Falls Diarization-Inferenz selbst wirft → `applyDiarization`-Fallback gibt
+    ///      Roh-Transkript zurueck (Bestands-Verhalten, ParakeetClient.swift).
+    /// Beide Pfade observable als `.idle`-State nach erfolgreichem Pipeline-Lauf, KEIN `.error`.
     ///
-    /// Eine zukuenftige UX, die Diarization-Fehler als HUD-Warnung surfacet, ist
-    /// Phase 3 — dieser Test wird dann bewusst angepasst.
-    ///
-    /// Implementations-Note: Da `ParakeetClient.transcribe` Diarization intern
-    /// abhandelt und nur den Text zurueckreicht, ist ein erfolgreicher
-    /// `FakeTranscriptionService(.success(...))` fuer den State-Pin ausreichend —
-    /// der Pipeline-Pfad ist auf State-Ebene identisch zu „Diarization fehlgeschlagen,
-    /// raw zurueck". Kein extra `FakeDiarizationService` noetig.
+    /// Test-Setup: Da `ParakeetClient.transcribe` Diarization intern abhandelt und nur den
+    /// Text zurueckreicht, ist ein erfolgreicher `FakeTranscriptionService(.success(...))` fuer
+    /// den State-Pin ausreichend — der Pipeline-Pfad ist auf State-Ebene identisch zu
+    /// „Manager.failed → Diarizer nil → Roh-Text zurueck". Kein FakeDiarizationService noetig,
+    /// und der Manager wird im Helper als isolierte FakeDiarizerLoader-Instanz gebaut
+    /// (siehe makeProcessor). Eine zukuenftige UX, die Diarization-Fehler aktiv surfacet,
+    /// waere Phase 4+ — dann wird dieser Pin bewusst angepasst.
     func testDiarizationFailure_silentFallback_returnsRawTranscript() async throws {
         let fixtureURL = try makeFixtureURL()
         let recorder = FakeAudioRecorder(fixtureURL: fixtureURL)

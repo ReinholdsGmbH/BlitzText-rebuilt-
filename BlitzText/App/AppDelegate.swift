@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let settingsStore = SettingsStore()
     let historyStore = HistoryStore()
     let modelManager = LocalModelManager()
+    let diarizerManager = DiarizerModelManager()
     private var menuBarController: MenuBarController!
     private var hotkeyManager: HotkeyManager!
     private var modeProcessor: ModeProcessor!
@@ -53,8 +54,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func bootstrap() {
         NSApp.setActivationPolicy(.accessory)
 
-        modeProcessor = ModeProcessor(settings: settingsStore, history: historyStore, modelManager: modelManager)
-        settingsWindow = SettingsWindowController(settings: settingsStore, modelManager: modelManager)
+        // DI-Wiring: Manager-Reference in Store, damit Toggle-On den Manager triggert (D-01).
+        settingsStore.diarizerManager = diarizerManager
+
+        modeProcessor = ModeProcessor(
+            settings: settingsStore,
+            history: historyStore,
+            modelManager: modelManager,
+            diarizerManager: diarizerManager
+        )
+        settingsWindow = SettingsWindowController(
+            settings: settingsStore,
+            modelManager: modelManager,
+            diarizerManager: diarizerManager
+        )
         historyWindow = HistoryWindowController(history: historyStore)
         recordingHUD = RecordingHUDController(recorder: modeProcessor.recorder, processor: modeProcessor, settings: settingsStore)
         suggestionToast = SuggestionToastController(presenter: modeProcessor.suggestionPresenter)
@@ -81,6 +94,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Lokales Modell beim App-Start vorladen — sonst würde die erste Aufnahme
         // 1–3 min CoreML-Compile-Zeit kosten. Läuft im Hintergrund, blockiert nicht.
         modeProcessor.preloadLocalModelIfActive()
+
+        // D-13/D-14: Wenn Diarization aktiv persistiert war, Modell im Hintergrund prewarmen.
+        // Best-effort — Fehler landen in `diarizerManager.lastError`, App-Start blockiert nie.
+        if settingsStore.parakeetDiarization {
+            Task { [diarizerManager] in
+                await MainActor.run { diarizerManager.prewarm() }
+            }
+        }
 
         // Sobald der User in Settings ein Modell aktiviert, sofort preloaden.
         modelManager.onActivate = { [weak self] in
