@@ -8,7 +8,7 @@
 ## Phases
 
 - [x] **Phase 1: Stabilisierung & Doku-Drift** — Keychain-Migration, Hotkey-Debounce, Tap-Auto-Restart, Doku-Aktualisierung
-- [ ] **Phase 2: Test-Fundament** — XCTest-Target plus Tests für Hotkey-Statemachine und Pipeline-Fehlerpfade
+- [x] **Phase 2: Test-Fundament** — XCTest-Target plus Tests für Hotkey-Statemachine und Pipeline-Fehlerpfade
 - [ ] **Phase 3: Diarization-UX** — Sichtbarer Modell-Download mit Progress und Retry
 - [ ] **Phase 4: Sprecher-Profile Core** — Persistenter Store + Integration mit `DiarizerManager.speakerManager`
 - [ ] **Phase 5: Sprecher-Profile UI** — Settings-Tab "Sprecher" mit Verwaltung, Threshold und Zuordnung
@@ -45,7 +45,7 @@
 
 - [x] 02-01-PLAN.md — Wave 0: BlitzTextTests-Target + Hotkey/ModeProcessor/Recorder-Test-Seams + Fakes + SmokeTests
 - [x] 02-02-PLAN.md — Hotkey-State-Machine-Tests (Hold/Toggle, Modifier-Matrix, Debounce) — 17 Tests, 3x consecutive gruen
-- [ ] 02-03-PLAN.md — Pipeline-Fehlerpfade (Whisper-API-Fehler, Parakeet-Modell, Diarization-Fehlschlag)
+- [x] 02-03-PLAN.md — Pipeline-Fehlerpfade (Whisper-API-Fehler, Parakeet-Modell, Diarization-Silent-Fallback) — 3 Tests, 3x consecutive gruen, volle Suite 22/22
 
 ### Phase 3: Diarization-UX
 **Goal**: Diarization-Modell-Download wird sichtbar, fehlerfest und vom Nutzer kontrollierbar
@@ -148,7 +148,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Stabilisierung & Doku-Drift | 4/4 | Complete | 2026-04-30 |
-| 2. Test-Fundament | 2/3 | Executing | - |
+| 2. Test-Fundament | 3/3 | Complete | 2026-05-01 |
 | 3. Diarization-UX | 0/0 | Not started | - |
 | 4. Sprecher-Profile Core | 0/0 | Not started | - |
 | 5. Sprecher-Profile UI | 0/0 | Not started | - |
