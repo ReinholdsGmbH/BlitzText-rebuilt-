@@ -29,6 +29,7 @@
 		A5E4C93FFA621E33DC18CB2B /* Mode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B2D3A0A4629965089470A00 /* Mode.swift */; };
 		AE37061031BB60CDECB889D4 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3AACF0EFD9C84527CCBE459 /* AppDelegate.swift */; };
 		B76687AB984E88FDA6597A68 /* HistoryWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944AD6F92E11F032129786D0 /* HistoryWindowController.swift */; };
+		B8CE90E884C1C61B26A666FE /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1BF5DED6C2580B9EBF3676 /* SmokeTests.swift */; };
 		BC8CBD42ECD07A5ED9A691F3 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2299B5A7C14B72204275495C /* WhisperKit */; };
 		CC6729E1E9DD4CA00AF097A9 /* BlitzTextApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14AA9F6AE8FB74F949CA546F /* BlitzTextApp.swift */; };
 		CCD47512C3D93F31B0725757 /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E89BF7B08768F054ADC1C5C /* TranscriptionService.swift */; };
@@ -44,6 +45,16 @@
 		FCC8B3B6D10C022F810FF51E /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E135D23E0C380D99FC696C /* HUDView.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		7C5685DACB101E86B1279379 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F3EB34619F11AA788321F088 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 018EF81B0265C25A8B06E961;
+			remoteInfo = BlitzText;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		03D65A4763CEF07729B97C85 /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
 		07E6251733077E40F808606F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -54,6 +65,7 @@
 		14AA9F6AE8FB74F949CA546F /* BlitzTextApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlitzTextApp.swift; sourceTree = "<group>"; };
 		14E135D23E0C380D99FC696C /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 		185C0CF95D8E301D374D5477 /* SuggestionPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionPresenter.swift; sourceTree = "<group>"; };
+		1C1BF5DED6C2580B9EBF3676 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		2ED20D298E2E13975A8DE892 /* WhisperAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperAPIClient.swift; sourceTree = "<group>"; };
 		356F8219BA6FA6EC7C8AAF2F /* TextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserter.swift; sourceTree = "<group>"; };
 		3E89BF7B08768F054ADC1C5C /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
@@ -70,6 +82,7 @@
 		B487F4C357DBB6D3574BD71C /* ParakeetClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParakeetClient.swift; sourceTree = "<group>"; };
 		B4A664FB1ABDE15B48788C4C /* BlitzText.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BlitzText.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C35E5D8D952B9F0B86094205 /* ModeProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeProcessor.swift; sourceTree = "<group>"; };
+		C57BAA11F69BEE31961B8C22 /* BlitzTextTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BlitzTextTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C589D197AE60A09DFA3F8A4D /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		C9F7A7D1D4EE930488C7F580 /* OpenAIChatClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIChatClient.swift; sourceTree = "<group>"; };
 		D26354C0ECC99145FCBC2B97 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -126,6 +139,7 @@
 			isa = PBXGroup;
 			children = (
 				B4A664FB1ABDE15B48788C4C /* BlitzText.app */,
+				C57BAA11F69BEE31961B8C22 /* BlitzTextTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -150,6 +164,14 @@
 				2ED20D298E2E13975A8DE892 /* WhisperAPIClient.swift */,
 			);
 			path = Transcription;
+			sourceTree = "<group>";
+		};
+		2E9A88F3CD42AD011C54B92C /* BlitzTextTests */ = {
+			isa = PBXGroup;
+			children = (
+				1C1BF5DED6C2580B9EBF3676 /* SmokeTests.swift */,
+			);
+			path = BlitzTextTests;
 			sourceTree = "<group>";
 		};
 		4610D22AEC02B425D00FCD01 /* Hotkeys */ = {
@@ -183,6 +205,7 @@
 			isa = PBXGroup;
 			children = (
 				0B0E5D63EF2F685524717914 /* BlitzText */,
+				2E9A88F3CD42AD011C54B92C /* BlitzTextTests */,
 				11DBEDBC1FFC0BB114C21A6D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -278,6 +301,24 @@
 			productReference = B4A664FB1ABDE15B48788C4C /* BlitzText.app */;
 			productType = "com.apple.product-type.application";
 		};
+		8C99A829833221A600281889 /* BlitzTextTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A8EE823CA7DC2B5A5D2B0A77 /* Build configuration list for PBXNativeTarget "BlitzTextTests" */;
+			buildPhases = (
+				3277376F0010E672F7839E91 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E43C53B0011F726627B6DE9C /* PBXTargetDependency */,
+			);
+			name = BlitzTextTests;
+			packageProductDependencies = (
+			);
+			productName = BlitzTextTests;
+			productReference = C57BAA11F69BEE31961B8C22 /* BlitzTextTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -288,6 +329,10 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					018EF81B0265C25A8B06E961 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					8C99A829833221A600281889 = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
@@ -312,6 +357,7 @@
 			projectRoot = "";
 			targets = (
 				018EF81B0265C25A8B06E961 /* BlitzText */,
+				8C99A829833221A600281889 /* BlitzTextTests */,
 			);
 		};
 /* End PBXProject section */
@@ -329,6 +375,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		3277376F0010E672F7839E91 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B8CE90E884C1C61B26A666FE /* SmokeTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B4D34DAF9C9500696697F8A8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -369,6 +423,14 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		E43C53B0011F726627B6DE9C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 018EF81B0265C25A8B06E961 /* BlitzText */;
+			targetProxy = 7C5685DACB101E86B1279379 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
 		40B096C9566D21EC47B4F940 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -403,6 +465,27 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = minimal;
+			};
+			name = Debug;
+		};
+		73823FC066EE22E906EABDBE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BlitzText.app/Contents/MacOS/BlitzText";
 			};
 			name = Debug;
 		};
@@ -474,6 +557,27 @@
 			};
 			name = Debug;
 		};
+		E5CEDF6B4B01874C06B8FEAF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BlitzText.app/Contents/MacOS/BlitzText";
+			};
+			name = Release;
+		};
 		E8AEC954579F1D6D1B40D3FC /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -543,6 +647,15 @@
 			buildConfigurations = (
 				D208270E4DE17E531DBBC791 /* Debug */,
 				E8AEC954579F1D6D1B40D3FC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A8EE823CA7DC2B5A5D2B0A77 /* Build configuration list for PBXNativeTarget "BlitzTextTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				73823FC066EE22E906EABDBE /* Debug */,
+				E5CEDF6B4B01874C06B8FEAF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
