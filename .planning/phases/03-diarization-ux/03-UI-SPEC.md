@@ -1,7 +1,8 @@
 ---
 phase: 3
 slug: diarization-ux
-status: draft
+status: approved
+reviewed_at: 2026-05-01
 shadcn_initialized: false
 preset: none
 platform: macOS-native (SwiftUI + AppKit)
@@ -34,7 +35,7 @@ States:
 | Preset | not applicable |
 | Component library | SwiftUI + AppKit (system) |
 | Icon library | SF Symbols (system) |
-| Font | San Francisco (`.body`, `.caption`, `.caption2`, `.subheadline`, `.title3` — SwiftUI Text-Styles) |
+| Font | San Francisco (`.body`, `.caption`, `.caption2`, `.subheadline` — SwiftUI Text-Styles) |
 | Layout style | bestehende `LokalTab`-`section`-Helper-Form (Caption-Label `.bold().foregroundStyle(.secondary)` + content) |
 
 **Begründung:** Keine Custom-Tokens. Wir folgen `SettingsView.swift`-Konventionen 1:1, damit der Diarizer-Block visuell ununterscheidbar von der Whisper/Parakeet-Sektion daneben ist. Jede Token-Erfindung wäre Drift gegenüber den restlichen Tabs.
