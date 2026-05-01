@@ -14,6 +14,7 @@
 - [ ] **Phase 5: Sprecher-Profile UI** — Settings-Tab "Sprecher" mit Verwaltung, Threshold und Zuordnung
 - [ ] **Phase 6: Sprecher-Enrollment** — Optionaler Erst-Enrollment-Flow für gezielte Profil-Anlage
 - [ ] **Phase 7: Standard-Hotkeys & eigene Hotkeys** — Default-Hotkey-Set + freie Tastenkombo-Vergabe pro Mode (Hybrid CGEventTap + SPM-Hotkey-Package)
+- [ ] **Phase 8: Apple Foundation Rewrite-Backend** — Foundation Models (macOS 26+) als Default-Backend für Plus/Rant, OpenAI als User-Override
 
 ## Phase Details
 
@@ -105,6 +106,20 @@
 **UI hint**: yes
 **Context**: 07-CONTEXT.md (gathered 2026-04-30 als 999.6, promoted via /gsd-review-backlog)
 
+### Phase 8: Apple Foundation Rewrite-Backend
+**Goal**: Apple Foundation Models (macOS 26+) als lokale Default-Alternative zu gpt-4o-mini im Rewrite-Pfad; OpenAI als expliziter User-Override
+**Depends on**: keine harten Deps (Rewrite/-Modul ist von Sprecher-Profile- und Hotkey-Phasen unabhängig — kann parallel zu Phase 3–7 laufen)
+**Requirements**: keine v1-Mapping (milestone-erweiternd, aus Backlog 999.7 promoted)
+**Success Criteria** (what must be TRUE):
+  1. Neuer `AppleFoundationRewriteClient` implementiert das `RewriteService`-Protokoll und ist über einen `RewriteBackend`-Enum (analog `TranscriptionBackend`) im `SettingsStore` auswählbar
+  2. Pro Rewrite-Mode (Blitztext+ / Blitztext $%&!) kann das Backend unabhängig in den Settings gesetzt werden; Defaults: Foundation wenn verfügbar, sonst OpenAI
+  3. Blitztext+ nutzt Plain `LanguageModelSession`; Blitztext $%&! nutzt Guided Generation mit `@Generable`-Schema, das den entschärften Text strukturiert zurückliefert
+  4. Beim App-Start prüft die App `SystemLanguageModel.default.availability`; bei `unavailable` wird das Default-Backend automatisch auf OpenAI gestellt (sofern API-Key vorhanden) und der Modi-Tab zeigt eine deutsche Erklärung mit Link zu System-Einstellungen
+  5. Recording-HUD bzw. Bestätigungs-Toast zeigt einen subtilen Indikator, welches Backend (Apple-Foundation / OpenAI) für den Rewrite verwendet wurde
+**Plans**: TBD
+**UI hint**: yes
+**Context**: 08-CONTEXT.md (gathered 2026-05-01 als 999.7, promoted via /gsd-review-backlog)
+
 ## Backlog
 
 Eingeplante Initiativen für künftige Milestones — werden bei Bedarf via `/gsd-insert-phase` oder neuem Milestone aktiviert.
@@ -143,14 +158,6 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
-### Phase 999.7: Apple Foundation Models als Rewrite-Backend (BACKLOG)
-**Goal**: [Captured for future planning] Apple Foundation Models (ab macOS 26) als lokale Alternative zu gpt-4o-mini im Rewrite-Pfad — Latenz, Privacy, Offline-Fähigkeit
-**Requirements**: TBD
-**Plans**: 0 plans
-
-Plans:
-- [ ] TBD (promote with /gsd-review-backlog when ready)
-
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -162,6 +169,7 @@ Plans:
 | 5. Sprecher-Profile UI | 0/0 | Not started | - |
 | 6. Sprecher-Enrollment | 0/0 | Not started | - |
 | 7. Standard-Hotkeys & eigene Hotkeys | 0/0 | Not started | - |
+| 8. Apple Foundation Rewrite-Backend | 0/0 | Not started | - |
 | 999.1. iOS-/iPadOS-Port | 0/0 | Backlog | - |
 | 999.2. Meeting-Transkription | 0/0 | Backlog | - |
 | 999.3. Meeting-Zusammenfassungen | 0/0 | Backlog | - |
@@ -181,6 +189,7 @@ All 18 v1 requirements mapped to exactly one phase. No orphans.
 | Phase 5 | SPK-04, SPK-05, SPK-06, SPK-07 |
 | Phase 6 | SPK-08 |
 | Phase 7 | — (milestone-erweiternd, kein v1-Requirement; promoted aus Backlog 999.6) |
+| Phase 8 | — (milestone-erweiternd, kein v1-Requirement; promoted aus Backlog 999.7) |
 
 **Note on TEST-03 placement:** TEST-03 (Sprecher-Profil-Matching-Tests) lebt in Phase 4 statt Phase 2, weil die zu testenden Komponenten (Persistenz, EMA-Update, Threshold-Matching) erst in Phase 4 entstehen. Phase 2 etabliert das Test-Target und deckt Hotkey + Pipeline-Fehlerpfade ab; Phase 4 erweitert die Suite parallel zur Implementierung.
 

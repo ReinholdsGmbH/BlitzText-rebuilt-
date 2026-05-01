@@ -1,8 +1,8 @@
-# Phase 999.7 Context: Apple Foundation Models als Rewrite-Backend
+# Phase 8 Context: Apple Foundation Models als Rewrite-Backend
 
-**Captured:** 2026-05-01
-**Phase status:** BACKLOG (999.x — unsequenced parking lot)
-**Source:** `/gsd-discuss-phase 999.7`
+**Captured:** 2026-05-01 (originally 999.7)
+**Phase status:** ACTIVE — promoted from backlog 2026-05-01
+**Source:** `/gsd-discuss-phase 999.7` → `/gsd-review-backlog`
 
 ## <domain>
 
