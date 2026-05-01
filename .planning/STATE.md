@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-01T04:32:00.000Z"
+last_updated: "2026-05-01T06:40:00.000Z"
 progress:
   total_phases: 12
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
-  percent: 71
+  completed_plans: 6
+  percent: 86
 ---
 
 # Project State: BlitzText
@@ -25,13 +25,13 @@ progress:
 ## Current Position
 
 Phase: 2 (Test-Fundament) — EXECUTING
-Plan: 2 of 3 (next: 02-02 Hotkey-State-Machine-Tests)
+Plan: 3 of 3 (next: 02-03 Pipeline-Fehlerpfade)
 
 - **Milestone:** Sprecher-Profile + Stabilisierung
-- **Phase:** Phase 2 in Arbeit — Wave 0 (02-01) abgeschlossen
-- **Plan:** 02-01 ✅ — Wave 0: Test-Target + Refactors + Fakes + SmokeTests gruen
+- **Phase:** Phase 2 in Arbeit — Wave 0 (02-01) + Wave 1 (02-02) abgeschlossen
+- **Plan:** 02-02 ✅ — Hotkey-State-Machine-Tests: 17 deterministische XCTest-Faelle, 3x consecutive gruen
 - **Status:** Executing Phase 2
-- **Progress:** 1/6 phases complete (Phase 2: 1/3 plans)
+- **Progress:** 1/6 phases complete (Phase 2: 2/3 plans)
 
 ```
 [███░░░░░░░░░░░░░░░░░] 17% (1/6 phases)
@@ -43,8 +43,9 @@ Plan: 2 of 3 (next: 02-02 Hotkey-State-Machine-Tests)
 |--------|--------|---------|
 | Hotkey-Release → Clipboard (5–15 s Audio) | ≤ 3 s | nicht gemessen |
 | Diarization-Modell-Download | sichtbar mit Progress | unsichtbar (Phase 3 fix) |
-| Test-Coverage Hotkey + Pipeline | ≥ 1 grüner Test pro Pfad | SmokeTests gruen (2/2); Hotkey/Pipeline-Tests folgen in 02-02/02-03 |
+| Test-Coverage Hotkey + Pipeline | ≥ 1 grüner Test pro Pfad | Hotkey-State-Machine 17/17 gruen (3x consecutive); Pipeline-Tests folgen in 02-03 |
 | Plan 02-01 Dauer | — | ~5 min, 5 Commits, 8 Files |
+| Plan 02-02 Dauer | — | ~4 min, 1 Commit, 1 Testfile (220 LOC, 17 Tests) |
 
 ## Accumulated Context
 
@@ -59,6 +60,7 @@ Plan: 2 of 3 (next: 02-02 Hotkey-State-Machine-Tests)
 - Accessibility-Permission Auto-Recovery via 1 Hz `AXIsProcessTrusted`-Watcher (Phase 1, STAB-03)
 - Test-Fundament Wave 0: pure `decideTransition` als Hotkey-Seam, `ModeProcessor.init` mit optional-defaulted DI, `RecorderProtocol` fuer `AudioRecorder` (Phase 2, 02-01)
 - AppDelegate `enforceSingleInstance` skippt unter XCTest, damit hosted Tests nicht durch parallel laufende BlitzText.app terminiert werden (Phase 2, 02-01)
+- Hotkey-State-Machine-Tests pinnen Wave-0-Realitaet: Release innerhalb 50 ms holdDebounce wird verschluckt (Phase 2, 02-02)
 
 ### Open Todos
 
@@ -74,9 +76,9 @@ Keine.
 
 ## Session Continuity
 
-**Letzte Aktion:** Phase 2 Plan 02-01 (Wave 0) abgeschlossen — BlitzTextTests-Target, decideTransition-Seam, ModeProcessor-DI, RecorderProtocol, 3 Fakes, SmokeTests gruen. 5 Commits auf main.
+**Letzte Aktion:** Phase 2 Plan 02-02 abgeschlossen — 17 deterministische XCTest-Faelle gegen `decideTransition` (Hold/Toggle/Modifier-Matrix/Debounce); 3x consecutive gruen in < 25 ms reine Test-Execution. 1 Commit (6ba3167) auf main.
 
-**Nächste Aktion:** Plan 02-02 ausfuehren — Hotkey-State-Machine-Tests gegen `decideTransition` (Hold/Toggle, Modifier-Matrix, Debounce, schnelles Loslassen).
+**Nächste Aktion:** Plan 02-03 ausfuehren — Pipeline-Fehlerpfade (Whisper-API-Fehler, fehlendes Parakeet-Modell, Diarization-Fehlschlag).
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*

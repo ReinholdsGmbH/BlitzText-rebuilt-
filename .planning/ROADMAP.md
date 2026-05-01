@@ -44,7 +44,7 @@
 **Plans**: 3 plans
 
 - [x] 02-01-PLAN.md — Wave 0: BlitzTextTests-Target + Hotkey/ModeProcessor/Recorder-Test-Seams + Fakes + SmokeTests
-- [ ] 02-02-PLAN.md — Hotkey-State-Machine-Tests (Hold/Toggle, Modifier-Matrix, Debounce)
+- [x] 02-02-PLAN.md — Hotkey-State-Machine-Tests (Hold/Toggle, Modifier-Matrix, Debounce) — 17 Tests, 3x consecutive gruen
 - [ ] 02-03-PLAN.md — Pipeline-Fehlerpfade (Whisper-API-Fehler, Parakeet-Modell, Diarization-Fehlschlag)
 
 ### Phase 3: Diarization-UX
@@ -147,8 +147,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Stabilisierung & Doku-Drift | 0/0 | Not started | - |
-| 2. Test-Fundament | 0/0 | Not started | - |
+| 1. Stabilisierung & Doku-Drift | 4/4 | Complete | 2026-04-30 |
+| 2. Test-Fundament | 2/3 | Executing | - |
 | 3. Diarization-UX | 0/0 | Not started | - |
 | 4. Sprecher-Profile Core | 0/0 | Not started | - |
 | 5. Sprecher-Profile UI | 0/0 | Not started | - |
