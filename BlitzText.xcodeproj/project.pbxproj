@@ -34,6 +34,7 @@
 		B76687AB984E88FDA6597A68 /* HistoryWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944AD6F92E11F032129786D0 /* HistoryWindowController.swift */; };
 		B8CE90E884C1C61B26A666FE /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1BF5DED6C2580B9EBF3676 /* SmokeTests.swift */; };
 		BC8CBD42ECD07A5ED9A691F3 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2299B5A7C14B72204275495C /* WhisperKit */; };
+		CC55DE096741A4FAE7D58188 /* HotkeyStateMachineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E1E474CF8226C104EB674C4 /* HotkeyStateMachineTests.swift */; };
 		CC6729E1E9DD4CA00AF097A9 /* BlitzTextApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14AA9F6AE8FB74F949CA546F /* BlitzTextApp.swift */; };
 		CCD47512C3D93F31B0725757 /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E89BF7B08768F054ADC1C5C /* TranscriptionService.swift */; };
 		CE788668DFA306BE1E825F0D /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = 485D66E923451799A62CA1CB /* FluidAudio */; };
@@ -76,6 +77,7 @@
 		3F7B3C57134FCC4C8115A5CC /* RecordingHUDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingHUDController.swift; sourceTree = "<group>"; };
 		48C13BC8FEDE1C3912CDE458 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		5B401387CEF06487D70D2639 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
+		5E1E474CF8226C104EB674C4 /* HotkeyStateMachineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyStateMachineTests.swift; sourceTree = "<group>"; };
 		63CC93F3BF4D7DB8B1DD340A /* FakeRewriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeRewriter.swift; sourceTree = "<group>"; };
 		6D48C58EC4522B0B55F71E50 /* LocalWhisperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWhisperClient.swift; sourceTree = "<group>"; };
 		8B2D3A0A4629965089470A00 /* Mode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mode.swift; sourceTree = "<group>"; };
@@ -176,9 +178,18 @@
 			isa = PBXGroup;
 			children = (
 				1C1BF5DED6C2580B9EBF3676 /* SmokeTests.swift */,
+				3F2E588F798D06D44892F229 /* Hotkeys */,
 				EA2E70B729CD681B545F59DB /* Support */,
 			);
 			path = BlitzTextTests;
+			sourceTree = "<group>";
+		};
+		3F2E588F798D06D44892F229 /* Hotkeys */ = {
+			isa = PBXGroup;
+			children = (
+				5E1E474CF8226C104EB674C4 /* HotkeyStateMachineTests.swift */,
+			);
+			path = Hotkeys;
 			sourceTree = "<group>";
 		};
 		4610D22AEC02B425D00FCD01 /* Hotkeys */ = {
@@ -399,6 +410,7 @@
 				6CFB0DCE2BC3788A2303060F /* FakeAudioRecorder.swift in Sources */,
 				B15443D7155D166A9FC1B850 /* FakeRewriter.swift in Sources */,
 				ADF29B8DC8EA98913FC9B237 /* FakeTranscriptionService.swift in Sources */,
+				CC55DE096741A4FAE7D58188 /* HotkeyStateMachineTests.swift in Sources */,
 				B8CE90E884C1C61B26A666FE /* SmokeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
