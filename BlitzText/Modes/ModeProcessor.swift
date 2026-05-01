@@ -22,6 +22,7 @@ final class ModeProcessor: ObservableObject {
     let recorder = AudioRecorder()
     let suggestionPresenter: SuggestionPresenter
     let modelManager: LocalModelManager
+    let diarizerManager: DiarizerModelManager
 
     // MARK: - Injection-Slots (Test-Seams, additive Defaults = nil)
     private let _injectedOpenAITranscriber: TranscriptionService?
@@ -33,7 +34,7 @@ final class ModeProcessor: ObservableObject {
     private lazy var defaultOpenAITranscriber: TranscriptionService = WhisperAPIClient(settings: settings)
     private lazy var localClient = LocalWhisperClient(modelManager: modelManager)
     private lazy var defaultLocalTranscriber: TranscriptionService = localClient
-    private lazy var parakeetClient = ParakeetClient(settings: settings)
+    private lazy var parakeetClient = ParakeetClient(settings: settings, diarizerManager: diarizerManager)
     private lazy var defaultParakeetTranscriber: TranscriptionService = parakeetClient
     private lazy var defaultRewriter: RewriteService = OpenAIChatClient(settings: settings)
     private let inserter = TextInserter()
@@ -61,6 +62,7 @@ final class ModeProcessor: ObservableObject {
         settings: SettingsStore,
         history: HistoryStore,
         modelManager: LocalModelManager,
+        diarizerManager: DiarizerModelManager,
         // NEW (Test-Seams) — Produktion behaelt existierende Lazy-Defaults wenn nil:
         openAITranscriber: TranscriptionService? = nil,
         localTranscriber: TranscriptionService? = nil,
@@ -71,6 +73,7 @@ final class ModeProcessor: ObservableObject {
         self.settings = settings
         self.history = history
         self.modelManager = modelManager
+        self.diarizerManager = diarizerManager
         self.suggestionPresenter = SuggestionPresenter(settings: settings)
         self._injectedOpenAITranscriber = openAITranscriber
         self._injectedLocalTranscriber = localTranscriber

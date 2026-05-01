@@ -6,23 +6,34 @@ import FluidAudio
 final class ParakeetClient: TranscriptionService, @unchecked Sendable {
 
     private let settings: SettingsStore
+    private let diarizerManager: DiarizerModelManager
     private var asrManager: AsrManager?
     private var diarizer: DiarizerManager?
-    private var diarizerEnabledLastLoad: Bool = false
     private var loadingTask: Task<Void, Never>?
 
-    init(settings: SettingsStore) {
+    init(settings: SettingsStore, diarizerManager: DiarizerModelManager) {
         self.settings = settings
+        self.diarizerManager = diarizerManager
     }
 
     func warmUp() async {
         // Wenn Diarization-Setting sich geändert hat, neu laden — sonst fehlt das Modell
-        if asrManager != nil && diarizerEnabledLastLoad == settings.parakeetDiarization { return }
+        if asrManager != nil {
+            let matches = await diarizerStateMatches()
+            if matches { return }
+        }
         await ensureLoaded()
     }
 
     func transcribe(audioURL: URL, language: String?, prompt: String?) async throws -> String {
-        if asrManager == nil || diarizerEnabledLastLoad != settings.parakeetDiarization {
+        let needsLoad: Bool
+        if asrManager == nil {
+            needsLoad = true
+        } else {
+            let matches = await diarizerStateMatches()
+            needsLoad = !matches
+        }
+        if needsLoad {
             await ensureLoaded()
         }
         guard let asrManager else { throw TranscriptionError.backendNotAvailable }
@@ -114,6 +125,19 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
 
     // MARK: - Loading
 
+    /// True wenn die aktuell geladene Diarizer-Instanz zur Setting+Manager-Lage passt.
+    /// - Setting on + manager.isInstalled + diarizer != nil → match
+    /// - Setting off + diarizer == nil → match
+    /// - Setting on + manager.isInstalled aber diarizer == nil → mismatch (manager.retry() Erfolg → Re-Init nötig)
+    @MainActor
+    private func diarizerStateMatches() -> Bool {
+        if settings.parakeetDiarization {
+            return diarizerManager.isInstalled && diarizer != nil
+        } else {
+            return diarizer == nil
+        }
+    }
+
     private func ensureLoaded() async {
         if let existing = loadingTask {
             await existing.value
@@ -129,13 +153,24 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
                 self.asrManager = manager
 
                 if useDiarization {
-                    let diar = DiarizerManager(config: .default)
-                    diar.initialize(models: try await DiarizerModels.downloadIfNeeded())
-                    self.diarizer = diar
+                    // D-16: Manager ist Single-Source-of-Truth für den Diarizer-Modell-
+                    // Lifecycle. Er kümmert sich um Download/Progress/Fehler-Klassifikation.
+                    let installed = await self.diarizerManager.ensureInstalled()
+                    let cachedModels = await self.diarizerManager.modelsIfInstalled
+                    if installed, let models = cachedModels {
+                        let diar = DiarizerManager(config: .default)
+                        diar.initialize(models: models)
+                        self.diarizer = diar
+                    } else {
+                        // Nicht installiert oder Fehler: graceful degrade auf ASR-only.
+                        // applyDiarization-Fallback liefert reinen ASR-Text.
+                        self.diarizer = nil
+                        let stateDesc = await String(describing: self.diarizerManager.state)
+                        Log.write("Parakeet: Diarizer nicht verfügbar (state=\(stateDesc)) — fahre ASR-only fort")
+                    }
                 } else {
                     self.diarizer = nil
                 }
-                self.diarizerEnabledLastLoad = useDiarization
                 Log.write("Parakeet: bereit (\(String(format: "%.1f", Date().timeIntervalSince(t0)))s)")
             } catch {
                 Log.write("Parakeet: Init-Fehler — \(error.localizedDescription)")
