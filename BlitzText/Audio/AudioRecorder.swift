@@ -1,6 +1,14 @@
 import Foundation
 import AVFoundation
 
+/// Test-Seam: minimaler Recorder-Vertrag, an dem ModeProcessor und Tests andocken.
+/// Production: AudioRecorder konformiert via Extension, kein Verhaltensbruch.
+/// Tests: FakeAudioRecorder konformiert ohne AVAudioEngine-Abhaengigkeit.
+protocol RecorderProtocol: AnyObject {
+    func start() throws -> URL
+    func stop() -> URL?
+}
+
 /// Nimmt Mikrofon nach `start()` auf, schreibt eine 16 kHz mono 16-bit WAV. Stoppt mit `stop()` und liefert die URL.
 final class AudioRecorder: ObservableObject, @unchecked Sendable {
 
@@ -175,3 +183,7 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
 
     enum RecorderError: Error { case micDenied }
 }
+
+/// Konformanz-Deklaration: `AudioRecorder.start()` und `AudioRecorder.stop()` erfuellen
+/// `RecorderProtocol` bereits — diese Extension ist eine reine Naht fuer DI.
+extension AudioRecorder: RecorderProtocol {}

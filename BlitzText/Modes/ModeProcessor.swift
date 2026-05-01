@@ -17,25 +17,66 @@ final class ModeProcessor: ObservableObject {
 
     private let settings: SettingsStore
     let history: HistoryStore
+    /// Konkreter Recorder fuer UI-Zugriff (z. B. `currentLevel` im HUD).
+    /// In Pipeline-Tests wird stattdessen `_injectedRecorder` verwendet (siehe `activeRecorder`).
     let recorder = AudioRecorder()
     let suggestionPresenter: SuggestionPresenter
     let modelManager: LocalModelManager
-    private lazy var openAITranscriber: TranscriptionService = WhisperAPIClient(settings: settings)
+
+    // MARK: - Injection-Slots (Test-Seams, additive Defaults = nil)
+    private let _injectedOpenAITranscriber: TranscriptionService?
+    private let _injectedLocalTranscriber: TranscriptionService?
+    private let _injectedParakeetTranscriber: TranscriptionService?
+    private let _injectedRewriter: RewriteService?
+    private let _injectedRecorder: RecorderProtocol?
+
+    private lazy var defaultOpenAITranscriber: TranscriptionService = WhisperAPIClient(settings: settings)
     private lazy var localClient = LocalWhisperClient(modelManager: modelManager)
-    private lazy var localTranscriber: TranscriptionService = localClient
+    private lazy var defaultLocalTranscriber: TranscriptionService = localClient
     private lazy var parakeetClient = ParakeetClient(settings: settings)
-    private lazy var parakeetTranscriber: TranscriptionService = parakeetClient
-    private lazy var rewriter: RewriteService = OpenAIChatClient(settings: settings)
+    private lazy var defaultParakeetTranscriber: TranscriptionService = parakeetClient
+    private lazy var defaultRewriter: RewriteService = OpenAIChatClient(settings: settings)
     private let inserter = TextInserter()
+
+    private var openAITranscriber: TranscriptionService {
+        _injectedOpenAITranscriber ?? defaultOpenAITranscriber
+    }
+    private var localTranscriber: TranscriptionService {
+        _injectedLocalTranscriber ?? defaultLocalTranscriber
+    }
+    private var parakeetTranscriber: TranscriptionService {
+        _injectedParakeetTranscriber ?? defaultParakeetTranscriber
+    }
+    private var rewriter: RewriteService {
+        _injectedRewriter ?? defaultRewriter
+    }
+    private var activeRecorder: RecorderProtocol {
+        _injectedRecorder ?? recorder
+    }
 
     private var activeMode: Mode?
     private var currentRecordingURL: URL?
 
-    init(settings: SettingsStore, history: HistoryStore, modelManager: LocalModelManager) {
+    init(
+        settings: SettingsStore,
+        history: HistoryStore,
+        modelManager: LocalModelManager,
+        // NEW (Test-Seams) — Produktion behaelt existierende Lazy-Defaults wenn nil:
+        openAITranscriber: TranscriptionService? = nil,
+        localTranscriber: TranscriptionService? = nil,
+        parakeetTranscriber: TranscriptionService? = nil,
+        rewriter: RewriteService? = nil,
+        recorder: RecorderProtocol? = nil
+    ) {
         self.settings = settings
         self.history = history
         self.modelManager = modelManager
         self.suggestionPresenter = SuggestionPresenter(settings: settings)
+        self._injectedOpenAITranscriber = openAITranscriber
+        self._injectedLocalTranscriber = localTranscriber
+        self._injectedParakeetTranscriber = parakeetTranscriber
+        self._injectedRewriter = rewriter
+        self._injectedRecorder = recorder
     }
 
     /// Lädt das aktuell aktivierte lokale Modell vorab (im Hintergrund). Nach Modell-Aktivierung
@@ -60,7 +101,7 @@ final class ModeProcessor: ObservableObject {
         guard activeMode == nil else { return }
         activeMode = mode
         do {
-            let url = try recorder.start()
+            let url = try activeRecorder.start()
             currentRecordingURL = url
             state = .recording(mode)
         } catch {
@@ -72,7 +113,7 @@ final class ModeProcessor: ObservableObject {
 
     func stop() async {
         guard let mode = activeMode else { return }
-        let url = recorder.stop()
+        let url = activeRecorder.stop()
         activeMode = nil
         currentRecordingURL = nil
         guard let url else {
