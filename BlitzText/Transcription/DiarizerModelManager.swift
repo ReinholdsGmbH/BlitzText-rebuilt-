@@ -93,6 +93,24 @@ final class DiarizerModelManager: ObservableObject {
         beginDownload()
     }
 
+    /// Async-Variante von `start()` — wartet auf Abschluss des Download/Compile-Schritts.
+    /// Rückgabe: `true` wenn am Ende `state == .installed`, sonst `false` (failed/notInstalled).
+    /// Wird von `ParakeetClient.ensureLoaded()` aufgerufen (D-16).
+    /// Idempotent: bei `.installed` direkter Return; bei laufendem Task wird auf dessen Abschluss gewartet.
+    @discardableResult
+    func ensureInstalled() async -> Bool {
+        if case .installed = state { return true }
+        if loadingTask == nil {
+            beginDownload()
+        }
+        // Snapshot des Tasks lokal halten — beginDownload setzt loadingTask = nil
+        // im Erfolgs-/Fehler-Pfad bevor wir hier zurückkehren würden.
+        let task = loadingTask
+        await task?.value
+        if case .installed = state { return true }
+        return false
+    }
+
     // MARK: - Private
 
     private func beginDownload() {

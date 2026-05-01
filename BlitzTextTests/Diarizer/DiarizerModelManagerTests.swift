@@ -115,6 +115,29 @@ final class DiarizerModelManagerTests: XCTestCase {
         XCTAssertEqual(manager.lastError, "Verbindung fehlgeschlagen. Prüfe deine Internetverbindung und versuch es erneut.")
     }
 
+    // MARK: - ensureInstalled() async (D-16, Wave 1 für ParakeetClient)
+
+    func testEnsureInstalled_whenAlreadyInstalled_returnsTrueImmediately() async {
+        let loader = FakeDiarizerLoader()
+        loader.installed = true
+        let manager = DiarizerModelManager(loader: loader)
+        let result = await manager.ensureInstalled()
+        XCTAssertTrue(result)
+        XCTAssertEqual(loader.downloadCallCount, 0, "Bei installed darf kein Download starten")
+    }
+
+    func testEnsureInstalled_whenDownloadFails_returnsFalse() async {
+        let loader = FakeDiarizerLoader()
+        loader.installed = false
+        loader.failure = URLError(.notConnectedToInternet)
+        let manager = DiarizerModelManager(loader: loader)
+        let result = await manager.ensureInstalled()
+        XCTAssertFalse(result)
+        if case .failed = manager.state {} else {
+            XCTFail("Erwartet .failed — bekam: \(manager.state)")
+        }
+    }
+
     // MARK: - Helpers
 
     /// Wartet (max 2 s) bis die condition erfüllt ist. Pollt 50 Hz.
