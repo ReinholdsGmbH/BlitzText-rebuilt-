@@ -26,6 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Prüft, ob bereits eine BlitzText-Instanz läuft. Wenn ja: Hinweis-Dialog,
     /// alte Instanz in den Vordergrund holen, und sich selbst beenden.
     private func enforceSingleInstance() {
+        // Im XCTest-Hosted-Run laeuft die echte App im Test-Runner als Bundle-Loader —
+        // ein Single-Instance-Check wuerde den Test-Host beenden, sobald der User
+        // BlitzText im Hintergrund laufen hat. Skip, wenn XCTest die App hostet.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return }
         guard let bundleID = Bundle.main.bundleIdentifier else { return }
         let me = NSRunningApplication.current
         let others = NSRunningApplication
