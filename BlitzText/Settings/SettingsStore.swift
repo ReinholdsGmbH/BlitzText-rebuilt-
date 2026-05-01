@@ -18,8 +18,26 @@ final class SettingsStore: ObservableObject {
     @Published var transcriptionModel: String = "whisper-1"
     @Published var backend: TranscriptionBackend = .openAI
     @Published var aiSuggestProperNouns: Bool = true
-    /// Bei Parakeet-Backend: Sprecher-Diarization aktivieren
-    @Published var parakeetDiarization: Bool = false
+    /// Bei Parakeet-Backend: Sprecher-Diarization aktivieren.
+    /// Side-Effect (D-01): `false → true` triggert sofortigen Manager-Download.
+    /// Snapshot-Save läuft separat über das debounced `objectWillChange`-Sink.
+    @Published var parakeetDiarization: Bool = false {
+        didSet {
+            guard parakeetDiarization, !oldValue else { return }
+            // D-01: Toggle-On löst Manager-Start aus. Manager ist idempotent —
+            // No-Op wenn bereits installed oder ein Download läuft.
+            // `load()` läuft im init() vor AppDelegate-DI, daher diarizerManager == nil
+            // und der Side-Effect feuert beim Initial-Load nicht.
+            // MainActor-Hop weil DiarizerModelManager.start() @MainActor-isoliert ist.
+            Task { @MainActor [weak diarizerManager] in
+                diarizerManager?.start()
+            }
+        }
+    }
+
+    /// Wird in AppDelegate.bootstrap() gesetzt, sobald der DiarizerModelManager existiert.
+    /// `weak` verhindert Retain-Cycle; AppDelegate ist alleiniger Owner.
+    weak var diarizerManager: DiarizerModelManager?
 
     // MARK: - API-Key
 
