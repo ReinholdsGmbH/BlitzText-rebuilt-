@@ -20,7 +20,7 @@ progress:
 
 **Core Value:** Vom gedrückten Hotkey bis zum eingefügten Text wenige Sekunden — Text muss benutzbar sein, ohne nachzubearbeiten.
 
-**Current Focus:** Phase 2 abgeschlossen — naechste Phase: 3 (Diarization-UX)
+**Current Focus:** Phase 3 (Diarization-UX) — CONTEXT erfasst, naechster Schritt: /gsd-ui-phase 3 (chained → /gsd-plan-phase 3)
 
 ## Current Position
 
@@ -30,8 +30,8 @@ Plan: 3 of 3 — alle abgeschlossen
 - **Milestone:** Sprecher-Profile + Stabilisierung
 - **Phase:** Phase 2 vollstaendig — Wave 0 (02-01) + Wave 1 (02-02 + 02-03) abgeschlossen
 - **Plan:** 02-03 ✅ — Pipeline-Error-Path-Tests: 3 TEST-04-Pin-Tests, 3x consecutive gruen, volle Suite 22/22
-- **Status:** Phase 2 complete; bereit fuer `/gsd-discuss-phase 3`
-- **Progress:** 2/6 phases complete
+- **Status:** Phase 3 CONTEXT.md erfasst; chained mit /gsd-ui-phase 3 + /gsd-plan-phase 3
+- **Progress:** 2/6 phases complete (Phase 3 in Discuss/UI/Plan-Chain)
 
 ```
 [██████░░░░░░░░░░░░░░] 33% (2/6 phases)
@@ -78,9 +78,9 @@ Keine.
 
 ## Session Continuity
 
-**Letzte Aktion:** Phase 2 Plan 02-03 abgeschlossen — 3 TEST-04-Pin-Tests (Whisper-API-Fehler, fehlendes Parakeet-Modell, Diarization-Silent-Fallback) gegen `ModeProcessor.runPipeline` ueber Wave-0-Fakes; 3x consecutive gruen in < 100 ms reine Test-Execution; volle Suite 22/22. 1 Commit (f07668b) auf main. Phase 2 vollstaendig.
+**Letzte Aktion:** Phase 3 Discuss abgeschlossen — 03-CONTEXT.md mit 18 Decisions in 7 Bereichen (sofortiger Download bei Toggle-On, Toggle-Replacement durch Status-Label, eigener Downloader analog LocalModelManager, Pre-Warm beim App-Start). Researcher-Aufgaben markiert. 1 Commit (314652f) auf main.
 
-**Nächste Aktion:** `/gsd-discuss-phase 3` — Diarization-UX (sichtbarer Modell-Download mit Progress + Retry).
+**Nächste Aktion:** `/gsd-ui-phase 3` (chained → `/gsd-plan-phase 3`) — UI-SPEC fuer Diarization-Block (Toggle-or-Status-Label-Modus, Progress-Bar, Status-Pill, Retry-Button).
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*
