@@ -20,7 +20,7 @@ progress:
 
 **Core Value:** Vom gedrückten Hotkey bis zum eingefügten Text wenige Sekunden — Text muss benutzbar sein, ohne nachzubearbeiten.
 
-**Current Focus:** Phase 3 (Diarization-UX) — CONTEXT erfasst, naechster Schritt: /gsd-ui-phase 3 (chained → /gsd-plan-phase 3)
+**Current Focus:** Phase 3 (Diarization-UX) — Plans READY, naechster Schritt: /gsd-execute-phase 3
 
 ## Current Position
 
@@ -30,8 +30,8 @@ Plan: 3 of 3 — alle abgeschlossen
 - **Milestone:** Sprecher-Profile + Stabilisierung
 - **Phase:** Phase 2 vollstaendig — Wave 0 (02-01) + Wave 1 (02-02 + 02-03) abgeschlossen
 - **Plan:** 02-03 ✅ — Pipeline-Error-Path-Tests: 3 TEST-04-Pin-Tests, 3x consecutive gruen, volle Suite 22/22
-- **Status:** Phase 3 CONTEXT.md erfasst; chained mit /gsd-ui-phase 3 + /gsd-plan-phase 3
-- **Progress:** 2/6 phases complete (Phase 3 in Discuss/UI/Plan-Chain)
+- **Status:** Phase 3 Discuss + UI + Plan abgeschlossen — 2 Plans (03-01 Wave 0, 03-02 Wave 2) verified 12/12 dimensions
+- **Progress:** 2/6 phases complete (Phase 3 ready zur Ausfuehrung)
 
 ```
 [██████░░░░░░░░░░░░░░] 33% (2/6 phases)
@@ -78,9 +78,9 @@ Keine.
 
 ## Session Continuity
 
-**Letzte Aktion:** Phase 8 UI-Phase abgeschlossen. 08-UI-SPEC.md APPROVED 6/6 dimensions (drei Surfaces: zwei RewriteBackendPicker im Anpassen-Tab, FoundationAvailabilityBanner mit vier States A/B/C/D, BackendBadge im Recording-HUD). Auto-Mode-Annahmen dokumentiert (Banner-Position, modelNotReady ohne .red, HUD-Position rechts neben langBadge, nicht-dismissbar v1, Picker-Items mit Privacy-Klammer). Commit: 2dde62a.
+**Letzte Aktion:** Phase 3 Plan-Phase abgeschlossen. 03-RESEARCH.md (FluidAudio 0.14.3 Live-Inspection, progressHandler-API gefunden), 03-01-PLAN.md (Wave 0: DiarizerModelManager + ETAEstimator + Loader-Protokoll + Tests, ADR Variant A vs B), 03-02-PLAN.md (Wave 2: SettingsStore didSet, ParakeetClient-Refactor, vier-State SettingsView-Block, AppDelegate Pre-Warm). Plan-Checker 12/12 dimensions PASSED. Commits: 75ab422 (Plans), a5b9486 (Research).
 
-**Nächste Aktion:** `/gsd-plan-phase 8` — Plan für Apple Foundation Rewrite-Backend (AppleFoundationRewriteClient + RewriteBackend-Enum + Modi-Tab-Erweiterung + HUD-Indikator).
+**Nächste Aktion:** `/gsd-execute-phase 3` — Wave 0 (Manager + Tests) parallel-safe; Wave 2 (UI + Integration) sequentiell danach.
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*
