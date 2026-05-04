@@ -72,14 +72,78 @@ final class AppleFoundationAvailabilityTests: XCTestCase {
         XCTAssertEqual(store.rewriteBackendForRant, .openAI)
     }
 
-    func test_refresh_idempotent_doesNotReTriggerOnSameState() {
+    /// CR-02 Fix: refreshFoundationAvailability ruft applyAutoFallbackIfNeeded UNCONDITIONAL.
+    /// Self-Idempotency-Guard (didAutoFallbackToOpenAI) verhindert Doppel-Aktivierung —
+    /// NICHT mehr der entfernte State-Equality-Guard (`if new != foundationAvailability`).
+    func test_refresh_idempotent_selfIdempotencyGuardPreventsReTrigger() {
         let (store, provider) = makeStore(initial: .unavailable(.modelNotReady), apiKey: "sk-test-123")
-        store.refreshFoundationAvailability()
-        store.didAutoFallbackToOpenAI = false  // Reset für Re-Trigger-Check
+        store.refreshFoundationAvailability()           // 1. Fallback → didAutoFallbackToOpenAI = true
+        XCTAssertTrue(store.didAutoFallbackToOpenAI, "Flag nach erstem Fallback gesetzt")
+
         provider.state = .unavailable(.modelNotReady)  // gleicher State
-        store.refreshFoundationAvailability()
-        XCTAssertFalse(store.didAutoFallbackToOpenAI, "kein Re-Trigger bei identischem State")
+        store.refreshFoundationAvailability()           // 2. Aufruf: Guard `!didAutoFallbackToOpenAI` greift
+        XCTAssertTrue(store.didAutoFallbackToOpenAI, "Self-Idempotency-Guard: kein Re-Trigger solange Flag gesetzt")
+        XCTAssertEqual(store.rewriteBackendForPlus, .openAI, "Backend bleibt .openAI")
     }
+
+    // MARK: - CR-02 Regression Tests
+
+    /// CR-02 Regression: Initial-State == Provider-Result == .modelNotReady
+    /// darf den Auto-Fallback NICHT verschlucken.
+    ///
+    /// Bug: `refreshFoundationAvailability()` prüfte `if new != foundationAvailability`
+    /// — beim Cold-Boot (Initial-State hardcoded `.unavailable(.modelNotReady)`) und
+    /// Provider-Result identisch feuerte der Inequality-Check nicht → kein Fallback.
+    func test_refresh_initialBootstrap_unavailableMatchesInitialState_triggersAutoFallback() {
+        let provider = FakeFoundationAvailabilityProvider(state: .unavailable(.modelNotReady))
+        let store = SettingsStore(availabilityProvider: provider)
+        store._testApiKeyOverride = "sk-test-coldboot"
+        // Sanity: Default-Backend nach makeStore-Reset ist .appleFoundation für beide Modi.
+        store.rewriteBackendForPlus = .appleFoundation
+        store.rewriteBackendForRant = .appleFoundation
+        store.didAutoFallbackToOpenAI = false
+        XCTAssertEqual(store.rewriteBackendForPlus, .appleFoundation)
+        XCTAssertEqual(store.rewriteBackendForRant, .appleFoundation)
+        XCTAssertFalse(store.didAutoFallbackToOpenAI)
+
+        store.refreshFoundationAvailability()
+
+        XCTAssertEqual(store.rewriteBackendForPlus, .openAI,
+            "Cold-Boot mit Initial==Provider==modelNotReady muss Auto-Fallback triggern (CR-02)")
+        XCTAssertEqual(store.rewriteBackendForRant, .openAI,
+            "Cold-Boot Auto-Fallback muss beide Modi schalten (CR-02)")
+        XCTAssertTrue(store.didAutoFallbackToOpenAI,
+            "Self-Idempotency-Marker muss nach Auto-Fallback gesetzt sein")
+    }
+
+    /// CR-02 Reset: Wenn Foundation wieder .available wird, muss
+    /// didAutoFallbackToOpenAI zurückgesetzt werden, damit ein späterer
+    /// erneuter Verlust wieder einen Auto-Fallback auslösen kann.
+    func test_refresh_returnsToAvailable_resetsAutoFallbackMarker() {
+        let provider = FakeFoundationAvailabilityProvider(state: .unavailable(.modelNotReady))
+        let store = SettingsStore(availabilityProvider: provider)
+        store._testApiKeyOverride = "sk-test-recover"
+        store.rewriteBackendForPlus = .appleFoundation
+        store.rewriteBackendForRant = .appleFoundation
+        store.didAutoFallbackToOpenAI = false
+        store.refreshFoundationAvailability()
+        XCTAssertTrue(store.didAutoFallbackToOpenAI)
+
+        // Foundation kommt zurück.
+        provider.state = .available
+        store.refreshFoundationAvailability()
+
+        XCTAssertEqual(store.foundationAvailability, .available)
+        XCTAssertFalse(store.didAutoFallbackToOpenAI,
+            "Recovery zu .available muss didAutoFallbackToOpenAI zurücksetzen (CR-02)")
+        // Privacy-Invariante: User-Backend-Wahl wird durch den Reset NICHT
+        // automatisch zurückgeändert — User hat .openAI explizit (per Auto-Fallback)
+        // und behält diese Wahl bis zur manuellen Änderung.
+        XCTAssertEqual(store.rewriteBackendForPlus, .openAI)
+        XCTAssertEqual(store.rewriteBackendForRant, .openAI)
+    }
+
+    // MARK: - WARNING-7 Self-Idempotency
 
     /// WARNING-7-Verifikation: applyAutoFallbackIfNeeded ist self-idempotent —
     /// auch bei zwei aufeinanderfolgenden refresh-Aufrufen, in denen der State zwischendurch
