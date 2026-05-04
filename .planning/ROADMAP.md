@@ -132,7 +132,7 @@
 - [x] 08-02-PLAN.md — Wave 0 Foundation: Protocols (FoundationAvailabilityProviding, LanguageModelInferring) + DeescalatedOutput @Generable + AppleFoundationError + SettingsStore-Erweiterung (RewriteBackend, refreshFoundationAvailability, applyAutoFallbackIfNeeded self-idempotent) + Fakes + 7 AC-AVAIL-1/2 Tests, volle Suite 46/46 grün (2026-05-04)
 - [x] 08-03-PLAN.md — Wave 1 Client + Dispatch: AppleFoundationRewriteClient (Plain + Guided) + ModeProcessor Backend-Lookup + 11 Tests in 2 Files (6 Client AC-AVAIL-1 + 5 Dispatch-Matrix inkl. Production-Pfad mit echtem Client) (2026-05-04)
 - [x] 08-04-PLAN.md — Wave 2 UI: FoundationAvailabilityBanner (4 Varianten A/B/C + Auto-Fallback-Overlay D) + SettingsView Backend-Picker x 2 + APPLE INTELLIGENCE-Section + RecordingHUD BackendBadge (apple.logo / cloud) + Window-Width 268 + Show-while-Transcribing/Rewriting + AppDelegate Bootstrap-Refresh + Task.detached Pre-Warm (sync session.prewarm() per PIN(A6)) + didBecomeActiveNotification-Observer (AC-AVAIL-2); volle Suite 57/57 grün (2026-05-04)
-- [ ] 08-05-PLAN.md — Wave 3 Polish: README AC-AVAIL-3 Doku + Suite 3x grün + manuelles UAT (Banner-Varianten, HUD, Latenz)
+- [x] 08-05-PLAN.md — Wave 3 Polish: README AC-AVAIL-3 Sektion (Apple Intelligence ≠ Siri + MDM-Realitätscheck) + volle Suite 3x consecutive grün ohne Flake (57/57; Run 1: 23s cold, Run 2: 8s, Run 3: 6s) + 08-VERIFICATION.md mit Phase-Gate-Sign-Off-Checkliste angelegt; Visual-UAT auf realer Apple-Intelligence-Hardware bleibt als 11-Item-Checkliste pending für User-Eintrag via /gsd-verify-phase 8 (2026-05-04)
 **UI hint**: yes
 **Context**: 08-CONTEXT.md (gathered 2026-05-01 als 999.7, promoted via /gsd-review-backlog)
 
