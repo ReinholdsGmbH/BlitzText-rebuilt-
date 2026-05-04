@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-04T08:16:28.000Z"
+last_updated: "2026-05-04T09:09:16.660Z"
 progress:
-  total_phases: 12
-  completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  total_phases: 20
+  completed_phases: 3
+  total_plans: 17
+  completed_plans: 14
+  percent: 82
 ---
 
 # Project State: BlitzText
@@ -30,7 +30,7 @@ Plan: 4 of 5 — 08-04 Wave-2 UI-Surfaces abgeschlossen
 - **Milestone:** Sprecher-Profile + Stabilisierung
 - **Phase:** Phase 8 ausführend — Wave 2 UI (08-04: FoundationAvailabilityBanner + Settings-Picker + HUD-Badge + AppDelegate-Lifecycle)
 - **Plan:** 08-04 ✅ — 1 neue View-Datei (FoundationAvailabilityBanner.swift, 133 LOC, 4 State-Varianten) + 3 modifizierte Files (SettingsView Banner-Mount + 2 Picker, RecordingHUDController BackendBadge + Window-Width 268, AppDelegate Refresh + Pre-Warm + didBecomeActive-Observer).
-- **Status:** Plan 08-04 complete (3 atomic commits: e1fdbd5, 7b30d6d, b2576f4); volle Suite 57/57 grün, Build grün. AC-AVAIL-1 + AC-AVAIL-2 vollständig abgedeckt; ROADMAP-Erfolgskriterien 4 + 5 erfüllt.
+- **Status:** Ready to execute
 - **Progress:** 2/6 phases complete (Phase 3 awaiting verification, Phase 8 in progress, 4/5 plans)
 
 ```
