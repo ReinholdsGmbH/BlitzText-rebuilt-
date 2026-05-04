@@ -72,13 +72,18 @@ final class AppleFoundationAvailabilityTests: XCTestCase {
         XCTAssertEqual(store.rewriteBackendForRant, .openAI)
     }
 
-    func test_refresh_idempotent_doesNotReTriggerOnSameState() {
+    /// CR-02 Fix: refreshFoundationAvailability ruft applyAutoFallbackIfNeeded UNCONDITIONAL.
+    /// Self-Idempotency-Guard (didAutoFallbackToOpenAI) verhindert Doppel-Aktivierung —
+    /// NICHT mehr der entfernte State-Equality-Guard (`if new != foundationAvailability`).
+    func test_refresh_idempotent_selfIdempotencyGuardPreventsReTrigger() {
         let (store, provider) = makeStore(initial: .unavailable(.modelNotReady), apiKey: "sk-test-123")
-        store.refreshFoundationAvailability()
-        store.didAutoFallbackToOpenAI = false  // Reset für Re-Trigger-Check
+        store.refreshFoundationAvailability()           // 1. Fallback → didAutoFallbackToOpenAI = true
+        XCTAssertTrue(store.didAutoFallbackToOpenAI, "Flag nach erstem Fallback gesetzt")
+
         provider.state = .unavailable(.modelNotReady)  // gleicher State
-        store.refreshFoundationAvailability()
-        XCTAssertFalse(store.didAutoFallbackToOpenAI, "kein Re-Trigger bei identischem State")
+        store.refreshFoundationAvailability()           // 2. Aufruf: Guard `!didAutoFallbackToOpenAI` greift
+        XCTAssertTrue(store.didAutoFallbackToOpenAI, "Self-Idempotency-Guard: kein Re-Trigger solange Flag gesetzt")
+        XCTAssertEqual(store.rewriteBackendForPlus, .openAI, "Backend bleibt .openAI")
     }
 
     // MARK: - CR-02 Regression Tests

@@ -138,16 +138,22 @@ final class SettingsStore: ObservableObject {
 
     // MARK: - Foundation-Availability + Auto-Fallback
 
-    /// Live-Refresh des Apple-Foundation-Availability-States. Bei State-Wechsel
-    /// werden UI-Observers (@Published) getriggert UND `applyAutoFallbackIfNeeded()`
-    /// aufgerufen — Letzteres ist self-idempotent (WARNING 7).
+    /// Live-Refresh des Apple-Foundation-Availability-States. Triggert
+    /// `applyAutoFallbackIfNeeded()` UNCONDITIONAL — Self-Idempotency-Guard
+    /// in applyAutoFallback schützt gegen Doppel-Aktivierung. Cold-Boot-
+    /// Edge-Case (Initial-State == Provider-Result == .modelNotReady) muss
+    /// trotz State-Equality den Auto-Fallback auslösen können (CR-02).
+    /// Bei Recovery zu `.available` wird der Self-Idempotency-Marker
+    /// zurückgesetzt, damit ein späterer erneuter Verlust wieder einen
+    /// Auto-Fallback auslösen kann.
     /// Aufrufer: AppDelegate.bootstrap() + NSApplication.didBecomeActiveNotification.
     func refreshFoundationAvailability() {
         let new = availabilityProvider.currentAvailability()
-        if new != foundationAvailability {
-            foundationAvailability = new
-            applyAutoFallbackIfNeeded()
+        foundationAvailability = new
+        if new == .available {
+            didAutoFallbackToOpenAI = false
         }
+        applyAutoFallbackIfNeeded()
     }
 
     /// Schaltet beide Rewrite-Backend-Slots (Plus + Rant) einmalig auf `.openAI`,
