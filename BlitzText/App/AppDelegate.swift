@@ -16,6 +16,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var historyWindow: HistoryWindowController!
     private var recordingHUD: RecordingHUDController!
     private var suggestionToast: SuggestionToastController!
+    /// Token des `didBecomeActiveNotification`-Observers. Muss in
+    /// `applicationWillTerminate` an `NotificationCenter.removeObserver(_:)`
+    /// übergeben werden, sonst leakt der Block-basierte Observer (CR-01).
+    /// Im XCTest-Hosted-Run akkumulieren sonst stale Observer über mehrere Runs.
+    private var didBecomeActiveObserver: NSObjectProtocol?
 
     nonisolated func applicationWillFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated { self.enforceSingleInstance() }
@@ -116,21 +121,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // AC-AVAIL-2: Re-Check bei App-Reaktivierung (User kommt typischerweise aus
         // den Systemeinstellungen zurück, nachdem er Apple Intelligence aktiviert hat).
-        // Doppel-`[weak self, weak settingsStore]`-Capture: `weak self` bricht den
-        // Retain-Cycle AppDelegate↔Observer; `weak settingsStore` ist Plan-vorgegeben
-        // (08-04 AC) und expliziert die zweite Lebensdauer-Abhängigkeit. Hop auf
-        // MainActor, weil refreshFoundationAvailability @Published-State mutiert
-        // und SettingsStore non-Sendable ist (Swift-6 strict-concurrency).
-        NotificationCenter.default.addObserver(
+        // Token wird in didBecomeActiveObserver gespeichert und in applicationWillTerminate
+        // via removeObserver freigegeben (CR-01-Fix).
+        didBecomeActiveObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
-        ) { [weak self, weak settingsStore] _ in
-            // settingsStore-Capture explizit gehalten (Plan-AC); Aufruf nutzt
-            // self-Capture, weil SettingsStore non-Sendable ist und eine direkte
-            // Cross-Actor-Übergabe vom Notification-Closure in den Task einen
-            // sending-data-races-Fehler erzeugen würde (Swift-6 strict-concurrency).
-            _ = settingsStore
+        ) { [weak self] _ in
+            // Hop auf MainActor, weil refreshFoundationAvailability @Published-State
+            // mutiert und SettingsStore non-Sendable ist (Swift-6 strict-concurrency).
+            // Direkte Cross-Actor-Übergabe vom Notification-Closure in den Task
+            // würde einen sending-data-races-Fehler erzeugen.
             Task { @MainActor in
                 self?.settingsStore.refreshFoundationAvailability()
             }
@@ -185,6 +186,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     nonisolated func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated {
+            if let token = self.didBecomeActiveObserver {
+                NotificationCenter.default.removeObserver(token)
+                self.didBecomeActiveObserver = nil
+            }
             self.hotkeyManager?.stop()
             self.cleanupTempFiles()
         }
