@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-04T08:05:13.000Z"
+last_updated: "2026-05-04T08:16:28.000Z"
 progress:
   total_phases: 12
   completed_phases: 2
@@ -20,18 +20,18 @@ progress:
 
 **Core Value:** Vom gedrückten Hotkey bis zum eingefügten Text wenige Sekunden — Text muss benutzbar sein, ohne nachzubearbeiten.
 
-**Current Focus:** Phase 8 (Apple Foundation Rewrite-Backend) — IN PROGRESS (3/5 plans). Plan 08-03 Wave-1 Client + Dispatch abgeschlossen: AppleFoundationRewriteClient (Plain `rewrite` + Guided `rewriteGuided` + Pre-Inference-Guard AC-AVAIL-1 + GenerationError-Mapper für 9 Cases per PIN(A2)) + ModeProcessor Backend-Lookup (foundationRewriter-Slot, settings.rewriteBackend(for: mode)-Switch, as?-Cast für Rant+Foundation→rewriteGuided, Sprachbias-Marker, AppleFoundationError-Branch in humanReadable) + 11 neue Tests (6 Client-Tests + 5 Dispatch-Tests inkl. Production-Pfad-Verifikation mit echtem Client). Volle Suite 57/57 grün, 3× consecutive ohne Flake. Naechster Schritt: 08-04 (Wave 2 UI — SettingsView Backend-Picker + FoundationAvailabilityBanner + RecordingHUD Backend-Badge + AppDelegate Pre-Warm). Phase 3 verification (manual UAT) bleibt offen, blockt aber Phase 8 nicht.
+**Current Focus:** Phase 8 (Apple Foundation Rewrite-Backend) — IN PROGRESS (4/5 plans). Plan 08-04 Wave-2 UI abgeschlossen: FoundationAvailabilityBanner.swift (133 LOC, 4 State-Varianten A/B/C + Auto-Fallback-Overlay D, alle deutschen Strings mit Umlauten + Systemeinstellungen-Link) + SettingsView (zwei Backend-Picker für BLITZTEXT+ und BLITZTEXT $%&! + Banner-Mount als "APPLE INTELLIGENCE"-Section + Privacy-Hint immer bei .openAI per WARNING 6) + RecordingHUDController (BackendBadge mit apple.logo / cloud, Window-Width 240→268, Show-while-Transcribing/Rewriting) + AppDelegate (Foundation-Refresh vor hotkeyManager.start, Task.detached Pre-Warm mit session.prewarm() per PIN(A6), didBecomeActiveNotification-Observer für AC-AVAIL-2). Volle Suite 57/57 grün. Naechster Schritt: 08-05 (Verification/UAT). Phase 3 verification bleibt offen, blockt aber Phase 8 nicht.
 
 ## Current Position
 
 Phase: 8 (Apple Foundation Rewrite-Backend) — EXECUTION IN PROGRESS
-Plan: 3 of 5 — 08-03 Wave-1 Client + Dispatch abgeschlossen
+Plan: 4 of 5 — 08-04 Wave-2 UI-Surfaces abgeschlossen
 
 - **Milestone:** Sprecher-Profile + Stabilisierung
-- **Phase:** Phase 8 ausführend — Wave 1 Client + Dispatch (08-03: AppleFoundationRewriteClient + ModeProcessor Backend-Lookup)
-- **Plan:** 08-03 ✅ — 1 Production-Source-File (AppleFoundationRewriteClient, 93 LOC) + ModeProcessor-Erweiterung (foundationRewriter-Slot, runPipeline Backend-Switch, Sprachbias-Marker, humanReadable-Branch) + 2 Test-Files (11 Tests: 6 Client AC-AVAIL-1 + Plain/Guided + Empty-Output / 5 Dispatch-Matrix + Production-Pfad).
-- **Status:** Plan 08-03 complete (2 atomic commits: f8f55cf, f065e7b); volle Suite 57/57 grün, 3× consecutive ohne Flake. Pipeline dispatched bereits korrekt nach Backend pro Mode — Wave 2 UI (08-04) kann den Picker ohne weiteren State-Sync mounten.
-- **Progress:** 2/6 phases complete (Phase 3 awaiting verification, Phase 8 in progress, 3/5 plans)
+- **Phase:** Phase 8 ausführend — Wave 2 UI (08-04: FoundationAvailabilityBanner + Settings-Picker + HUD-Badge + AppDelegate-Lifecycle)
+- **Plan:** 08-04 ✅ — 1 neue View-Datei (FoundationAvailabilityBanner.swift, 133 LOC, 4 State-Varianten) + 3 modifizierte Files (SettingsView Banner-Mount + 2 Picker, RecordingHUDController BackendBadge + Window-Width 268, AppDelegate Refresh + Pre-Warm + didBecomeActive-Observer).
+- **Status:** Plan 08-04 complete (3 atomic commits: e1fdbd5, 7b30d6d, b2576f4); volle Suite 57/57 grün, Build grün. AC-AVAIL-1 + AC-AVAIL-2 vollständig abgedeckt; ROADMAP-Erfolgskriterien 4 + 5 erfüllt.
+- **Progress:** 2/6 phases complete (Phase 3 awaiting verification, Phase 8 in progress, 4/5 plans)
 
 ```
 [██████░░░░░░░░░░░░░░] 33% (2/6 phases)
@@ -52,6 +52,7 @@ Plan: 3 of 5 — 08-03 Wave-1 Client + Dispatch abgeschlossen
 | Plan 08-01 Dauer | — | ~8 min, 2 Commits, 1 File created (08-RESEARCH-LIVE.md, 227 Zeilen, 3 PIN-Marker, A1 verified + A2/A6 corrected) |
 | Plan 08-02 Dauer | — | ~12 min, 3 Commits, 7 Files created + 1 modified (4 Production-Source + 3 Test-Files + SettingsStore +120 LOC; 7 AC-AVAIL-1/2 Tests, volle Suite 46/46 grün) |
 | Plan 08-03 Dauer | — | ~9 min, 2 Commits, 3 Files created + 2 modified (AppleFoundationRewriteClient 93 LOC, ModeProcessor +35 LOC, 11 Tests in 2 Files; volle Suite 57/57 grün, 3× consecutive ohne Flake) |
+| Plan 08-04 Dauer | — | ~6 min, 3 Commits, 1 File created + 3 modified (FoundationAvailabilityBanner 133 LOC mit 4 State-Varianten + SettingsView 2 Picker + Banner-Mount + RecordingHUDController BackendBadge + Window-Width 268 + AppDelegate Foundation-Refresh + Pre-Warm + didBecomeActive-Observer; volle Suite 57/57 grün) |
 
 ## Accumulated Context
 
@@ -85,6 +86,10 @@ Plan: 3 of 5 — 08-03 Wave-1 Client + Dispatch abgeschlossen
 - ModeProcessor Guided-Pfad nutzt `as? AppleFoundationRewriteClient`-Cast statt neues Protocol — minimal-invasiv, robust gegen Test-Fakes (Plain-Fallback) ohne API-Breakage; Production-Pfad-Test verifiziert Cast-Greift mit echtem Client (WARNING 4) (Phase 8, 08-03)
 - Sprachbias-Marker im Pipeline-Code (ModeProcessor.runPipeline) statt im Client — policy-decision (deutsche UI-Prämisse), nicht Inferenz-Mechanik (T-08-03-06, Phase 8, 08-03)
 - Test-Isolation gegen UserDefaults-Pollution: AppleFoundationAvailabilityTests.makeStore resettet Backend-Slots explizit nach SettingsStore.init — verteidigt gegen Test-Reihenfolge-Effekte (Phase 8, 08-03)
+- FoundationAvailabilityBanner rendert via flachem `case .unavailable(.xyz)`-Switch (3 Varianten + Auto-Fallback-Overlay D) — `@ViewBuilder` content + optional autoFallbackRow; Variante D bei deviceNotEligible suppressed (UI-SPEC Zeile 216, Phase 8, 08-04)
+- Privacy-Hint unter Backend-Picker ist immer sichtbar bei .openAI ohne availability-Suppression — Privacy-Marker bleibt gerade beim Auto-Fallback-Fall sichtbar (WARNING 6, Phase 8, 08-04)
+- AppDelegate didBecomeActive-Observer nutzt Doppel-Capture `[weak self, weak settingsStore]` mit `Task { @MainActor in self?.settingsStore.refreshFoundationAvailability() }` — Plan-AC fordert weak settingsStore, Swift-6 strict-concurrency verlangt self-Capture für non-Sendable Cross-Actor-Aufruf (Phase 8, 08-04)
+- HUD bleibt während .transcribing und .rewriting sichtbar (nicht nur .recording) — BackendBadge erscheint VOR dem Cloud-Call, User kann abbrechen (UI-SPEC Surface 3, Phase 8, 08-04)
 
 ### Open Todos
 
@@ -100,9 +105,9 @@ Keine.
 
 ## Session Continuity
 
-**Letzte Aktion:** Plan 08-03 (Wave 1 Client + Dispatch) ausgeführt — 1 Production-Source-File (AppleFoundationRewriteClient.swift, 93 LOC: Plain `rewrite` + Guided `rewriteGuided` mit Pre-Inference-Guard AC-AVAIL-1 + GenerationError-Mapper für 9 Cases per PIN(A2) + @unknown default) + ModeProcessor-Erweiterung (+35 LOC: foundationRewriter-DI-Slot, runPipeline-Backend-Switch via settings.rewriteBackend(for: mode), as?-Cast für Rant+Foundation→rewriteGuided, Sprachbias-Marker `\n\nAntworte ausschließlich auf Deutsch.`, AppleFoundationError-Branch in humanReadable) + 2 Test-Files (6 Client-Tests + 5 Dispatch-Tests inkl. WARNING-4 Production-Pfad-Test mit echtem Client). 2 atomic Commits (f8f55cf, f065e7b). Volle Suite 57/57 grün, 3× consecutive ohne Flake. Zwei Auto-fixes: Test-Pollution-Defense (AppleFoundationAvailabilityTests.makeStore resettet Backend-Slots explizit gegen UserDefaults-Reihenfolge-Effekte) + AC-Grep-Doc-Comment-Erweiterung in ModeProcessor.
+**Letzte Aktion:** Plan 08-04 (Wave 2 UI-Surfaces) ausgeführt — 1 neue View-Datei (FoundationAvailabilityBanner.swift, 133 LOC: 4 State-Varianten A/B/C + autoFallbackRow D, alle deutschen Strings mit Umlauten, Systemeinstellungen-Link via x-apple.systempreferences-URL, Variante-D-Suppression bei deviceNotEligible per UI-SPEC Zeile 216) + 3 modifizierte Files (SettingsView: APPLE INTELLIGENCE-Section mit Banner-Mount + 2 Picker für rewriteBackendForPlus/Rant + Privacy-Hint-Caption immer bei .openAI per WARNING 6; RecordingHUDController: BackendBadge-Capsule mit apple.logo/cloud + activeMode/showsBackendBadge/backendSymbol/backendTooltip computed-Properties + Window-Width 240→268 + Show-while-Transcribing/Rewriting; AppDelegate: import FoundationModels + refreshFoundationAvailability vor hotkeyManager.start + Task.detached Pre-Warm mit session.prewarm() per PIN(A6) + didBecomeActiveNotification-Observer mit Doppel-Capture [weak self, weak settingsStore]). 3 atomic Commits (e1fdbd5, 7b30d6d, b2576f4). Volle Suite 57/57 grün, Build grün. Ein Auto-fix: Rule 3 Compile-Error — Plan-Snippet [weak settingsStore]-only erzeugt Swift-6 sending-data-races-Fehler bei non-Sendable SettingsStore; gefixt mit zusätzlichem [weak self]-Capture und MainActor-Aufruf via self.settingsStore.
 
-**Nächste Aktion:** `/gsd-execute-phase 8` Plan 08-04 — Wave 2 UI: SettingsView Backend-Picker (zwei Picker für Plus/Rant), FoundationAvailabilityBanner mit vier State-Varianten (A: appleIntelligenceNotEnabled, B: modelNotReady, C: deviceNotEligible, D: auto-fallback-Hint), RecordingHUD Backend-Badge, AppDelegate.bootstrap() Pre-Warm + didBecomeActiveNotification-Observer. WICHTIG: PIN(A6) `session.prewarm()` (sync, non-throwing) statt `try? await session.prewarm()` aus 08-PATTERNS.md (siehe 08-RESEARCH-LIVE.md A6).
+**Nächste Aktion:** `/gsd-verify-phase 8` (08-05 Verification/UAT) — visueller End-to-End-Check der 4 Mode×Backend-Pfade, Banner-Render-Test in allen 4 Varianten, HUD-Badge-Test bei Plus/Rant, App-Boot-Latenz-Messung trotz Pre-Warm, Banner-verschwindet-ohne-Restart-Test (AC-AVAIL-2).
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*
@@ -111,3 +116,4 @@ Keine.
 *Phase 8 Plan 01 ausgefuehrt: 2026-05-04*
 *Phase 8 Plan 02 ausgefuehrt: 2026-05-04*
 *Phase 8 Plan 03 ausgefuehrt: 2026-05-04*
+*Phase 8 Plan 04 ausgefuehrt: 2026-05-04*

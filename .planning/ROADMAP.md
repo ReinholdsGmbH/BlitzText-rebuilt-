@@ -15,6 +15,13 @@
 - [ ] **Phase 6: Sprecher-Enrollment** — Optionaler Erst-Enrollment-Flow für gezielte Profil-Anlage
 - [ ] **Phase 7: Standard-Hotkeys & eigene Hotkeys** — Default-Hotkey-Set + freie Tastenkombo-Vergabe pro Mode (Hybrid CGEventTap + SPM-Hotkey-Package)
 - [ ] **Phase 8: Apple Foundation Rewrite-Backend** — Foundation Models (macOS 26+) als Default-Backend für Plus/Rant, OpenAI als User-Override
+- [ ] **Phase 9: Vibe Coding — Variable Recognition** — Post-Processor erkennt camelCase/snake_case/kebab/PascalCase/CONSTANT aus Sprache
+- [ ] **Phase 10: Vibe Coding — File Tagging** — Erkennt gesprochene Dateinamen-Token (z. B. "index dot tsx") und formatiert sie korrekt
+- [ ] **Phase 11: Auto-Cleanup-Levels + Undo-AI-Edit** — Style-Presets None/Light/Medium/High auf Rewrite-Backend + Original-Diktat aufbewahren mit "Undo AI edit"
+- [ ] **Phase 12: Custom Vocabulary** — Eigennamen/Fachbegriffe als Whisper-Initial-Prompt + Post-Processor-Lookup, UI für Verwaltung
+- [ ] **Phase 13: Experimental — Voice Commands** — End-of-Dictation-Commands ("neue Zeile", "Enter drücken", "lösche das") via CGEvent-Synthese
+- [ ] **Phase 14: Experimental — Bulk Import** — JSON/CSV-Import ins Custom Vocabulary über NSOpenPanel
+- [ ] **Phase 15: System-Polish & QoL** — Launch-at-Login, Show-in-Dock, Dictation-/Notification-Sounds, Mute-Music-while-Dictating
 
 ## Phase Details
 
@@ -123,11 +130,98 @@
 **Plans**: 5 plans
 - [x] 08-01-PLAN.md — Wave 0 Spike: Live-Verifikation A1/A2/A6 (LanguageModelSession Concurrency, GenerationError Cases, prewarm-Signature) — A1 verified, A2 + A6 corrected, Wave 1 unblocked (2026-05-04)
 - [x] 08-02-PLAN.md — Wave 0 Foundation: Protocols (FoundationAvailabilityProviding, LanguageModelInferring) + DeescalatedOutput @Generable + AppleFoundationError + SettingsStore-Erweiterung (RewriteBackend, refreshFoundationAvailability, applyAutoFallbackIfNeeded self-idempotent) + Fakes + 7 AC-AVAIL-1/2 Tests, volle Suite 46/46 grün (2026-05-04)
-- [ ] 08-03-PLAN.md — Wave 1 Client + Dispatch: AppleFoundationRewriteClient (Plain + Guided) + ModeProcessor Backend-Lookup + Dispatch-Tests (4 Pfade)
-- [ ] 08-04-PLAN.md — Wave 2 UI: FoundationAvailabilityBanner (4 Varianten + D) + SettingsView Backend-Picker x 2 + RecordingHUD BackendBadge + AppDelegate Bootstrap-Refresh + Pre-Warm + didBecomeActiveNotification
+- [x] 08-03-PLAN.md — Wave 1 Client + Dispatch: AppleFoundationRewriteClient (Plain + Guided) + ModeProcessor Backend-Lookup + 11 Tests in 2 Files (6 Client AC-AVAIL-1 + 5 Dispatch-Matrix inkl. Production-Pfad mit echtem Client) (2026-05-04)
+- [x] 08-04-PLAN.md — Wave 2 UI: FoundationAvailabilityBanner (4 Varianten A/B/C + Auto-Fallback-Overlay D) + SettingsView Backend-Picker x 2 + APPLE INTELLIGENCE-Section + RecordingHUD BackendBadge (apple.logo / cloud) + Window-Width 268 + Show-while-Transcribing/Rewriting + AppDelegate Bootstrap-Refresh + Task.detached Pre-Warm (sync session.prewarm() per PIN(A6)) + didBecomeActiveNotification-Observer (AC-AVAIL-2); volle Suite 57/57 grün (2026-05-04)
 - [ ] 08-05-PLAN.md — Wave 3 Polish: README AC-AVAIL-3 Doku + Suite 3x grün + manuelles UAT (Banner-Varianten, HUD, Latenz)
 **UI hint**: yes
 **Context**: 08-CONTEXT.md (gathered 2026-05-01 als 999.7, promoted via /gsd-review-backlog)
+
+### Phase 9: Vibe Coding — Variable Recognition
+**Goal**: Beim Diktat in Code-Editoren wird gesprochene Coding-Convention automatisch in echtes Casing umgesetzt — User sagt "camel case foo bar" und bekommt `fooBar` eingefügt
+**Depends on**: keine harten Deps (eigener Post-Processor-Slot zwischen Transkription und Rewrite — orthogonal zu Phase 8)
+**Requirements**: keine v1-Mapping (milestone-erweiternd, neu)
+**Success Criteria** (what must be TRUE):
+  1. Neuer `TranscriptPostProcessor`-Step ("VariableCaseFormatter") liegt zwischen `TranscriptionService.Output` und `RewriteService.Input`; ein/auschaltbar via SettingsStore-Flag `vibeCoding.variableRecognition`
+  2. Erkennt mindestens fünf Coding-Forms (camelCase, snake_case, kebab-case, PascalCase, CONSTANT_CASE) aus deutschen UND englischen Trigger-Wörtern ("camel case", "schlangen schreibweise", "snake case", "konstanten schreibweise", …)
+  3. Ein neuer Settings-Tab/Section "Vibe Coding" zeigt den Toggle mit kurzer deutscher Erklärung und Beispiel-Mapping
+  4. Heuristik ist durch Unit-Tests abgedeckt (mindestens je 3 Cases pro Coding-Form, inkl. mehrwortiger Identifier wie "fooBarBaz")
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 10: Vibe Coding — File Tagging
+**Goal**: Gesprochene Dateinamen wie "index dot tsx" oder "Audio Engine dot swift" werden zu `index.tsx` / `AudioEngine.swift`, damit das Diktat in Cursor-/Windsurf-/IDE-Chats direkt brauchbar ist
+**Depends on**: Phase 9 (nutzt denselben Post-Processor-Slot und Casing-Heuristik)
+**Requirements**: keine v1-Mapping (milestone-erweiternd, neu)
+**Success Criteria** (what must be TRUE):
+  1. Zweite Heuristik im Post-Processor erkennt Token-Sequenzen mit "dot/punkt + bekannte Datei-Endung" (.swift, .ts, .tsx, .js, .py, .md, .json, …) und kollabiert sie zu einem zusammenhängenden Filename-Token ohne Leerzeichen
+  2. Mehrwort-Filenames erben Casing aus dem Variable-Recognition-Schritt (z. B. "audio engine dot swift" → `AudioEngine.swift` falls PascalCase getriggert wurde, sonst `audioengine.swift`)
+  3. Toggle `vibeCoding.fileTagging` erscheint in derselben Settings-Section wie Phase 9 und ist unabhängig schaltbar
+  4. Endungs-Whitelist ist in einer einzelnen Konstante zentral wartbar; keine ML-Komponente, rein deterministisch
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 11: Auto-Cleanup-Levels + Undo-AI-Edit
+**Goal**: User wählt für alle Diktate ein generelles Cleanup-Niveau (None / Light / Medium / High) auf Basis des bestehenden Rewrite-Backends; AI-Bearbeitungen sind reversibel, weil das Original-Transkript erhalten bleibt
+**Depends on**: Phase 8 (nutzt Foundation/OpenAI-Backend-Auswahl als Engine)
+**Requirements**: keine v1-Mapping (milestone-erweiternd, neu — entspricht Whispr-Flow "Auto Cleanup" mit Beta-Hinweis)
+**Success Criteria** (what must be TRUE):
+  1. Neuer Settings-Tab "Stil" enthält vier Auto-Cleanup-Karten (None/Light/Medium/High) mit deutschen Beschreibungen und je einem Mini-Beispiel-Vorher/Nachher
+  2. Bei Pegel ≠ None wird nach jedem Standard-Diktat (kein Plus/Rant-Mode) automatisch ein Rewrite über das in Phase 8 ausgewählte Backend mit einem level-spezifischen Prompt-Preset ausgeführt, bevor in die Zwischenablage geschrieben wird
+  3. Pro Diktat wird sowohl das Original-Transkript als auch der bearbeitete Text in einer In-Memory-History gespeichert (mind. letzte 20 Einträge); ein Status-Item-Menüpunkt "Letzte AI-Bearbeitung rückgängig" ersetzt den Clipboard-Inhalt durch das Original
+  4. Cleanup-Level + Backend-Wahl werden im Recording-HUD-Toast subtil angezeigt (z. B. "Light · Foundation"), damit der User weiß, was passiert ist
+  5. Bei Pegel "None" passiert garantiert kein Rewrite-Call und keine zusätzliche Latenz — Pfad ist explizit getestet
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 12: Custom Vocabulary
+**Goal**: User kann Eigennamen, Fachbegriffe und Abkürzungen pflegen, die Whisper/Parakeet zuverlässig korrekt transkribiert (z. B. "Parakeet", "DSGVO", "BlitzText")
+**Depends on**: keine harten Deps (orthogonal zu allen anderen Phasen, aber baut idealerweise auf Phase 9 Post-Processor-Pipeline auf)
+**Requirements**: keine v1-Mapping (milestone-erweiternd, neu)
+**Success Criteria** (what must be TRUE):
+  1. Neuer Settings-Tab "Wortschatz" zeigt eine Tabelle aller Custom-Vocabulary-Einträge (Original/Korrektur/Sprache); CRUD per UI; persistiert in `~/Library/Application Support/BlitzText/vocabulary.json`
+  2. Beim Start jeder Whisper-/Parakeet-Aufnahme werden bis zu N (~30, modell-limit-aware) Einträge als initial-prompt mitgegeben; Längenlimit wird respektiert, ältester/seltenster Eintrag fliegt zuerst raus
+  3. Post-Processor-Step "VocabularyCorrector" mappt häufige Whisper-Misshears (z. B. "Para Kit" → "Parakeet"); konfigurierbar pro Eintrag
+  4. CRUD-Pfad und Initial-Prompt-Trimming sind durch Unit-Tests abgedeckt
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 13: Experimental — Voice Commands
+**Goal**: Am Ende eines Diktats erkannte Sprach-Kommandos ("neue Zeile", "Enter drücken", "lösche das letzte Wort") werden ausgeführt statt eingefügt — opt-in mit klarem Beta-Hinweis
+**Depends on**: Phase 9 (Post-Processor-Pipeline existiert) — nutzt aber eigenen, nachgelagerten Slot vor Clipboard-Insert
+**Requirements**: keine v1-Mapping (milestone-erweiternd, neu — entspricht Whispr-Flow "Experimental → Command Mode" + "Press Enter Command")
+**Success Criteria** (what must be TRUE):
+  1. Neuer Settings-Tab "Experimental" mit deutschem Warnhinweis ("kann sich ändern oder brechen"); enthält separate Toggles `commandMode` und `pressEnterCommand`
+  2. Bei aktivem `commandMode` werden definierte Trigger-Phrasen am Ende des Transkripts erkannt und in Aktionen übersetzt: "neue Zeile" → `\n`, "lösche das" → Backspace x N, "Tab drücken" → `\t`
+  3. Bei aktivem `pressEnterCommand` erkennt der Pipeline-Schritt isoliert das End-Token "Enter drücken" / "press enter" und löst nach Clipboard-Insert eine CGEvent-Enter-Synthese aus
+  4. Conservative Match: Trigger-Phrase muss am exakten Ende des Transkripts stehen UND von einem kurzen Pausen-Marker (>200ms Stille im Audio-Buffer oder Satzzeichen) abgegrenzt sein, sonst kein Trigger
+  5. Erkannte Commands erscheinen im HUD als kurze Bestätigung ("↵ Enter") bevor ausgeführt wird, damit Fehl-Trigger sichtbar sind
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 14: Experimental — Bulk Import
+**Goal**: User kann Custom-Vocabulary-Listen aus JSON/CSV importieren, statt Einträge einzeln in der UI anzulegen — gedacht für Onboarding und Team-Sharing
+**Depends on**: Phase 12 (Vocabulary-Datenmodell muss existieren)
+**Requirements**: keine v1-Mapping (milestone-erweiternd, neu — entspricht Whispr-Flow "Experimental → Bulk Import")
+**Success Criteria** (what must be TRUE):
+  1. Settings-Tab "Experimental" zeigt einen "Wortschatz importieren…"-Button (sichtbar nur wenn Phase 12 Vocabulary-Tab existiert)
+  2. NSOpenPanel öffnet einen Datei-Picker für `.json` und `.csv`; Schema ist in der App-Hilfe / README dokumentiert (Spalten: original, replacement, language)
+  3. Import zeigt eine Vorschau (X Einträge gefunden, Y Duplikate, Z Konflikte) und erlaubt "Nur neue importieren" / "Alle überschreiben" / "Abbrechen"
+  4. Fehlerhafte Zeilen werden zeilenweise mit deutschem Fehler-Hinweis aufgelistet, kein All-or-Nothing-Abbruch
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 15: System-Polish & QoL
+**Goal**: BlitzText verhält sich als gut integrierte macOS-Menu-Bar-App — Login-Item-Integration, optionale Dock-Sichtbarkeit, abschaltbare Sounds, Audio-Ducking während Aufnahme
+**Depends on**: keine harten Deps
+**Requirements**: keine v1-Mapping (milestone-erweiternd, neu)
+**Success Criteria** (what must be TRUE):
+  1. Settings-Tab "System" enthält die Toggles `launchAtLogin`, `showInDock`, `dictationSounds`, `muteMusicWhileDictating`
+  2. `launchAtLogin` registriert/entfernt das Login-Item via `SMAppService` (macOS 13+) und persistiert den Soll-Zustand in SettingsStore
+  3. `showInDock`-Toggle wechselt zur Laufzeit zwischen `LSUIElement` und Dock-App-Verhalten (Activation-Policy-Switch); Status-Item bleibt in beiden Fällen sichtbar
+  4. `dictationSounds` schaltet Start-/Stop-/Confirm-Sounds zentral ein/aus (Default an); Sounds liegen als bundelte Ressourcen vor
+  5. `muteMusicWhileDictating` duckt während aktiver Aufnahme Audio anderer Apps via `AVAudioSession`/CoreAudio-Approach (oder via Media-Keys-Pause als Fallback) und stellt nach Aufnahme den vorherigen Zustand wieder her
+**Plans**: TBD
+**UI hint**: yes
 
 ## Backlog
 
@@ -179,6 +273,13 @@ Plans:
 | 6. Sprecher-Enrollment | 0/0 | Not started | - |
 | 7. Standard-Hotkeys & eigene Hotkeys | 0/0 | Not started | - |
 | 8. Apple Foundation Rewrite-Backend | 1/5 | In Progress | - |
+| 9. Vibe Coding — Variable Recognition | 0/0 | Not started | - |
+| 10. Vibe Coding — File Tagging | 0/0 | Not started | - |
+| 11. Auto-Cleanup-Levels + Undo-AI-Edit | 0/0 | Not started | - |
+| 12. Custom Vocabulary | 0/0 | Not started | - |
+| 13. Experimental — Voice Commands | 0/0 | Not started | - |
+| 14. Experimental — Bulk Import | 0/0 | Not started | - |
+| 15. System-Polish & QoL | 0/0 | Not started | - |
 | 999.1. iOS-/iPadOS-Port | 0/0 | Backlog | - |
 | 999.2. Meeting-Transkription | 0/0 | Backlog | - |
 | 999.3. Meeting-Zusammenfassungen | 0/0 | Backlog | - |
@@ -199,6 +300,13 @@ All 18 v1 requirements mapped to exactly one phase. No orphans.
 | Phase 6 | SPK-08 |
 | Phase 7 | — (milestone-erweiternd, kein v1-Requirement; promoted aus Backlog 999.6) |
 | Phase 8 | — (milestone-erweiternd, kein v1-Requirement; promoted aus Backlog 999.7) |
+| Phase 9 | — (milestone-erweiternd, neu — Vibe Coding inspiriert von Whispr Flow) |
+| Phase 10 | — (milestone-erweiternd, neu — Vibe Coding inspiriert von Whispr Flow) |
+| Phase 11 | — (milestone-erweiternd, neu — Auto-Cleanup-Style-Presets baut auf Phase 8) |
+| Phase 12 | — (milestone-erweiternd, neu — Custom Vocabulary) |
+| Phase 13 | — (milestone-erweiternd, neu — Experimental Voice Commands) |
+| Phase 14 | — (milestone-erweiternd, neu — Experimental Bulk Import, baut auf Phase 12) |
+| Phase 15 | — (milestone-erweiternd, neu — System-Polish & QoL) |
 
 **Note on TEST-03 placement:** TEST-03 (Sprecher-Profil-Matching-Tests) lebt in Phase 4 statt Phase 2, weil die zu testenden Komponenten (Persistenz, EMA-Update, Threshold-Matching) erst in Phase 4 entstehen. Phase 2 etabliert das Test-Target und deckt Hotkey + Pipeline-Fehlerpfade ab; Phase 4 erweitert die Suite parallel zur Implementierung.
 
