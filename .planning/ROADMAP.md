@@ -122,7 +122,7 @@
   5. Recording-HUD bzw. Bestätigungs-Toast zeigt einen subtilen Indikator, welches Backend (Apple-Foundation / OpenAI) für den Rewrite verwendet wurde
 **Plans**: 5 plans
 - [x] 08-01-PLAN.md — Wave 0 Spike: Live-Verifikation A1/A2/A6 (LanguageModelSession Concurrency, GenerationError Cases, prewarm-Signature) — A1 verified, A2 + A6 corrected, Wave 1 unblocked (2026-05-04)
-- [ ] 08-02-PLAN.md — Wave 0 Foundation: Protocols (FoundationAvailabilityProviding, LanguageModelInferring) + DeescalatedOutput @Generable + AppleFoundationError + SettingsStore-Erweiterung (RewriteBackend, refreshFoundationAvailability) + Availability-Tests
+- [x] 08-02-PLAN.md — Wave 0 Foundation: Protocols (FoundationAvailabilityProviding, LanguageModelInferring) + DeescalatedOutput @Generable + AppleFoundationError + SettingsStore-Erweiterung (RewriteBackend, refreshFoundationAvailability, applyAutoFallbackIfNeeded self-idempotent) + Fakes + 7 AC-AVAIL-1/2 Tests, volle Suite 46/46 grün (2026-05-04)
 - [ ] 08-03-PLAN.md — Wave 1 Client + Dispatch: AppleFoundationRewriteClient (Plain + Guided) + ModeProcessor Backend-Lookup + Dispatch-Tests (4 Pfade)
 - [ ] 08-04-PLAN.md — Wave 2 UI: FoundationAvailabilityBanner (4 Varianten + D) + SettingsView Backend-Picker x 2 + RecordingHUD BackendBadge + AppDelegate Bootstrap-Refresh + Pre-Warm + didBecomeActiveNotification
 - [ ] 08-05-PLAN.md — Wave 3 Polish: README AC-AVAIL-3 Doku + Suite 3x grün + manuelles UAT (Banner-Varianten, HUD, Latenz)

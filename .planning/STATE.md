@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-04T00:00:00.000Z"
+last_updated: "2026-05-04T09:50:00.000Z"
 progress:
   total_phases: 12
   completed_phases: 2
@@ -20,18 +20,18 @@ progress:
 
 **Core Value:** Vom gedrückten Hotkey bis zum eingefügten Text wenige Sekunden — Text muss benutzbar sein, ohne nachzubearbeiten.
 
-**Current Focus:** Phase 8 (Apple Foundation Rewrite-Backend) — IN PROGRESS (1/5 plans). Plan 08-01 Wave-0-Spike abgeschlossen: A1/A2/A6 live verifiziert, Wave 1 unblocked. Naechster Schritt: 08-02 (Wave 0 Foundation — Protocols + DeescalatedOutput + AppleFoundationError + SettingsStore-Erweiterung). Phase 3 verification (manual UAT) bleibt offen, blockt aber Phase 8 nicht.
+**Current Focus:** Phase 8 (Apple Foundation Rewrite-Backend) — IN PROGRESS (2/5 plans). Plan 08-02 Wave-0-Foundation abgeschlossen: 4 Production-Files (FoundationAvailabilityProvider, LanguageModelInferring, DeescalatedOutput @Generable, AppleFoundationError) + SettingsStore-Erweiterung (RewriteBackend, refreshFoundationAvailability, applyAutoFallbackIfNeeded self-idempotent, #if DEBUG _testApiKeyOverride) + 3 Test-Files (2 Fakes + 7 AC-AVAIL-1/2 Tests, alle 7/7 grün, volle Suite 46/46 grün). Wave 1 (08-03) unblocked. Naechster Schritt: 08-03 (Wave 1 Client + Dispatch — AppleFoundationRewriteClient + ModeProcessor Backend-Lookup). Phase 3 verification (manual UAT) bleibt offen, blockt aber Phase 8 nicht.
 
 ## Current Position
 
 Phase: 8 (Apple Foundation Rewrite-Backend) — EXECUTION IN PROGRESS
-Plan: 1 of 5 — 08-01 Wave-0-Spike abgeschlossen
+Plan: 2 of 5 — 08-02 Wave-0-Foundation abgeschlossen
 
 - **Milestone:** Sprecher-Profile + Stabilisierung
-- **Phase:** Phase 8 ausführend — Wave 0 Spike (08-01: Live-Verifikation A1/A2/A6)
-- **Plan:** 08-01 ✅ — A1 verified (LanguageModelSession ist final class, non-MainActor, nonisolated(nonsending)), A2 corrected (9 Cases mit Context-Payload, drei mehr als gedacht; .type existiert nicht), A6 corrected (prewarm ist sync, non-throwing — `session.prewarm()` statt `try? await ...`). Wave 1 unblocked.
-- **Status:** Plan 08-01 complete (2 atomic commits: 0319688, acd92c3); 08-RESEARCH-LIVE.md ist Source-of-Truth für PIN(A1)/PIN(A2)/PIN(A6) für Wave 1+2.
-- **Progress:** 2/6 phases complete (Phase 3 awaiting verification, Phase 8 in progress)
+- **Phase:** Phase 8 ausführend — Wave 0 Foundation (08-02: Seams + State + Tests)
+- **Plan:** 08-02 ✅ — 4 Production-Source-Files + SettingsStore-Erweiterung + 3 Test-Files; AC-AVAIL-1 vier Cases + AC-AVAIL-2 Übergang testlich abgedeckt; WARNING-7-Self-Idempotency verifiziert; BLOCKER 2 fixed (#if DEBUG _testApiKeyOverride, kein Keychain-Touch in Tests).
+- **Status:** Plan 08-02 complete (3 atomic commits: b903df1, 75356ee, 974b301); SettingsStore stellt jetzt die komplette Backend-State-Surface für Wave 1+2 bereit.
+- **Progress:** 2/6 phases complete (Phase 3 awaiting verification, Phase 8 in progress, 2/5 plans)
 
 ```
 [██████░░░░░░░░░░░░░░] 33% (2/6 phases)
@@ -50,6 +50,7 @@ Plan: 1 of 5 — 08-01 Wave-0-Spike abgeschlossen
 | Plan 03-01 Dauer | — | ~25 min, 4 Commits, 6 Files (Manager + ETAEstimator + Tests, 15 Tests) |
 | Plan 03-02 Dauer | — | ~8 min, 5 Commits, 9 Files modified (4-State UI + DI-Wiring, 39/39 Tests 3x grün) |
 | Plan 08-01 Dauer | — | ~8 min, 2 Commits, 1 File created (08-RESEARCH-LIVE.md, 227 Zeilen, 3 PIN-Marker, A1 verified + A2/A6 corrected) |
+| Plan 08-02 Dauer | — | ~12 min, 3 Commits, 7 Files created + 1 modified (4 Production-Source + 3 Test-Files + SettingsStore +120 LOC; 7 AC-AVAIL-1/2 Tests, volle Suite 46/46 grün) |
 
 ## Accumulated Context
 
@@ -75,6 +76,10 @@ Plan: 1 of 5 — 08-01 Wave-0-Spike abgeschlossen
 - A2 korrigiert: GenerationError hat 9 Cases (alle mit Context-Payload), drei zusätzliche zu RESEARCH.md (unsupportedGuide, concurrentRequests, refusal); .type-Property existiert nicht — Switch über Cases ist Pflicht (Phase 8, 08-01)
 - A6 korrigiert: prewarm(promptPrefix: Prompt? = nil) ist sync, non-throwing — `session.prewarm()` aufrufen, NICHT `try? await session.prewarm()`. 08-PATTERNS.md AppDelegate-Snippet muss in Wave 2 (08-04) entsprechend korrigiert werden (Phase 8, 08-01)
 - Wave-0-Spike-Pattern: API-Verifikation via swiftc -typecheck Mini-Probes unter /tmp/ + Inspektion arm64e-apple-macos.swiftinterface (kanonische Apple-Source) — KEINE Production-Pollution (Phase 8, 08-01)
+- FoundationAvailability als app-internes Equatable-Enum (nicht direkt SystemLanguageModel.Availability) — entkoppelt UI/Test-Code von Apple-API-Drift, @unknown default → .deviceNotEligible konservativ (Phase 8, 08-02)
+- Runtime-Only @Published State (foundationAvailability + didAutoFallbackToOpenAI sind NICHT in Snapshot persistiert) — AC-AVAIL-1 fordert frische Verfügbarkeitsprüfung bei jedem Bootstrap (T-08-02-03, Phase 8, 08-02)
+- applyAutoFallbackIfNeeded ist self-idempotent via `guard !didAutoFallbackToOpenAI` — schaltet maximal einmal pro App-Lifecycle, schützt gegen Multi-Fire didBecomeActiveNotification (WARNING 7 / T-08-02-07, Phase 8, 08-02)
+- BLOCKER 2 Fix: #if DEBUG _testApiKeyOverride im apiKey-Getter UND -Setter; Tests schreiben nie in echte Keychain (T-08-02-06, Phase 8, 08-02)
 
 ### Open Todos
 
@@ -90,12 +95,13 @@ Keine.
 
 ## Session Continuity
 
-**Letzte Aktion:** Plan 08-01 (Wave 0 Spike) ausgeführt — A1/A2/A6 live gegen MacOSX26.4.sdk verifiziert. 08-RESEARCH-LIVE.md erstellt (227 Zeilen, 3 PIN-Marker + Wave-0-Sign-Off). A1 verified (LanguageModelSession non-MainActor), A2 corrected (9 Cases, alle mit Context, drei mehr als gedacht; .type existiert nicht), A6 corrected (prewarm sync non-throwing). 2 atomic Commits (0319688, acd92c3). Wave 1 unblocked.
+**Letzte Aktion:** Plan 08-02 (Wave 0 Foundation) ausgeführt — 4 Production-Source-Files (FoundationAvailabilityProvider, LanguageModelInferring, DeescalatedOutput @Generable, AppleFoundationError) + SettingsStore-Erweiterung (RewriteBackend-Enum, per-Mode-Mapping, foundationAvailability + didAutoFallbackToOpenAI Runtime-Only @Published, refreshFoundationAvailability, applyAutoFallbackIfNeeded mit Self-Idempotency-Guard, #if DEBUG _testApiKeyOverride Hook) + 3 Test-Files (FakeFoundationAvailabilityProvider, FakeLanguageModelInferring, AppleFoundationAvailabilityTests mit 7 Tests). 3 atomic Commits (b903df1, 75356ee, 974b301). AC-AVAIL-1 vier Cases + AC-AVAIL-2 Übergang + WARNING-7 Self-Idempotency testlich abgedeckt; volle Suite 46/46 grün. BLOCKER 2 fixed.
 
-**Nächste Aktion:** `/gsd-execute-phase 8` Plan 08-02 — Wave 0 Foundation: Protocols (FoundationAvailabilityProviding, LanguageModelInferring), DeescalatedOutput @Generable, AppleFoundationError, SettingsStore-Erweiterung (RewriteBackend, refreshFoundationAvailability), Availability-Tests. Wave-1-Plan (08-03) muss A2-Korrektur (3 zusätzliche GenerationError-Cases) im AppleFoundationError.from-Mapper berücksichtigen; Wave-2-Plan (08-04) den A6-Snippet-Fix (`session.prewarm()` statt `try? await session.prewarm()`).
+**Nächste Aktion:** `/gsd-execute-phase 8` Plan 08-03 — Wave 1 Client + Dispatch: AppleFoundationRewriteClient (Plain `respond` für Plus + Guided `respondGuided<DeescalatedOutput>` für Rant), `AppleFoundationError.from(GenerationError)` Mapper mit 9 Cases + @unknown default (siehe PIN(A2) in 08-RESEARCH-LIVE.md), ModeProcessor Backend-Lookup via `settings.rewriteBackend(for: mode)`, Dispatch-Tests (4 Pfade: Plus×Apple, Plus×OpenAI, Rant×Apple, Rant×OpenAI). Wave-2-Plan (08-04) muss den A6-Snippet-Fix (`session.prewarm()` statt `try? await session.prewarm()`) übernehmen.
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*
 *Phase 2 abgeschlossen: 2026-05-01*
 *Phase 3 Plans ausgefuehrt: 2026-05-01 (verification pending)*
 *Phase 8 Plan 01 ausgefuehrt: 2026-05-04*
+*Phase 8 Plan 02 ausgefuehrt: 2026-05-04*
