@@ -144,5 +144,84 @@ extension AppleFoundationError {
 
 Das Wave-1-`AppleFoundationError`-Enum braucht (gegenüber RESEARCH.md Code Examples) **keine** zusätzlichen Cases — `unsupportedGuide` mappt sinnvoll auf `decodingFailure` (Schema-Mismatch), `concurrentRequests` auf `rateLimited` (User-Erfahrung praktisch identisch), `refusal` auf `guardrailViolation`. Plan kann unverändert bleiben, nur der Mapper bekommt drei zusätzliche `case`-Zeilen.
 
+---
 
-> **Task 2 Status:** A6 + Wave 0 Sign-Off pending — wird im nächsten Commit ergänzt.
+## A6 — LanguageModelSession.prewarm() Signature
+
+**Status:** corrected
+
+**Result:**
+
+- ✅ Parameter-loser Aufruf `session.prewarm()` funktioniert — Hypothese verifiziert.
+- ❌ **Korrektur:** Methode ist **synchron und non-throwing**. Hypothese-Form `try? await session.prewarm()` (08-PATTERNS.md AppDelegate-Snippet) ist falsch — würde Compiler-Warning `'try' has no effect`/`no calls to throwing functions occur within 'try' expression` und `expression of type '()' is unused` produzieren.
+- ✅ Optionaler `promptPrefix: Prompt? = nil` Parameter existiert für Pre-Computation eines bekannten Prefix; Default-`nil` ist exakt der Use-Case "warm just the model".
+- ✅ `LanguageModelSession()` parameter-loser Init kompiliert (alle Init-Parameter haben Defaults: `model = .default`, `tools = []`, `instructions = nil`).
+
+**Quick-Help-Snippet (aus `arm64e-apple-macos.swiftinterface` Zeile 343):**
+
+```swift
+final public func prewarm(promptPrefix: FoundationModels.Prompt? = nil)
+```
+
+**Vergleich `respond` vs. `prewarm`:**
+
+```swift
+// respond — async throws:
+nonisolated(nonsending) final public func respond(
+    to prompt: Prompt, ...
+) async throws -> Response<String>
+
+// prewarm — sync, non-throwing, parameter-los aufrufbar:
+final public func prewarm(promptPrefix: Prompt? = nil)
+```
+
+**PIN für Wave 2:** `// PIN(A6): LanguageModelSession.prewarm(promptPrefix: Prompt? = nil) is sync, non-throwing — call as session.prewarm() — re-evaluate if API changes`
+
+**Konsequenz für Wave 2 (`AppDelegate.bootstrap()`):**
+Der 08-PATTERNS.md-Snippet ist falsch und muss korrigiert werden. Korrekte Form:
+
+```swift
+// Phase 8: Foundation Pre-Warm — sync, non-throwing.
+// Trotz sync-Signatur in Task.detached ausführen, damit der Init-Cost
+// (Session-Allocation + Pre-Compute) nicht den Bootstrap blockiert.
+if settingsStore.foundationAvailability == .available {
+    let usesFoundation = Mode.allCases.contains { mode in
+        mode != .blitztext && settingsStore.rewriteBackend(for: mode) == .appleFoundation
+    }
+    if usesFoundation {
+        Task.detached(priority: .utility) {
+            let session = LanguageModelSession()  // parameter-loser Init OK
+            session.prewarm()                     // sync, non-throwing
+        }
+    }
+}
+```
+
+**Wichtig:** Trotz `prewarm()` selbst sync ist, bleibt `Task.detached` korrekt — der Allokations-Aufwand des Sessions-Objekts und der Pre-Compute-Kostenanteil sollen nicht den Bootstrap-Pfad blockieren (RESEARCH.md Pitfall 3 "1-second window" bleibt valide).
+
+---
+
+## Wave 0 Spike — Sign-Off
+
+**Date:** 2026-05-04
+**Host:** macOS 26.4.1 (Build 25E253), Xcode 26.4.1, Swift 6.3.1, SDK MacOSX26.4
+**Build-Probe-Logs:** /tmp/probe-A1-A2.log, /tmp/probe-A1-strict.log, /tmp/probe-A2-full.log, /tmp/probe-A2-type.log, /tmp/probe-A6.log
+**Quick-Help-Source:** `arm64e-apple-macos.swiftinterface` aus `MacOSX26.4.sdk/System/Library/Frameworks/FoundationModels.framework/`
+A1 status: verified
+A2 status: corrected
+A6 status: corrected
+Wave 1 unblocked: yes
+
+**Summary of Corrections für Wave 1+2:**
+
+1. **A2 Mapper-Erweiterung (08-03 Wave 1 — `AppleFoundationError.from(_:)`):** Drei zusätzliche Cases ergänzen — `unsupportedGuide → .decodingFailure`, `concurrentRequests → .rateLimited`, `refusal → .guardrailViolation`. Alle Cases tragen `(Context)`/`(Refusal, Context)` — Pattern-Match ohne Bindings reicht für aktuelle Mapper-Logik.
+2. **A6 AppDelegate-Snippet-Fix (08-04 Wave 2):** `try? await session.prewarm()` → `session.prewarm()`. `Task.detached(priority: .utility)`-Wrapper bleibt richtig (Allokations-Kosten draußen halten); innen einfach sync `session.prewarm()` aufrufen.
+3. **A1 keine Änderung:** `LanguageModelInferring`-Live-Impl braucht keinen MainActor-Hop. `@unchecked Sendable` für `AppleFoundationRewriteClient` ist konsistent.
+
+**Probe-Files Cleanup:**
+- `/tmp/blitz-probes/` → entfernt (`rm -rf`).
+- `BlitzText/Rewrite/_FoundationProbe.swift` → nie angelegt (Probes liefen ausschließlich unter `/tmp/`, keine Pollution im Production-Pfad).
+- `BlitzText/Rewrite/_PrewarmProbe.swift` → nie angelegt (dito).
+
+T-08-01-01 (Tampering — Probe-Datei verbleibt im Production-Code) ist **mitigated**: keine Datei landet im Repo, Probes laufen ausschließlich unter `/tmp/`.
+T-08-01-02 (Repudiation — "verified" ohne Live-Probe) ist **mitigated**: jede Sektion enthält Quick-Help-Snippet aus echtem `swiftinterface` plus konkreten Compiler-Output-Pfad unter `/tmp/`.
