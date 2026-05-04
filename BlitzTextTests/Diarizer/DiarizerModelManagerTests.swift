@@ -107,10 +107,17 @@ final class DiarizerModelManagerTests: XCTestCase {
 
         // Setup für Retry: Loader gibt einen anderen Fehler nach Retry
         loader.failure = URLError(.timedOut)
+        // Delta-Assert: start() ruft clearCache() bei !installed bereits einmal
+        // auf (DiarizerModelManager.swift:67). Wir snapshotten den Stand vor retry()
+        // und verifizieren, dass retry() GENAU einen weiteren clearCache()-Call
+        // hinzufügt — das ist die D-11-Pin (retry() MUSS clearCache() aufrufen),
+        // robust gegen start()-Internals.
+        let clearsBefore = loader.clearCacheCallCount
         manager.retry()
         await waitUntil { if case .failed = manager.state { return true } else { return false } }
 
-        XCTAssertEqual(loader.clearCacheCallCount, 1, "retry() muss clearCache() aufrufen (D-11)")
+        XCTAssertEqual(loader.clearCacheCallCount - clearsBefore, 1,
+            "retry() muss clearCache() aufrufen (D-11)")
         XCTAssertEqual(loader.downloadCallCount, 2, "retry() muss neuen Download starten")
         XCTAssertEqual(manager.lastError, "Verbindung fehlgeschlagen. Prüfe deine Internetverbindung und versuch es erneut.")
     }
