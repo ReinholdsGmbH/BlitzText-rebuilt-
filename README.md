@@ -63,6 +63,40 @@ Hotkey → AudioRecorder (.wav, 16 kHz mono) →
 
 ---
 
+## Rewrite-Backend: Apple Foundation Models
+
+BlitzText nutzt ab macOS 26 standardmäßig Apples lokale Foundation Models
+für den Rewrite-Schritt in Blitztext+ (Stil-Aufpolitur) und Blitztext $%&!
+(Deeskalation). Das hat zwei Vorteile: nichts verlässt dein Gerät, und es
+kostet keine OpenAI-API-Aufrufe.
+
+**Voraussetzung:** Apple Intelligence muss in den Systemeinstellungen
+aktiviert sein (Systemeinstellungen → Apple Intelligence & Siri →
+Apple Intelligence). Das Foundation-Modell wird beim ersten Aktivieren
+einmalig im Hintergrund geladen (~3 GB).
+
+**Wichtig für Geräte unter MDM-Verwaltung:** „Siri & Diktierfunktion" und
+Apple Intelligence sind getrennte Restriction-Pfade. Es reicht, dass
+Apple Intelligence aktiv ist — Siri kann von der Organisation deaktiviert
+sein, ohne dass BlitzText+ oder BlitzText $%&! beeinträchtigt werden.
+Apple Intelligence ist also **unabhängig** vom Siri-Status. Wenn der
+Modi-Tab „Apple Intelligence ist nicht aktiviert" zeigt, obwohl das System
+scheinbar alles eingeschaltet hat, liegt typischerweise ein MDM-Restrict
+auf Apple Intelligence (nicht auf Siri).
+
+**Wenn Apple Intelligence nicht verfügbar ist:** BlitzText schaltet das
+Default-Backend automatisch auf OpenAI gpt-4o-mini, sofern ein API-Key
+hinterlegt ist. Der Modi-Tab zeigt einen entsprechenden Hinweis-Banner
+mit Link zu den Systemeinstellungen.
+
+**Backend pro Mode getrennt wählbar:** Im Modi-Tab kannst du für
+Blitztext+ und Blitztext $%&! das Backend unabhängig setzen. Apple
+Intelligence ist Default; OpenAI ist als expliziter Override verfügbar
+(z. B. wenn die Deeskalations-Qualität von gpt-4o-mini für einen Mode
+besser passt).
+
+---
+
 ## Permissions
 
 | Permission                       | Wofür                                       |
