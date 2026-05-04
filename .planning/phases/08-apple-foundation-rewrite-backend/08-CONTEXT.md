@@ -48,6 +48,35 @@
 - **Backend-Indikator im HUD:** subtiles Symbol/Label im Recording-HUD oder in der Toast-Bestätigung — z.B. Apple-Logo (SF Symbol `apple.logo`) für Foundation, `cloud` für OpenAI. Dezent, aber Privacy-Markenversprechen wird sichtbar.
 - Researcher klärt: Wie unterscheidet `availability` zwischen "noch nicht heruntergeladen" vs. "endgültig nicht verfügbar"? Gibt es einen Reload-Mechanismus für den State, falls der User Apple Intelligence während der Session aktiviert?
 
+### MDM-Policy-Realitätscheck (ergänzt 2026-05-01)
+
+Empirische Beobachtung auf einem von der Organisation verwalteten Mac: Restriction-Keys können Apple Intelligence und Siri **getrennt** blockieren. Konkret beobachteter Zustand:
+
+- ✅ Apple Intelligence: aktivierbar, Modell zu 100 % geladen
+- ⛔ "Siri & Diktierfunktion": von Org deaktiviert (separater Restriction-Pfad, vermutlich `allowAssistant` / Dictation-Restrictions)
+
+Foundation Models hängt **nur** an Apple Intelligence, nicht an Siri. Dieser Policy-Mix ist also der erfolgreiche Pfad — und genau der, den BlitzText robust erkennen muss. Daraus folgen die zwei Acceptance Criteria unten.
+
+### Acceptance Criteria (testbar, gehen in PLAN.md)
+
+**AC-AVAIL-1 — Defensive Verfügbarkeitsprüfung vor jedem Inferenz-Call:**
+
+- `AppleFoundationRewriteClient` ruft `SystemLanguageModel.default.availability` vor jeder Rewrite-Anfrage ab (oder nutzt einen frisch invalidierten beobachteten State).
+- Bei `.unavailable(...)` wird **nicht** stillschweigend auf OpenAI umgeschaltet (Privacy-Versprechen aus den Decisions oben).
+- Stattdessen: deutsche Fehlermeldung mit konkretem Fall — `appleIntelligenceNotEnabled`, `modelNotReady`, `deviceNotEligible` — und Link zu System-Einstellungen.
+- Test: Mock `availability` mit allen vier Fällen (`available` + 3× `unavailable`); Client liefert pro Fall die spezifizierte Fehlermeldung, keine Cloud-Calls.
+
+**AC-AVAIL-2 — Erst-Start-UX für `modelNotReady`:**
+
+- Beim ersten App-Start nach Apple-Intelligence-Aktivierung kann das Modell noch geladen werden (`unavailable(.modelNotReady)`).
+- App meldet dem User **nicht** „nicht verfügbar", sondern „Modell wird geladen" mit Fortschritts- oder Wiederholen-Hinweis.
+- Verfügbarkeitsstatus wird beobachtbar gehalten und re-evaluiert, sobald Foundation `.available` meldet (Researcher: gibt es einen offiziellen Notification/KVO-Hook? Sonst Polling beim nächsten Hotkey-Press).
+- Test: simuliere Übergang `modelNotReady` → `available`; UI wechselt ohne App-Neustart.
+
+**AC-AVAIL-3 — MDM-Coverage explizit dokumentiert:**
+
+- README/Settings-Hilfe nennt klar: BlitzText+ Apple-Foundation-Backend benötigt **aktives Apple Intelligence**, ist aber unabhängig von Siri-Status. Verhindert Support-Anfragen "Siri ist aus, geht trotzdem nicht?" → Antwort: Apple Intelligence aktivieren reicht.
+
 ## <canonical_refs>
 
 Downstream agents (researcher, planner) müssen diese Dateien lesen:
