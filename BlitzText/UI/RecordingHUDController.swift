@@ -17,13 +17,15 @@ final class RecordingHUDController {
         self.processor = processor
         self.settings = settings
 
-        // Auf Recording-State hören und HUD ein-/ausblenden
+        // Auf Recording-State hören und HUD ein-/ausblenden.
+        // Phase 8 / UI-SPEC Surface 3: HUD bleibt auch während .transcribing und
+        // .rewriting sichtbar, damit der BackendBadge VOR dem Cloud-Call sichtbar ist.
         processor.$state
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
                 switch state {
-                case .recording: self?.show()
-                default:         self?.hide()
+                case .recording, .transcribing, .rewriting: self?.show()
+                default:                                    self?.hide()
                 }
             }
             .store(in: &cancellables)
@@ -33,7 +35,7 @@ final class RecordingHUDController {
         if window != nil { return }
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 240, height: 56),
+            contentRect: NSRect(x: 0, y: 0, width: 268, height: 56),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -47,7 +49,7 @@ final class RecordingHUDController {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
 
-        let hostView = NSHostingView(rootView: RecordingHUDView(recorder: recorder, settings: settings))
+        let hostView = NSHostingView(rootView: RecordingHUDView(recorder: recorder, processor: processor, settings: settings))
         hostView.frame = panel.contentView!.bounds
         hostView.autoresizingMask = [.width, .height]
         panel.contentView = hostView
@@ -55,7 +57,7 @@ final class RecordingHUDController {
         // Position: zentriert horizontal, etwa 100pt über Bildschirm-Unterkante des Hauptscreens
         if let screen = NSScreen.main {
             let frame = screen.visibleFrame
-            let w: CGFloat = 240, h: CGFloat = 56
+            let w: CGFloat = 268, h: CGFloat = 56
             let x = frame.midX - w / 2
             let y = frame.minY + 100
             panel.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
@@ -73,6 +75,7 @@ final class RecordingHUDController {
 
 private struct RecordingHUDView: View {
     @ObservedObject var recorder: AudioRecorder
+    @ObservedObject var processor: ModeProcessor
     @ObservedObject var settings: SettingsStore
 
     private var langBadge: String {
@@ -81,6 +84,39 @@ private struct RecordingHUDView: View {
         case "de": return "DE"
         case "en": return "EN"
         default:   return settings.transcriptionLanguage.uppercased()
+        }
+    }
+
+    /// Aktiver Mode während recording/transcribing/rewriting — sonst nil.
+    private var activeMode: Mode? {
+        switch processor.state {
+        case .recording(let m):    return m
+        case .transcribing(let m): return m
+        case .rewriting(let m):    return m
+        default:                   return nil
+        }
+    }
+
+    /// BackendBadge nur sichtbar für rewrite-fähige Modes (Plus / Rant) —
+    /// `.blitztext` (plain) hat keinen Rewrite-Schritt → kein Backend-Indikator.
+    private var showsBackendBadge: Bool {
+        guard let mode = activeMode, mode != .blitztext else { return false }
+        return true
+    }
+
+    private var backendSymbol: String {
+        guard let mode = activeMode else { return "questionmark" }
+        switch settings.rewriteBackend(for: mode) {
+        case .appleFoundation: return "apple.logo"
+        case .openAI:          return "cloud"
+        }
+    }
+
+    private var backendTooltip: String {
+        guard let mode = activeMode else { return "" }
+        switch settings.rewriteBackend(for: mode) {
+        case .appleFoundation: return "Rewrite lokal über Apple Foundation Models"
+        case .openAI:          return "Rewrite über OpenAI gpt-4o-mini (Cloud)"
         }
     }
 
@@ -105,6 +141,17 @@ private struct RecordingHUDView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(.white.opacity(0.12), in: Capsule())
+
+                if showsBackendBadge {
+                    Image(systemName: backendSymbol)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .frame(width: 12, height: 12)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(.white.opacity(0.12), in: Capsule())
+                        .help(backendTooltip)
+                }
             }
             .padding(.horizontal, 18)
         }
