@@ -809,3 +809,53 @@ Direkte Direktiven, die der Planner beachten muss:
 3. `LanguageModelSession.prewarm` in Xcode → exakte Signature → Open Question #3 lösen.
 
 Diese drei Mini-Tasks lösen alle High-Risk-Annahmen (A1, A2, A6) bevor Plan-Code zementiert wird.
+
+## Open Questions Resolution
+
+Alle fünf in der `## Open Questions`-Sektion oben gelisteten Fragen sind für Phase-8-Planung
+wie folgt aufgelöst — kein Open Question blockiert mehr Wave 0 oder spätere Waves:
+
+1. **Q1: Concurrency-Annotation `LanguageModelSession`** (Class? Actor? @MainActor?)
+   - **RESOLVED via Live-Verifikation** in 08-01 Wave 0 Spike. Output landet in
+     `08-RESEARCH-LIVE.md` als `PIN(A1)`-Marker. 08-02 Task 1 (`LanguageModelInferring.swift`
+     Live-Impl) und 08-04 Task 3 (AppDelegate-Prewarm) lesen den PIN und annotieren
+     `@MainActor` exakt dann, wenn Quick Help es vorschreibt.
+   - Risk-Snapshot: Build-Bruch bei falschem Guess → Wave 0 Spike löst das deterministisch
+     vor Wave 1.
+
+2. **Q2: GenerationError Case-Spelling + `.type`-Property**
+   - **RESOLVED via Live-Verifikation** in 08-01 Wave 0 Spike. Output landet in
+     `08-RESEARCH-LIVE.md` als `PIN(A2)`-Marker. 08-03 Task 1 (`AppleFoundationRewriteClient`
+     `mapGenerationError`-Switch) übernimmt die exakten Case-Spellings aus dem PIN; falls
+     `.type`-Property existiert, wird die Match-Form entsprechend justiert (form-äquivalent).
+
+3. **Q3 (= A6): `LanguageModelSession.prewarm()`-Argument-Signatur**
+   - **RESOLVED via Live-Verifikation** in 08-01 Wave 0 Spike. Output landet in
+     `08-RESEARCH-LIVE.md` als `PIN(A6)`-Marker. 08-04 Task 3 (`AppDelegate.bootstrap`
+     Prewarm-Block) ruft die exakte Signatur — parameter-los oder mit leerem
+     `promptPrefix`-String.
+
+4. **Q4 (= A4): Schema-Fill-Failure-Verhalten von `respond(to:generating:)`**
+   - **RESOLVED defensiv (kein Live-Spike nötig)**. 08-03 Task 1
+     (`AppleFoundationRewriteClient.rewriteGuided`) behandelt beide Pfade:
+     (a) `try/catch` um den Inferenz-Call wirft `AppleFoundationError`-Mapping ab,
+     (b) `result.neutralText.trimmingCharacters(...).isEmpty`-Check wirft
+     `AppleFoundationError.emptyGuidedOutput`. Test 6
+     (`test_guided_emptyNeutralText_throwsEmptyGuidedOutput`) deckt den Empty-Pfad ab.
+
+5. **Q5 (= A10): Sprachbias-Robustheit (`instructions`-only, kein Locale-Parameter)**
+   - **RESOLVED als akzeptiertes Restrisiko**. 08-03 Task 2 hängt
+     `"\n\nAntworte ausschließlich auf Deutsch."` an den System-Prompt
+     bei Foundation-Backend (RESEARCH.md Pitfall 1). UAT-7 in 08-05 Task 3
+     verifiziert den Output auf realer Apple-Intelligence-Hardware (3/3 Wiederholungen
+     deutsch). v2-Mitigation (Output-Sprach-Detektor mit Re-Run) ist out-of-scope für v1.
+
+**Bonus — Q6 (= A8): App-Activation-Notification UX-Latenz**
+   - **RESOLVED als akzeptiertes Restrisiko**. 08-04 Task 3 nutzt
+     `NSApplication.didBecomeActiveNotification` als Refresh-Trigger; UAT-5 in
+     08-05 Task 3 verifiziert ≤ 2s ohne App-Restart. Falls UAT zu langsam: 30-s-Polling-Task
+     im Hintergrund nur während `modelNotReady`-State (out-of-scope v1).
+
+**Status-Marker für Plan-Checker:** Alle Open Questions sind aufgelöst — entweder durch
+einen Wave-0-Spike (08-01), durch defensive Code-Pfade (08-03), oder durch dokumentiertes
+akzeptiertes Restrisiko mit UAT-Validierung (08-05).

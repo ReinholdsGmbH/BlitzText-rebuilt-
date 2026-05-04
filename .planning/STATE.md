@@ -20,7 +20,7 @@ progress:
 
 **Core Value:** Vom gedrückten Hotkey bis zum eingefügten Text wenige Sekunden — Text muss benutzbar sein, ohne nachzubearbeiten.
 
-**Current Focus:** Phase 3 (Diarization-UX) — Wave 1 + Wave 2 EXECUTED, naechster Schritt: /gsd-verify-phase 3
+**Current Focus:** Phase 8 (Apple Foundation Rewrite-Backend) — PLANNED (5/5 plans), naechster Schritt: /gsd-execute-phase 8 (Wave 0 zuerst). Phase 3 verification (manual UAT) bleibt offen, blockt aber Phase 8 nicht.
 
 ## Current Position
 
@@ -85,9 +85,9 @@ Keine.
 
 ## Session Continuity
 
-**Letzte Aktion:** Phase 3 Plan 03-02 (Wave 2) ausgefuehrt. 5 Commits (da4a4e9, e92bac7, b9e7be9, e584e80, daf66f2), 9 Files modified (AppDelegate, SettingsStore, SettingsView, SettingsWindowController, ParakeetClient, DiarizerModelManager, ModeProcessor, PipelineErrorPathTests, DiarizerModelManagerTests). DiarizerStatusBlock ersetzt heutigen Single-Toggle, Manager-Konsumpunkt ueber ensureInstalled async, AppDelegate-DI in alle drei Konsumenten. Tests: 39/39 gruen, 3x consecutive ohne Flake.
+**Letzte Aktion:** Phase 8 Plan-Phase abgeschlossen. UI-Phase 6/6 APPROVED (08-UI-SPEC.md), Research live-verifiziert (08-RESEARCH.md mit Apple-Doku-Sources + Open Questions Resolution), Patterns gemappt (08-PATTERNS.md, 13/13 NEW/MODIFY analogs), Validation-Strategie Nyquist-konform (08-VALIDATION.md mit doppeltem Protocol-Wrapping). 5 Plans erstellt + verified PASSED in Iteration 2 (1 Revision löste 2 BLOCKERs + 6 WARNINGs). AC-AVAIL-1/2/3 + 5 ROADMAP-Erfolgskriterien vollständig abgedeckt.
 
-**Nächste Aktion:** `/gsd-verify-phase 3` — manuelle visuelle Inspektion der vier UI-States (Toggle/Lädt/Modell vorhanden/Fehler+Retry), App-Start-Prewarm-Verifikation, Netzwerk-Fehler-Pfad mit "Erneut versuchen".
+**Nächste Aktion:** `/gsd-execute-phase 8` — Wave 0 zuerst: 08-01 Spike löst 3 Open Questions (LanguageModelSession-Concurrency, GenerationError-Naming, prewarm-Signatur) live in Xcode → 08-RESEARCH-LIVE.md gating für Wave 1+. Phase 3 manual UAT bleibt offen, blockt Phase 8 nicht.
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*
