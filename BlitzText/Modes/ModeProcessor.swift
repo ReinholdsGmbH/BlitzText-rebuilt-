@@ -202,7 +202,7 @@ final class ModeProcessor: ObservableObject {
 
                 // Sprachbias-Marker (RESEARCH.md Pitfall 1, T-08-03-06):
                 // Apple Foundation drift gerne auf Englisch — explizit deutsch anweisen.
-                var systemPrompt = makeRewriteSystemPrompt(for: mode)
+                var systemPrompt = makeRewriteSystemPrompt(for: mode, backend: backend)
                 if backend == .appleFoundation {
                     systemPrompt += "\n\nAntworte ausschließlich auf Deutsch."
                 }
@@ -268,18 +268,30 @@ final class ModeProcessor: ObservableObject {
         return combined.isEmpty ? nil : combined
     }
 
-    private func makeRewriteSystemPrompt(for mode: Mode) -> String {
+    private func makeRewriteSystemPrompt(for mode: Mode, backend: RewriteBackend) -> String {
         var parts: [String] = []
         switch mode {
         case .blitztextPlus:
-            parts.append(settings.customPromptPlus.isEmpty
-                         ? Mode.blitztextPlus.defaultRewritePrompt
-                         : settings.customPromptPlus)
+            let basePrompt: String
+            if !settings.customPromptPlus.isEmpty {
+                basePrompt = settings.customPromptPlus
+            } else if backend == .appleFoundation {
+                basePrompt = Mode.blitztextPlus.foundationRewritePrompt
+            } else {
+                basePrompt = Mode.blitztextPlus.defaultRewritePrompt
+            }
+            parts.append(basePrompt)
             parts.append(settings.styleForPlus.promptHint)
         case .blitztextRant:
-            parts.append(settings.customPromptRant.isEmpty
-                         ? Mode.blitztextRant.defaultRewritePrompt
-                         : settings.customPromptRant)
+            let basePrompt: String
+            if !settings.customPromptRant.isEmpty {
+                basePrompt = settings.customPromptRant
+            } else if backend == .appleFoundation {
+                basePrompt = Mode.blitztextRant.foundationRewritePrompt
+            } else {
+                basePrompt = Mode.blitztextRant.defaultRewritePrompt
+            }
+            parts.append(basePrompt)
         case .blitztext:
             break
         }
