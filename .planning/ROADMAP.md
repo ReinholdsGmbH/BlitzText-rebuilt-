@@ -121,7 +121,7 @@
   4. Beim App-Start prüft die App `SystemLanguageModel.default.availability`; bei `unavailable` wird das Default-Backend automatisch auf OpenAI gestellt (sofern API-Key vorhanden) und der Modi-Tab zeigt eine deutsche Erklärung mit Link zu System-Einstellungen
   5. Recording-HUD bzw. Bestätigungs-Toast zeigt einen subtilen Indikator, welches Backend (Apple-Foundation / OpenAI) für den Rewrite verwendet wurde
 **Plans**: 5 plans
-- [ ] 08-01-PLAN.md — Wave 0 Spike: Live-Verifikation A1/A2/A6 (LanguageModelSession Concurrency, GenerationError Cases, prewarm-Signature)
+- [x] 08-01-PLAN.md — Wave 0 Spike: Live-Verifikation A1/A2/A6 (LanguageModelSession Concurrency, GenerationError Cases, prewarm-Signature) — A1 verified, A2 + A6 corrected, Wave 1 unblocked (2026-05-04)
 - [ ] 08-02-PLAN.md — Wave 0 Foundation: Protocols (FoundationAvailabilityProviding, LanguageModelInferring) + DeescalatedOutput @Generable + AppleFoundationError + SettingsStore-Erweiterung (RewriteBackend, refreshFoundationAvailability) + Availability-Tests
 - [ ] 08-03-PLAN.md — Wave 1 Client + Dispatch: AppleFoundationRewriteClient (Plain + Guided) + ModeProcessor Backend-Lookup + Dispatch-Tests (4 Pfade)
 - [ ] 08-04-PLAN.md — Wave 2 UI: FoundationAvailabilityBanner (4 Varianten + D) + SettingsView Backend-Picker x 2 + RecordingHUD BackendBadge + AppDelegate Bootstrap-Refresh + Pre-Warm + didBecomeActiveNotification
@@ -178,7 +178,7 @@ Plans:
 | 5. Sprecher-Profile UI | 0/0 | Not started | - |
 | 6. Sprecher-Enrollment | 0/0 | Not started | - |
 | 7. Standard-Hotkeys & eigene Hotkeys | 0/0 | Not started | - |
-| 8. Apple Foundation Rewrite-Backend | 0/5 | Planned | - |
+| 8. Apple Foundation Rewrite-Backend | 1/5 | In Progress | - |
 | 999.1. iOS-/iPadOS-Port | 0/0 | Backlog | - |
 | 999.2. Meeting-Transkription | 0/0 | Backlog | - |
 | 999.3. Meeting-Zusammenfassungen | 0/0 | Backlog | - |
