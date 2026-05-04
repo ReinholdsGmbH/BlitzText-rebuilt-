@@ -29,6 +29,7 @@ final class ModeProcessor: ObservableObject {
     private let _injectedLocalTranscriber: TranscriptionService?
     private let _injectedParakeetTranscriber: TranscriptionService?
     private let _injectedRewriter: RewriteService?
+    private let _injectedFoundationRewriter: RewriteService?
     private let _injectedRecorder: RecorderProtocol?
 
     private lazy var defaultOpenAITranscriber: TranscriptionService = WhisperAPIClient(settings: settings)
@@ -37,6 +38,7 @@ final class ModeProcessor: ObservableObject {
     private lazy var parakeetClient = ParakeetClient(settings: settings, diarizerManager: diarizerManager)
     private lazy var defaultParakeetTranscriber: TranscriptionService = parakeetClient
     private lazy var defaultRewriter: RewriteService = OpenAIChatClient(settings: settings)
+    private lazy var defaultFoundationRewriter: RewriteService = AppleFoundationRewriteClient()
     private let inserter = TextInserter()
 
     private var openAITranscriber: TranscriptionService {
@@ -50,6 +52,14 @@ final class ModeProcessor: ObservableObject {
     }
     private var rewriter: RewriteService {
         _injectedRewriter ?? defaultRewriter
+    }
+    /// Apple-Foundation-Rewriter-Slot (Wave 1, 08-03). Default: Live
+    /// `AppleFoundationRewriteClient`; Tests injizieren `foundationRewriter:`
+    /// im `init`. Wird im `runPipeline`-Switch via `settings.rewriteBackend(for: mode)`
+    /// für `.appleFoundation` ausgewählt — Plus-Mode → `rewrite(...)`,
+    /// Rant-Mode → `rewriteGuided(...)` (mit `as? AppleFoundationRewriteClient`-Cast).
+    private var foundationRewriter: RewriteService {
+        _injectedFoundationRewriter ?? defaultFoundationRewriter
     }
     private var activeRecorder: RecorderProtocol {
         _injectedRecorder ?? recorder
@@ -68,6 +78,7 @@ final class ModeProcessor: ObservableObject {
         localTranscriber: TranscriptionService? = nil,
         parakeetTranscriber: TranscriptionService? = nil,
         rewriter: RewriteService? = nil,
+        foundationRewriter: RewriteService? = nil,
         recorder: RecorderProtocol? = nil
     ) {
         self.settings = settings
@@ -79,6 +90,7 @@ final class ModeProcessor: ObservableObject {
         self._injectedLocalTranscriber = localTranscriber
         self._injectedParakeetTranscriber = parakeetTranscriber
         self._injectedRewriter = rewriter
+        self._injectedFoundationRewriter = foundationRewriter
         self._injectedRecorder = recorder
     }
 
@@ -181,11 +193,37 @@ final class ModeProcessor: ObservableObject {
         case .blitztextPlus, .blitztextRant:
             state = .rewriting(mode)
             do {
-                let p = try await rewriter.rewrite(
-                    input: raw,
-                    systemPrompt: makeRewriteSystemPrompt(for: mode),
-                    model: settings.rewriteModel
-                )
+                let backend = settings.rewriteBackend(for: mode)
+                let activeRewriter: RewriteService
+                switch backend {
+                case .appleFoundation: activeRewriter = foundationRewriter
+                case .openAI:          activeRewriter = rewriter
+                }
+
+                // Sprachbias-Marker (RESEARCH.md Pitfall 1, T-08-03-06):
+                // Apple Foundation drift gerne auf Englisch — explizit deutsch anweisen.
+                var systemPrompt = makeRewriteSystemPrompt(for: mode)
+                if backend == .appleFoundation {
+                    systemPrompt += "\n\nAntworte ausschließlich auf Deutsch."
+                }
+
+                let p: String
+                if mode == .blitztextRant,
+                   backend == .appleFoundation,
+                   let foundationClient = activeRewriter as? AppleFoundationRewriteClient {
+                    // Guided-Generation-Pfad (DeescalatedOutput @Generable Schema)
+                    p = try await foundationClient.rewriteGuided(
+                        input: raw,
+                        systemPrompt: systemPrompt
+                    )
+                } else {
+                    // Plain-Pfad (Plus oder Rant+OpenAI; Test-Fallback bei nicht-AppleClient-Fakes)
+                    p = try await activeRewriter.rewrite(
+                        input: raw,
+                        systemPrompt: systemPrompt,
+                        model: settings.rewriteModel
+                    )
+                }
                 output = p
                 polished = p
             } catch {
@@ -291,6 +329,7 @@ final class ModeProcessor: ObservableObject {
     // MARK: - Helpers
 
     private func humanReadable(_ error: Error) -> String {
+        if let e = error as? AppleFoundationError, let msg = e.errorDescription { return msg }
         if let e = error as? TranscriptionError, let msg = e.errorDescription { return msg }
         if let e = error as? AudioRecorder.RecorderError {
             switch e {

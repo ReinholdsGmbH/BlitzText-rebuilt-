@@ -19,6 +19,15 @@ final class AppleFoundationAvailabilityTests: XCTestCase {
         // Dev-/CI-Maschinen mit existierendem Key falsch-positiv den Auto-Fallback
         // auslöst (Rule-1-Bug, gefangen beim ersten Test-Run am 2026-05-04).
         store._testApiKeyOverride = apiKey
+        // 08-03 Rule-1 Fix: Test-Isolation gegen UserDefaults-Pollution.
+        // SettingsStore.load() liest persistierte Defaults — wenn ein anderer Test
+        // (oder ein vorheriger Suite-Run) `rewriteBackendForPlus = .openAI`
+        // persistiert hat, würde der Default-State-Erwartungs-Assert hier fehlschlagen.
+        // Wir setzen die Backend-Slots explizit auf den Test-Default (.appleFoundation)
+        // UND clearen das Self-Idempotency-Flag (Runtime-Only, aber paranoid).
+        store.rewriteBackendForPlus = .appleFoundation
+        store.rewriteBackendForRant = .appleFoundation
+        store.didAutoFallbackToOpenAI = false
         return (store, provider)
     }
 
