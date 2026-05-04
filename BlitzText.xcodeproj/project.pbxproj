@@ -35,6 +35,7 @@
 		83CB9CC4E6AFF69C80A73269 /* EigennamenAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFFAF7B94B5C25220052C5B9 /* EigennamenAnalyzer.swift */; };
 		86C7AE5408CB1F3CD17F7C62 /* FakeDiarizerLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89FDC98DE27281D9AFE21823 /* FakeDiarizerLoader.swift */; };
 		8FDD9D6CF15588896C415EBD /* AppleFoundationError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348D2A9B82C4E47649588269 /* AppleFoundationError.swift */; };
+		97411EAC9E461B3308862230 /* FoundationAvailabilityBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95DCBBF9F1085F5BABCCA7D0 /* FoundationAvailabilityBanner.swift */; };
 		9B99E101EDCD2C1B2362D4BA /* RewriteBackendDispatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F8B10DDAB686DCB1AC75415 /* RewriteBackendDispatchTests.swift */; };
 		9D0A5703D2A2F11BCE7C7245 /* RewriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917E21BB6D2AF55D54D58532 /* RewriteService.swift */; };
 		9E2FAD8DD66D9DBB61CF955C /* ETAEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA5A4483686336CE963A764 /* ETAEstimatorTests.swift */; };
@@ -111,6 +112,7 @@
 		8B2D3A0A4629965089470A00 /* Mode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mode.swift; sourceTree = "<group>"; };
 		917E21BB6D2AF55D54D58532 /* RewriteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteService.swift; sourceTree = "<group>"; };
 		944AD6F92E11F032129786D0 /* HistoryWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindowController.swift; sourceTree = "<group>"; };
+		95DCBBF9F1085F5BABCCA7D0 /* FoundationAvailabilityBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationAvailabilityBanner.swift; sourceTree = "<group>"; };
 		9C1DE7CD38785B8D18F565D7 /* AppleFoundationAvailabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleFoundationAvailabilityTests.swift; sourceTree = "<group>"; };
 		A92E7667465F9F3D734C1FBA /* LocalModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelManager.swift; sourceTree = "<group>"; };
 		ACC07BCC7706BB1698EEB8BC /* PipelineErrorPathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineErrorPathTests.swift; sourceTree = "<group>"; };
@@ -315,6 +317,7 @@
 		95C41783B942B34FC9341A77 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				95DCBBF9F1085F5BABCCA7D0 /* FoundationAvailabilityBanner.swift */,
 				E075EEF8E9A96E52FDAB7BB2 /* Keychain.swift */,
 				07FAEC5914473B2E4ECCD7EC /* PermissionsHelper.swift */,
 				C589D197AE60A09DFA3F8A4D /* SettingsStore.swift */,
@@ -514,6 +517,7 @@
 				388A20FFA327573617E38D13 /* ETAEstimator.swift in Sources */,
 				308AADD4F997689906E454F6 /* EigennamenAISuggester.swift in Sources */,
 				83CB9CC4E6AFF69C80A73269 /* EigennamenAnalyzer.swift in Sources */,
+				97411EAC9E461B3308862230 /* FoundationAvailabilityBanner.swift in Sources */,
 				C430E3F7AF00371C98A7FE1A /* FoundationAvailabilityProvider.swift in Sources */,
 				FCC8B3B6D10C022F810FF51E /* HUDView.swift in Sources */,
 				64E5EE6B9DC6242A0AB2F32B /* HistoryStore.swift in Sources */,
