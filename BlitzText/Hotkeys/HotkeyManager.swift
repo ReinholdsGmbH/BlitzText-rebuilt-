@@ -1,11 +1,11 @@
 import AppKit
 import CoreGraphics
 
-/// Globaler Hotkey-Watcher für fn+Shift, fn+Control, fn+Option.
-/// Nutzt CGEventTap auf .flagsChanged, weil fn nicht via Carbon RegisterEventHotKey abfangbar ist.
-/// Braucht Accessibility-Permission (TCC). Ohne diese Permission liefert `eventTapCreate` `nil` —
-/// wir pollen `AXIsProcessTrusted()` mit 1 Hz und installieren den Tap automatisch nach,
-/// sobald der User die Permission erteilt.
+/// Globaler Hotkey-Watcher für konfigurierbare Tastenkombinationen.
+/// Nutzt CGEventTap auf .flagsChanged/.keyDown/.keyUp, weil fn nicht via Carbon RegisterEventHotKey
+/// abfangbar ist. Braucht Accessibility-Permission (TCC). Ohne diese Permission liefert
+/// `eventTapCreate` `nil` — wir pollen `AXIsProcessTrusted()` mit 1 Hz und installieren den Tap
+/// automatisch nach, sobald der User die Permission erteilt.
 final class HotkeyManager: @unchecked Sendable {
 
     enum Action: Sendable {
@@ -22,7 +22,15 @@ final class HotkeyManager: @unchecked Sendable {
         var shift: Bool
         var control: Bool
         var option: Bool
+        var command: Bool = false
     }
+
+    /// Standard-Bindungen (fn+Shift/Control/Option) — werden von Tests als Default genutzt.
+    static let defaultBindings: [Mode: HotkeyBinding] = [
+        .blitztext:     .defaultBlitztext,
+        .blitztextPlus: .defaultBlitztextPlus,
+        .blitztextRant: .defaultBlitztextRant,
+    ]
 
     /// Ergebnis einer State-Machine-Entscheidung. Eine `decideTransition`-Auswertung
     /// kann mehrere Outcomes liefern (z. B. erst stop des alten Mode, dann start des neuen).
@@ -42,6 +50,7 @@ final class HotkeyManager: @unchecked Sendable {
 
     private var currentMode: Mode?
     private var lastTriggerAt: Date = .distantPast
+    private var activeKeyMode: (mode: Mode, keyCode: UInt16)?
 
     init(settings: SettingsStore, onTrigger: @escaping @Sendable (Mode, Action) -> Void) {
         self.settings = settings
@@ -74,7 +83,9 @@ final class HotkeyManager: @unchecked Sendable {
 
     private func installEventTap() {
         guard eventTap == nil else { return }   // idempotent — kein doppelter Tap
-        let mask = (1 << CGEventType.flagsChanged.rawValue) | (1 << CGEventType.keyDown.rawValue)
+        let mask = (1 << CGEventType.flagsChanged.rawValue)
+                 | (1 << CGEventType.keyDown.rawValue)
+                 | (1 << CGEventType.keyUp.rawValue)
         let unmanagedSelf = Unmanaged.passUnretained(self)
 
         let callback: CGEventTapCallBack = { _, type, event, refcon in
@@ -82,6 +93,10 @@ final class HotkeyManager: @unchecked Sendable {
             let manager = Unmanaged<HotkeyManager>.fromOpaque(refcon).takeUnretainedValue()
             if type == .flagsChanged {
                 manager.handleFlagsChanged(event: event)
+            } else if type == .keyDown {
+                manager.handleKeyDown(event: event)
+            } else if type == .keyUp {
+                manager.handleKeyUp(event: event)
             } else if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
                 Log.write("Tap disabled by system (\(type.rawValue)) — re-enable")
                 if let tap = manager.eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
@@ -145,11 +160,30 @@ final class HotkeyManager: @unchecked Sendable {
             fn: flags.contains(.maskSecondaryFn),
             shift: flags.contains(.maskShift),
             control: flags.contains(.maskControl),
-            option: flags.contains(.maskAlternate)
+            option: flags.contains(.maskAlternate),
+            command: flags.contains(.maskCommand)
         )
-        Log.write("flagsChanged raw=0x\(String(flags.rawValue, radix: 16)) fn=\(input.fn) shift=\(input.shift) ctrl=\(input.control) opt=\(input.option)")
+        Log.write("flagsChanged raw=0x\(String(flags.rawValue, radix: 16)) fn=\(input.fn) shift=\(input.shift) ctrl=\(input.control) opt=\(input.option) cmd=\(input.command)")
 
-        let outcomes = decideTransition(flags: input, triggerMode: settings.triggerMode, now: Date())
+        // Wenn ein Key-Binding aktiv ist: prüfen ob die Modifier noch stimmen.
+        if let active = activeKeyMode {
+            let binding = settings.hotkeyBinding(for: active.mode)
+            if !binding.matchesModifiers(input) && settings.triggerMode == .hold {
+                activeKeyMode = nil
+                currentMode = nil
+                let trigger = self.onTrigger
+                let mode = active.mode
+                DispatchQueue.main.async { trigger(mode, .stop) }
+            }
+            return
+        }
+
+        let bindings: [Mode: HotkeyBinding] = [
+            .blitztext:     settings.hotkeyForBlitztext,
+            .blitztextPlus: settings.hotkeyForBlitztextPlus,
+            .blitztextRant: settings.hotkeyForBlitztextRant,
+        ]
+        let outcomes = decideTransition(flags: input, triggerMode: settings.triggerMode, bindings: bindings, now: Date())
         let trigger = self.onTrigger
         for outcome in outcomes {
             switch outcome {
@@ -165,23 +199,69 @@ final class HotkeyManager: @unchecked Sendable {
         }
     }
 
+    private func handleKeyDown(event: CGEvent) {
+        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+        let flags = event.flags
+        let input = FlagsInput(
+            fn: flags.contains(.maskSecondaryFn),
+            shift: flags.contains(.maskShift),
+            control: flags.contains(.maskControl),
+            option: flags.contains(.maskAlternate),
+            command: flags.contains(.maskCommand)
+        )
+        for mode in Mode.allCases {
+            let binding = settings.hotkeyBinding(for: mode)
+            guard let bindingKey = binding.keyCode, bindingKey == keyCode else { continue }
+            guard binding.matchesModifiers(input) else { continue }
+            let now = Date()
+            switch settings.triggerMode {
+            case .hold:
+                guard now.timeIntervalSince(lastTriggerAt) >= Self.holdDebounce else { return }
+                lastTriggerAt = now
+                activeKeyMode = (mode: mode, keyCode: keyCode)
+                currentMode = mode
+                let trigger = self.onTrigger
+                DispatchQueue.main.async { trigger(mode, .start) }
+            case .toggle:
+                guard now.timeIntervalSince(lastTriggerAt) >= Self.toggleDebounce else { return }
+                lastTriggerAt = now
+                let trigger = self.onTrigger
+                DispatchQueue.main.async { trigger(mode, .toggle) }
+            }
+            return
+        }
+    }
+
+    private func handleKeyUp(event: CGEvent) {
+        guard settings.triggerMode == .hold, let active = activeKeyMode else { return }
+        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+        guard keyCode == active.keyCode else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastTriggerAt) >= Self.holdDebounce else { return }
+        lastTriggerAt = now
+        activeKeyMode = nil
+        currentMode = nil
+        let trigger = self.onTrigger
+        let mode = active.mode
+        DispatchQueue.main.async { trigger(mode, .stop) }
+    }
+
     /// Pure Uebergangsfunktion (Test-Seam) — kein I/O, kein CGEvent, kein DispatchQueue.
     /// Mode-/Timestamp-State auf `self` wird deterministisch auf Basis von `now` aktualisiert,
     /// damit Tests Sequenzen mit kontrollierter Wallclock fahren koennen.
     /// Produktionsverhalten ist byte-identisch zur vorherigen handleHold/Toggle-Implementierung
     /// (gleiche Debounce-Konstanten, gleiche Mode-Mapping-Reihenfolge, gleiche Edge-Semantik).
+    /// `bindings` default = `HotkeyManager.defaultBindings` damit bestehende Tests unverändert bleiben.
     internal func decideTransition(
         flags: FlagsInput,
         triggerMode: TriggerMode,
+        bindings: [Mode: HotkeyBinding] = HotkeyManager.defaultBindings,
         now: Date
     ) -> [Outcome] {
-        let newMode: Mode? = {
-            guard flags.fn else { return nil }
-            if flags.shift { return .blitztext }
-            if flags.control { return .blitztextPlus }
-            if flags.option { return .blitztextRant }
-            return nil
-        }()
+        let newMode = Mode.allCases.first { mode in
+            guard let binding = bindings[mode], binding.isModifierOnly else { return false }
+            return binding.matches(flags: flags)
+        }
 
         switch triggerMode {
         case .hold:
@@ -224,5 +304,94 @@ final class HotkeyManager: @unchecked Sendable {
         // nicht concurrency-safe, deshalb hartkodiert.
         let opts: NSDictionary = ["AXTrustedCheckOptionPrompt": true]
         return AXIsProcessTrustedWithOptions(opts)
+    }
+}
+
+// MARK: - HotkeyModifier
+
+enum HotkeyModifier: Int, Codable, CaseIterable, Equatable, Hashable, Sendable {
+    case fn, command, control, option, shift
+
+    var cgFlag: CGEventFlags {
+        switch self {
+        case .fn:      return .maskSecondaryFn
+        case .command: return .maskCommand
+        case .control: return .maskControl
+        case .option:  return .maskAlternate
+        case .shift:   return .maskShift
+        }
+    }
+
+    var nsFlag: NSEvent.ModifierFlags {
+        switch self {
+        case .fn:      return .function
+        case .command: return .command
+        case .control: return .control
+        case .option:  return .option
+        case .shift:   return .shift
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .fn:      return "fn"
+        case .command: return "⌘"
+        case .control: return "⌃"
+        case .option:  return "⌥"
+        case .shift:   return "⇧"
+        }
+    }
+}
+
+// MARK: - HotkeyBinding
+
+struct HotkeyBinding: Codable, Equatable, Sendable {
+    var modifiers: Set<HotkeyModifier>
+    var keyCode: UInt16?
+    var keyLabel: String?
+
+    init(modifiers: Set<HotkeyModifier> = [], keyCode: UInt16? = nil, keyLabel: String? = nil) {
+        self.modifiers = modifiers
+        self.keyCode = keyCode
+        self.keyLabel = keyLabel
+    }
+
+    var isModifierOnly: Bool { keyCode == nil }
+    var isEmpty: Bool { modifiers.isEmpty && keyCode == nil }
+
+    var displayString: String {
+        let orderedMods = HotkeyModifier.allCases.filter { modifiers.contains($0) }
+        let modStr = orderedMods.map { $0.symbol }.joined()
+        let keyStr = keyLabel ?? ""
+        let combined = modStr + keyStr
+        return combined.isEmpty ? "–" : combined
+    }
+
+    /// Prüft ob diese Bindung exakt auf die gegebenen Modifier-Flags passt (alle erforderlichen
+    /// Modifier aktiv, keine überflüssigen). Nur für modifier-only Bindungen gedacht.
+    func matches(flags: HotkeyManager.FlagsInput) -> Bool {
+        guard isModifierOnly else { return false }
+        return matchesModifiers(flags)
+    }
+
+    /// Prüft nur die Modifier-Flags — unabhängig davon, ob keyCode vorhanden ist.
+    func matchesModifiers(_ flags: HotkeyManager.FlagsInput) -> Bool {
+        return flags.fn      == modifiers.contains(.fn)
+            && flags.shift   == modifiers.contains(.shift)
+            && flags.control == modifiers.contains(.control)
+            && flags.option  == modifiers.contains(.option)
+            && flags.command == modifiers.contains(.command)
+    }
+
+    static let defaultBlitztext     = HotkeyBinding(modifiers: [.fn, .shift])
+    static let defaultBlitztextPlus = HotkeyBinding(modifiers: [.fn, .control])
+    static let defaultBlitztextRant = HotkeyBinding(modifiers: [.fn, .option])
+
+    static func defaultBinding(for mode: Mode) -> HotkeyBinding {
+        switch mode {
+        case .blitztext:     return .defaultBlitztext
+        case .blitztextPlus: return .defaultBlitztextPlus
+        case .blitztextRant: return .defaultBlitztextRant
+        }
     }
 }

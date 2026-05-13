@@ -7,6 +7,9 @@ final class SettingsStore: ObservableObject {
     // MARK: - Persisted Preferences (JSON in UserDefaults)
 
     @Published var triggerMode: TriggerMode = .hold
+    @Published var hotkeyForBlitztext: HotkeyBinding = .defaultBlitztext
+    @Published var hotkeyForBlitztextPlus: HotkeyBinding = .defaultBlitztextPlus
+    @Published var hotkeyForBlitztextRant: HotkeyBinding = .defaultBlitztextRant
     @Published var styleForPlus: WritingStyle = .neutral
     @Published var customPromptPlus: String = Mode.blitztextPlus.defaultRewritePrompt
     @Published var customPromptRant: String = Mode.blitztextRant.defaultRewritePrompt
@@ -136,6 +139,24 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    // MARK: - Hotkey-Bindungen
+
+    func hotkeyBinding(for mode: Mode) -> HotkeyBinding {
+        switch mode {
+        case .blitztext:     return hotkeyForBlitztext
+        case .blitztextPlus: return hotkeyForBlitztextPlus
+        case .blitztextRant: return hotkeyForBlitztextRant
+        }
+    }
+
+    func setHotkeyBinding(_ binding: HotkeyBinding, for mode: Mode) {
+        switch mode {
+        case .blitztext:     hotkeyForBlitztext = binding
+        case .blitztextPlus: hotkeyForBlitztextPlus = binding
+        case .blitztextRant: hotkeyForBlitztextRant = binding
+        }
+    }
+
     // MARK: - Foundation-Availability + Auto-Fallback
 
     /// Live-Refresh des Apple-Foundation-Availability-States. Triggert
@@ -213,6 +234,10 @@ final class SettingsStore: ObservableObject {
         var rewriteBackendForRant: RewriteBackend?
         // foundationAvailability + didAutoFallbackToOpenAI bewusst NICHT hier
         // (Runtime-Only — siehe Property-Doc-Comments + T-08-02-03).
+        // Hotkey-Konfiguration: additive Optionals — alte Snapshots laden ohne Crash.
+        var hotkeyForBlitztext: HotkeyBinding?
+        var hotkeyForBlitztextPlus: HotkeyBinding?
+        var hotkeyForBlitztextRant: HotkeyBinding?
     }
 
     private func load() {
@@ -235,6 +260,9 @@ final class SettingsStore: ObservableObject {
         parakeetDiarization = snap.parakeetDiarization ?? false
         rewriteBackendForPlus = snap.rewriteBackendForPlus ?? .appleFoundation
         rewriteBackendForRant = snap.rewriteBackendForRant ?? .appleFoundation
+        hotkeyForBlitztext = snap.hotkeyForBlitztext ?? .defaultBlitztext
+        hotkeyForBlitztextPlus = snap.hotkeyForBlitztextPlus ?? .defaultBlitztextPlus
+        hotkeyForBlitztextRant = snap.hotkeyForBlitztextRant ?? .defaultBlitztextRant
     }
 
     private func save() {
@@ -253,7 +281,10 @@ final class SettingsStore: ObservableObject {
             aiSuggestProperNouns: aiSuggestProperNouns,
             parakeetDiarization: parakeetDiarization,
             rewriteBackendForPlus: rewriteBackendForPlus,
-            rewriteBackendForRant: rewriteBackendForRant
+            rewriteBackendForRant: rewriteBackendForRant,
+            hotkeyForBlitztext: hotkeyForBlitztext,
+            hotkeyForBlitztextPlus: hotkeyForBlitztextPlus,
+            hotkeyForBlitztextRant: hotkeyForBlitztextRant
         )
         if let data = try? JSONEncoder().encode(snap) {
             UserDefaults.standard.set(data, forKey: Self.defaultsKey)
