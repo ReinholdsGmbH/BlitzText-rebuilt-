@@ -24,6 +24,8 @@
 		54291188A3089EC6A6BB9740 /* DiarizerModelManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5979B1D34E929ACE08145C36 /* DiarizerModelManagerTests.swift */; };
 		5686138DCFFFE5C917B0FE4D /* SpeakerMatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF6046C8A4A89F1A0897798 /* SpeakerMatchingTests.swift */; };
 		640EA0BBFCB94793A3249A8A /* SpeakerProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC2481613ACCD25CBEAF2743 /* SpeakerProfileStore.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* SpeakerProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* SpeakerProfileViewModel.swift */; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* SpeakerProfileViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A3B4C5 /* SpeakerProfileViewModelTests.swift */; };
 		64E5EE6B9DC6242A0AB2F32B /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D65A4763CEF07729B97C85 /* HistoryStore.swift */; };
 		6A57486CAFB50F6574ADC0CA /* FakeFoundationAvailabilityProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F558B7AB9E54ED6811566DAB /* FakeFoundationAvailabilityProvider.swift */; };
 		6CFB0DCE2BC3788A2303060F /* FakeAudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A7E345DED406424C968C5A6 /* FakeAudioRecorder.swift */; };
@@ -121,6 +123,8 @@
 		9C1DE7CD38785B8D18F565D7 /* AppleFoundationAvailabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleFoundationAvailabilityTests.swift; sourceTree = "<group>"; };
 		A92E7667465F9F3D734C1FBA /* LocalModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelManager.swift; sourceTree = "<group>"; };
 		AC2481613ACCD25CBEAF2743 /* SpeakerProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerProfileStore.swift; sourceTree = "<group>"; };
+		B2C3D4E5F6A7B8C9D0E1F2A3 /* SpeakerProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerProfileViewModel.swift; sourceTree = "<group>"; };
+		D4E5F6A7B8C9D0E1F2A3B4C5 /* SpeakerProfileViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerProfileViewModelTests.swift; sourceTree = "<group>"; };
 		ACC07BCC7706BB1698EEB8BC /* PipelineErrorPathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineErrorPathTests.swift; sourceTree = "<group>"; };
 		AEA5A4483686336CE963A764 /* ETAEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ETAEstimatorTests.swift; sourceTree = "<group>"; };
 		B05E474160016E12581FCA33 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
@@ -162,6 +166,7 @@
 			children = (
 				4BF6046C8A4A89F1A0897798 /* SpeakerMatchingTests.swift */,
 				0BF0B5AE7B6146CDBA633A7E /* SpeakerProfileStoreTests.swift */,
+				D4E5F6A7B8C9D0E1F2A3B4C5 /* SpeakerProfileViewModelTests.swift */,
 			);
 			path = Speakers;
 			sourceTree = "<group>";
@@ -240,6 +245,7 @@
 				09914BB3AE6444A4726A9668 /* ModelDownloader.swift */,
 				B487F4C357DBB6D3574BD71C /* ParakeetClient.swift */,
 				AC2481613ACCD25CBEAF2743 /* SpeakerProfileStore.swift */,
+				B2C3D4E5F6A7B8C9D0E1F2A3 /* SpeakerProfileViewModel.swift */,
 				3E89BF7B08768F054ADC1C5C /* TranscriptionService.swift */,
 				2ED20D298E2E13975A8DE892 /* WhisperAPIClient.swift */,
 			);
@@ -518,6 +524,7 @@
 				B8CE90E884C1C61B26A666FE /* SmokeTests.swift in Sources */,
 				5686138DCFFFE5C917B0FE4D /* SpeakerMatchingTests.swift in Sources */,
 				9B70AF6569118D808D309FB4 /* SpeakerProfileStoreTests.swift in Sources */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* SpeakerProfileViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -561,6 +568,7 @@
 				F82CAA38AD58A3A26C202EAE /* SettingsView.swift in Sources */,
 				778EE0BE58FD95AB96185AE8 /* SettingsWindowController.swift in Sources */,
 				640EA0BBFCB94793A3249A8A /* SpeakerProfileStore.swift in Sources */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* SpeakerProfileViewModel.swift in Sources */,
 				36288B641FA18EEF21BB98A6 /* SuggestionPresenter.swift in Sources */,
 				E0E2AF130C996FE8DC761BBA /* SuggestionToastController.swift in Sources */,
 				A57B855CD2C550E2C591A57B /* TextInserter.swift in Sources */,

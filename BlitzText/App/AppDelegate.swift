@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let historyStore = HistoryStore()
     let modelManager = LocalModelManager()
     let diarizerManager = DiarizerModelManager()
+    private(set) var speakerProfileViewModel: SpeakerProfileViewModel!
     private var menuBarController: MenuBarController!
     private var hotkeyManager: HotkeyManager!
     private var modeProcessor: ModeProcessor!
@@ -65,10 +66,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             modelManager: modelManager,
             diarizerManager: diarizerManager
         )
+        speakerProfileViewModel = SpeakerProfileViewModel(store: modeProcessor.speakerStore)
         settingsWindow = SettingsWindowController(
             settings: settingsStore,
             modelManager: modelManager,
-            diarizerManager: diarizerManager
+            diarizerManager: diarizerManager,
+            speakerViewModel: speakerProfileViewModel
         )
         historyWindow = HistoryWindowController(history: historyStore)
         recordingHUD = RecordingHUDController(recorder: modeProcessor.recorder, processor: modeProcessor, settings: settingsStore)

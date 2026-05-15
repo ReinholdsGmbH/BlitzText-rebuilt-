@@ -6,6 +6,11 @@ import FluidAudio
 final class SpeakerProfileStore: @unchecked Sendable {
     private let url: URL
 
+    /// Wird nach jeder Session-Sicherung aufgerufen. Liefert vollständige Speaker-Liste
+    /// und die IDs der in dieser Session aktiven Sprecher.
+    /// Wird aus einem Background-Task aufgerufen — Empfänger muss selbst auf MainActor hoppen.
+    var onSessionSaved: (([Speaker], [String]) -> Void)?
+
     init() {
         let support = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -31,5 +36,12 @@ final class SpeakerProfileStore: @unchecked Sendable {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard let data = try? encoder.encode(speakers) else { return }
         try? data.write(to: url, options: .atomic)
+    }
+
+    /// Speichert nach einer abgeschlossenen Diarization-Session. Ruft zusätzlich
+    /// `onSessionSaved` mit der vollständigen Liste und den Session-IDs auf.
+    func saveSession(speakers: [Speaker], sessionSpeakerIDs: [String]) {
+        saveSpeakers(speakers)
+        onSessionSaved?(speakers, sessionSpeakerIDs)
     }
 }

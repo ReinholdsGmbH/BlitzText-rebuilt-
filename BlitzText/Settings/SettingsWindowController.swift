@@ -8,12 +8,14 @@ final class SettingsWindowController {
     private let settings: SettingsStore
     private let modelManager: LocalModelManager
     private let diarizerManager: DiarizerModelManager
+    private let speakerViewModel: SpeakerProfileViewModel
     private var window: NSWindow?
 
-    init(settings: SettingsStore, modelManager: LocalModelManager, diarizerManager: DiarizerModelManager) {
+    init(settings: SettingsStore, modelManager: LocalModelManager, diarizerManager: DiarizerModelManager, speakerViewModel: SpeakerProfileViewModel) {
         self.settings = settings
         self.modelManager = modelManager
         self.diarizerManager = diarizerManager
+        self.speakerViewModel = speakerViewModel
     }
 
     func show() {
@@ -28,6 +30,7 @@ final class SettingsWindowController {
                 .environmentObject(settings)
                 .environmentObject(modelManager)
                 .environmentObject(diarizerManager)
+                .environmentObject(speakerViewModel)
         )
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 700),

@@ -25,6 +25,9 @@ final class SettingsStore: ObservableObject {
     @Published var rewriteBackendForRant: RewriteBackend = .openAI
     @Published var ollamaModel: String = "phi4-mini"
     @Published var ollamaBaseURL: String = "http://localhost:11434"
+    /// Schwellenwert für Sprecher-Matching (0.5 = aggressiv zusammenführen, 0.9 = strikt trennen).
+    /// Wird an SpeakerManager.speakerThreshold übergeben — kleiner Wert = mehr Treffer, größer = mehr neue Profile.
+    @Published var speakerMatchThreshold: Double = 0.7
     /// Bei Parakeet-Backend: Sprecher-Diarization aktivieren.
     /// Side-Effect (D-01): `false → true` triggert sofortigen Manager-Download.
     /// Snapshot-Save läuft separat über das debounced `objectWillChange`-Sink.
@@ -175,6 +178,8 @@ final class SettingsStore: ObservableObject {
         // Ollama-Konfiguration: additive Optionals — alte Snapshots laden ohne Crash.
         var ollamaModel: String?
         var ollamaBaseURL: String?
+        // Sprecher-Matching-Threshold: additives Optional — alte Snapshots laden ohne Crash.
+        var speakerMatchThreshold: Double?
     }
 
     private func load() {
@@ -203,6 +208,7 @@ final class SettingsStore: ObservableObject {
         hotkeyForBlitztextRant = snap.hotkeyForBlitztextRant ?? .defaultBlitztextRant
         ollamaModel = snap.ollamaModel ?? "phi4-mini"
         ollamaBaseURL = snap.ollamaBaseURL ?? "http://localhost:11434"
+        speakerMatchThreshold = snap.speakerMatchThreshold ?? 0.7
     }
 
     func save() {
@@ -226,7 +232,8 @@ final class SettingsStore: ObservableObject {
             hotkeyForBlitztextPlus: hotkeyForBlitztextPlus,
             hotkeyForBlitztextRant: hotkeyForBlitztextRant,
             ollamaModel: ollamaModel,
-            ollamaBaseURL: ollamaBaseURL
+            ollamaBaseURL: ollamaBaseURL,
+            speakerMatchThreshold: speakerMatchThreshold
         )
         do {
             let data = try JSONEncoder().encode(snap)

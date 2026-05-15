@@ -52,14 +52,19 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
             return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        Log.write("Parakeet: starte Diarization…")
+        // SPK-07: Threshold vor jeder Session aktuell setzen — greift sofort für nächste Aufnahme.
+        let threshold = Float(settings.speakerMatchThreshold)
+        await diarizer.speakerManager.setSpeakerThreshold(threshold)
+
+        Log.write("Parakeet: starte Diarization (threshold=\(threshold))…")
         let tDiar = Date()
         do {
             let diarResult = try await diarizer.performCompleteDiarization(samples)
             Log.write("Parakeet: Diarization fertig (\(String(format: "%.1f", Date().timeIntervalSince(tDiar)))s) — \(diarResult.segments.count) Segmente, \(Set(diarResult.segments.map { $0.speakerId }).count) Sprecher")
 
             let speakers = await diarizer.speakerManager.getSpeakerList()
-            speakerStore?.saveSpeakers(speakers)
+            let sessionSpeakerIDs = Array(Set(diarResult.segments.map { $0.speakerId }))
+            speakerStore?.saveSession(speakers: speakers, sessionSpeakerIDs: sessionSpeakerIDs)
             let speakerNames = Self.buildSpeakerNames(from: speakers)
 
             return Self.applyDiarization(asr: result, segments: diarResult.segments, speakerNames: speakerNames)
