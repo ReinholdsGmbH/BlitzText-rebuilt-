@@ -153,6 +153,49 @@ final class SpeakerMatchingTests: XCTestCase {
         XCTAssertTrue(result.contains("Sprecher 1:"), "Unbenannter Sprecher 2 muss als 'Sprecher 1:' erscheinen")
     }
 
+    // MARK: - mergePersistedNames (SPK-06 Fix)
+
+    func testMergePersistedNames_overridesDefaultName() throws {
+        let tmpURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("bt-merge-test-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tmpURL) }
+
+        let store = SpeakerProfileStore(url: tmpURL)
+        // User hat Sprecher in der UI umbenannt → Disk-Name ist "Thomas"
+        var persisted = Speaker(id: "1", name: "Thomas", currentEmbedding: embedding(angle: 0))
+        persisted.isPermanent = true
+        store.saveSpeakers([persisted])
+
+        // Runtime-Diarizer kennt noch den alten Namen "Speaker 1"
+        let runtime = Speaker(id: "1", name: "Speaker 1", currentEmbedding: embedding(angle: 0.1))
+
+        let merged = ParakeetClient.mergePersistedNames([runtime], from: store)
+
+        XCTAssertEqual(merged.first?.name, "Thomas", "Persistierter Name muss Runtime-Name überschreiben")
+        XCTAssertTrue(merged.first?.isPermanent == true, "isPermanent muss vom Store übernommen werden")
+    }
+
+    func testMergePersistedNames_keepesDefaultNameIfNotRenamed() throws {
+        let tmpURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("bt-merge-test-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tmpURL) }
+
+        let store = SpeakerProfileStore(url: tmpURL)
+        let persisted = Speaker(id: "1", name: "Speaker 1", currentEmbedding: embedding())
+        store.saveSpeakers([persisted])
+
+        let runtime = Speaker(id: "1", name: "Speaker 1", currentEmbedding: embedding(angle: 0.1))
+        let merged = ParakeetClient.mergePersistedNames([runtime], from: store)
+
+        XCTAssertEqual(merged.first?.name, "Speaker 1", "Unbenannte Sprecher sollen nicht verändert werden")
+    }
+
+    func testMergePersistedNames_nilStore_returnsRuntime() {
+        let runtime = Speaker(id: "1", name: "Speaker 1", currentEmbedding: embedding())
+        let merged = ParakeetClient.mergePersistedNames([runtime], from: nil)
+        XCTAssertEqual(merged.first?.name, "Speaker 1")
+    }
+
     func testPersistenceRoundTrip_namedSpeakerSurvivedSaveAndLoad() throws {
         let tmpURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("bt-match-test-\(UUID().uuidString).json")

@@ -62,15 +62,39 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
             let diarResult = try await diarizer.performCompleteDiarization(samples)
             Log.write("Parakeet: Diarization fertig (\(String(format: "%.1f", Date().timeIntervalSince(tDiar)))s) — \(diarResult.segments.count) Segmente, \(Set(diarResult.segments.map { $0.speakerId }).count) Sprecher")
 
-            let speakers = await diarizer.speakerManager.getSpeakerList()
+            let runtimeSpeakers = await diarizer.speakerManager.getSpeakerList()
             let sessionSpeakerIDs = Array(Set(diarResult.segments.map { $0.speakerId }))
-            speakerStore?.saveSession(speakers: speakers, sessionSpeakerIDs: sessionSpeakerIDs)
-            let speakerNames = Self.buildSpeakerNames(from: speakers)
+
+            // Wenn der User in der UI einen Sprecher umbenannt hat, liegt der neue Name nur
+            // auf Disk — der in-memory SpeakerManager kennt ihn nicht. Hier werden
+            // benutzerdefinierte Namen aus dem Store in die Runtime-Liste eingeblendet,
+            // bevor gespeichert und der Output gebaut wird.
+            let mergedSpeakers = Self.mergePersistedNames(runtimeSpeakers, from: speakerStore)
+            speakerStore?.saveSession(speakers: mergedSpeakers, sessionSpeakerIDs: sessionSpeakerIDs)
+            let speakerNames = Self.buildSpeakerNames(from: mergedSpeakers)
 
             return Self.applyDiarization(asr: result, segments: diarResult.segments, speakerNames: speakerNames)
         } catch {
             Log.write("Parakeet: Diarization fehlgeschlagen — \(error.localizedDescription) (gebe Text ohne Sprecher zurück)")
             return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    /// Übernimmt benutzerdefinierte Namen und isPermanent aus dem persistierten Store
+    /// in die Runtime-Speaker-Liste. Einbettungen und Statistiken kommen aus der Runtime.
+    static func mergePersistedNames(_ runtimeSpeakers: [Speaker], from store: SpeakerProfileStore?) -> [Speaker] {
+        guard let store else { return runtimeSpeakers }
+        let persisted = store.loadSpeakers()
+        let namedByID: [String: Speaker] = persisted.reduce(into: [:]) { d, s in
+            let isDefault = s.name == "Speaker \(s.id)" || s.name == s.id
+            if !isDefault { d[s.id] = s }
+        }
+        return runtimeSpeakers.map { s in
+            guard let p = namedByID[s.id] else { return s }
+            var updated = s
+            updated.name = p.name
+            updated.isPermanent = p.isPermanent
+            return updated
         }
     }
 
