@@ -1,6 +1,5 @@
 import AppKit
 import AVFoundation
-import FoundationModels
 import SwiftUI
 
 @MainActor
@@ -17,9 +16,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var recordingHUD: RecordingHUDController!
     private var suggestionToast: SuggestionToastController!
     /// Token des `didBecomeActiveNotification`-Observers. Muss in
-    /// `applicationWillTerminate` an `NotificationCenter.removeObserver(_:)`
-    /// übergeben werden, sonst leakt der Block-basierte Observer (CR-01).
-    /// Im XCTest-Hosted-Run akkumulieren sonst stale Observer über mehrere Runs.
     private var didBecomeActiveObserver: NSObjectProtocol?
 
     nonisolated func applicationWillFinishLaunching(_ notification: Notification) {
@@ -95,47 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Phase 8: Foundation-Verfügbarkeit prüfen + ggf. Auto-Fallback (AC-AVAIL-1,
-        // ROADMAP-Erfolgskriterium 4). MUSS vor hotkeyManager.start() laufen, damit
-        // der erste Hotkey-Press bereits einen frischen State sieht (RESEARCH.md
-        // Pitfall 3 "1-second window").
-        settingsStore.refreshFoundationAvailability()
-
-        // Phase 8: Foundation Pre-Warm — sync, non-throwing (PIN(A6) aus 08-RESEARCH-LIVE.md).
-        // Trotz sync-Signatur in Task.detached ausgeführt, damit der Init-Cost
-        // (Session-Allocation + Pre-Compute) nicht den Bootstrap blockiert.
-        if settingsStore.foundationAvailability == .available {
-            let usesFoundation = Mode.allCases.contains { mode in
-                mode != .blitztext && settingsStore.rewriteBackend(for: mode) == .appleFoundation
-            }
-            if usesFoundation {
-                Task.detached(priority: .utility) {
-                    let session = LanguageModelSession()
-                    session.prewarm()
-                }
-            }
-        }
-
         hotkeyManager.start()
         cleanupTempFiles()
-
-        // AC-AVAIL-2: Re-Check bei App-Reaktivierung (User kommt typischerweise aus
-        // den Systemeinstellungen zurück, nachdem er Apple Intelligence aktiviert hat).
-        // Token wird in didBecomeActiveObserver gespeichert und in applicationWillTerminate
-        // via removeObserver freigegeben (CR-01-Fix).
-        didBecomeActiveObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            // Hop auf MainActor, weil refreshFoundationAvailability @Published-State
-            // mutiert und SettingsStore non-Sendable ist (Swift-6 strict-concurrency).
-            // Direkte Cross-Actor-Übergabe vom Notification-Closure in den Task
-            // würde einen sending-data-races-Fehler erzeugen.
-            Task { @MainActor in
-                self?.settingsStore.refreshFoundationAvailability()
-            }
-        }
 
         // Lokales Modell beim App-Start vorladen — sonst würde die erste Aufnahme
         // 1–3 min CoreML-Compile-Zeit kosten. Läuft im Hintergrund, blockiert nicht.
@@ -190,6 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NotificationCenter.default.removeObserver(token)
                 self.didBecomeActiveObserver = nil
             }
+            self.settingsStore.save()
             self.hotkeyManager?.stop()
             self.cleanupTempFiles()
         }

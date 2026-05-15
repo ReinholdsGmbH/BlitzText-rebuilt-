@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-04T09:09:16.660Z"
+last_updated: "2026-05-04T11:17:22.945Z"
 progress:
   total_phases: 20
   completed_phases: 3
@@ -20,17 +20,17 @@ progress:
 
 **Core Value:** Vom gedrückten Hotkey bis zum eingefügten Text wenige Sekunden — Text muss benutzbar sein, ohne nachzubearbeiten.
 
-**Current Focus:** Phase 8 (Apple Foundation Rewrite-Backend) — CODE & TEST COMPLETE (5/5 plans), VISUAL-UAT PENDING. Plan 08-05 Wave-3 Polish abgeschlossen: README.md neue Sektion „Rewrite-Backend: Apple Foundation Models" (AC-AVAIL-3 — Apple-Intelligence-Voraussetzung + Siri-Unabhängigkeit + MDM-Realitätscheck + Auto-Fallback-Verhalten + Backend-pro-Mode) + 08-VERIFICATION.md (status: partial; test_runs_green: 3; AC-AVAIL-1/2/3 alle [x]; ROADMAP-Erfolgskriterien 1-5 alle [x]; UAT-Checkliste 11 Items als [ ] pending für User-Eintrag auf realer Apple-Intelligence-Hardware). Volle Suite 3× consecutive grün ohne Flake (57/57; Run 1: 23s cold, Run 2: 8s, Run 3: 6s). 2 atomic Commits (6a9f0e3 docs README, 6bfdd30 docs VERIFICATION). Nächster Schritt: User füllt UAT-Checkliste via `/gsd-verify-phase 8` aus, dann ROADMAP-Statuswechsel auf Complete. Phase 3 verification bleibt offen, blockt aber Phase 8 nicht.
+**Current Focus:** Phase 8 — apple-foundation-rewrite-backend
 
 ## Current Position
 
-Phase: 8 (Apple Foundation Rewrite-Backend) — EXECUTION IN PROGRESS
-Plan: 4 of 5 — 08-04 Wave-2 UI-Surfaces abgeschlossen
+Phase: 8 (apple-foundation-rewrite-backend) — EXECUTING
+Plan: 1 of 8
 
 - **Milestone:** Sprecher-Profile + Stabilisierung
 - **Phase:** Phase 8 ausführend — Wave 2 UI (08-04: FoundationAvailabilityBanner + Settings-Picker + HUD-Badge + AppDelegate-Lifecycle)
 - **Plan:** 08-04 ✅ — 1 neue View-Datei (FoundationAvailabilityBanner.swift, 133 LOC, 4 State-Varianten) + 3 modifizierte Files (SettingsView Banner-Mount + 2 Picker, RecordingHUDController BackendBadge + Window-Width 268, AppDelegate Refresh + Pre-Warm + didBecomeActive-Observer).
-- **Status:** Ready to execute
+- **Status:** Executing Phase 8
 - **Progress:** 2/6 phases complete (Phase 3 awaiting verification, Phase 8 in progress, 4/5 plans)
 
 ```

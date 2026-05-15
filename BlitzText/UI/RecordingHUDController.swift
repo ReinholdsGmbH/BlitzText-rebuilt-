@@ -107,16 +107,16 @@ private struct RecordingHUDView: View {
     private var backendSymbol: String {
         guard let mode = activeMode else { return "questionmark" }
         switch settings.rewriteBackend(for: mode) {
-        case .appleFoundation: return "apple.logo"
-        case .openAI:          return "cloud"
+        case .openAI:  return "cloud"
+        case .ollama:  return "server.rack"
         }
     }
 
     private var backendTooltip: String {
         guard let mode = activeMode else { return "" }
         switch settings.rewriteBackend(for: mode) {
-        case .appleFoundation: return "Rewrite lokal über Apple Foundation Models"
-        case .openAI:          return "Rewrite über OpenAI gpt-4o-mini (Cloud)"
+        case .openAI:  return "Rewrite über OpenAI gpt-4o-mini (Cloud)"
+        case .ollama:  return "Rewrite lokal über Ollama (\(settings.ollamaModel))"
         }
     }
 

@@ -61,6 +61,12 @@ final class DiarizerModelManager: ObservableObject {
             state = .installed
             return
         }
+        // Dateien extern gelöscht — stale In-Memory-Referenz verwerfen,
+        // sonst gibt FluidAudio's downloadIfNeeded sofort zurück (kein Progress).
+        if !loader.isInstalled() {
+            loader.clearCache()
+            cachedModels = nil
+        }
         guard loadingTask == nil else { return }
         beginDownload()
     }

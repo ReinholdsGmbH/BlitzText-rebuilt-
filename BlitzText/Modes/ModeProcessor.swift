@@ -29,7 +29,7 @@ final class ModeProcessor: ObservableObject {
     private let _injectedLocalTranscriber: TranscriptionService?
     private let _injectedParakeetTranscriber: TranscriptionService?
     private let _injectedRewriter: RewriteService?
-    private let _injectedFoundationRewriter: RewriteService?
+    private let _injectedOllamaRewriter: RewriteService?
     private let _injectedRecorder: RecorderProtocol?
 
     private lazy var defaultOpenAITranscriber: TranscriptionService = WhisperAPIClient(settings: settings)
@@ -38,7 +38,7 @@ final class ModeProcessor: ObservableObject {
     private lazy var parakeetClient = ParakeetClient(settings: settings, diarizerManager: diarizerManager)
     private lazy var defaultParakeetTranscriber: TranscriptionService = parakeetClient
     private lazy var defaultRewriter: RewriteService = OpenAIChatClient(settings: settings)
-    private lazy var defaultFoundationRewriter: RewriteService = AppleFoundationRewriteClient()
+    private lazy var defaultOllamaRewriter: RewriteService = OllamaRewriteClient(settings: settings)
     private let inserter = TextInserter()
 
     private var openAITranscriber: TranscriptionService {
@@ -53,13 +53,8 @@ final class ModeProcessor: ObservableObject {
     private var rewriter: RewriteService {
         _injectedRewriter ?? defaultRewriter
     }
-    /// Apple-Foundation-Rewriter-Slot (Wave 1, 08-03). Default: Live
-    /// `AppleFoundationRewriteClient`; Tests injizieren `foundationRewriter:`
-    /// im `init`. Wird im `runPipeline`-Switch via `settings.rewriteBackend(for: mode)`
-    /// für `.appleFoundation` ausgewählt — Plus-Mode → `rewrite(...)`,
-    /// Rant-Mode → `rewriteGuided(...)` (mit `as? AppleFoundationRewriteClient`-Cast).
-    private var foundationRewriter: RewriteService {
-        _injectedFoundationRewriter ?? defaultFoundationRewriter
+    private var ollamaRewriter: RewriteService {
+        _injectedOllamaRewriter ?? defaultOllamaRewriter
     }
     private var activeRecorder: RecorderProtocol {
         _injectedRecorder ?? recorder
@@ -78,7 +73,7 @@ final class ModeProcessor: ObservableObject {
         localTranscriber: TranscriptionService? = nil,
         parakeetTranscriber: TranscriptionService? = nil,
         rewriter: RewriteService? = nil,
-        foundationRewriter: RewriteService? = nil,
+        ollamaRewriter: RewriteService? = nil,
         recorder: RecorderProtocol? = nil
     ) {
         self.settings = settings
@@ -90,7 +85,7 @@ final class ModeProcessor: ObservableObject {
         self._injectedLocalTranscriber = localTranscriber
         self._injectedParakeetTranscriber = parakeetTranscriber
         self._injectedRewriter = rewriter
-        self._injectedFoundationRewriter = foundationRewriter
+        self._injectedOllamaRewriter = ollamaRewriter
         self._injectedRecorder = recorder
     }
 
@@ -194,36 +189,16 @@ final class ModeProcessor: ObservableObject {
             state = .rewriting(mode)
             do {
                 let backend = settings.rewriteBackend(for: mode)
-                let activeRewriter: RewriteService
-                switch backend {
-                case .appleFoundation: activeRewriter = foundationRewriter
-                case .openAI:          activeRewriter = rewriter
-                }
-
-                // Sprachbias-Marker (RESEARCH.md Pitfall 1, T-08-03-06):
-                // Apple Foundation drift gerne auf Englisch — explizit deutsch anweisen.
+                let activeRewriter: RewriteService = backend == .ollama ? ollamaRewriter : rewriter
                 var systemPrompt = makeRewriteSystemPrompt(for: mode, backend: backend)
-                if backend == .appleFoundation {
+                if backend == .ollama {
                     systemPrompt += "\n\nAntworte ausschließlich auf Deutsch."
                 }
-
-                let p: String
-                if mode == .blitztextRant,
-                   backend == .appleFoundation,
-                   let foundationClient = activeRewriter as? AppleFoundationRewriteClient {
-                    // Guided-Generation-Pfad (DeescalatedOutput @Generable Schema)
-                    p = try await foundationClient.rewriteGuided(
-                        input: raw,
-                        systemPrompt: systemPrompt
-                    )
-                } else {
-                    // Plain-Pfad (Plus oder Rant+OpenAI; Test-Fallback bei nicht-AppleClient-Fakes)
-                    p = try await activeRewriter.rewrite(
-                        input: raw,
-                        systemPrompt: systemPrompt,
-                        model: settings.rewriteModel
-                    )
-                }
+                let p = try await activeRewriter.rewrite(
+                    input: raw,
+                    systemPrompt: systemPrompt,
+                    model: settings.rewriteModel
+                )
                 output = p
                 polished = p
             } catch {
@@ -272,26 +247,10 @@ final class ModeProcessor: ObservableObject {
         var parts: [String] = []
         switch mode {
         case .blitztextPlus:
-            let basePrompt: String
-            if !settings.customPromptPlus.isEmpty {
-                basePrompt = settings.customPromptPlus
-            } else if backend == .appleFoundation {
-                basePrompt = Mode.blitztextPlus.foundationRewritePrompt
-            } else {
-                basePrompt = Mode.blitztextPlus.defaultRewritePrompt
-            }
-            parts.append(basePrompt)
+            parts.append(settings.customPromptPlus.isEmpty ? Mode.blitztextPlus.defaultRewritePrompt : settings.customPromptPlus)
             parts.append(settings.styleForPlus.promptHint)
         case .blitztextRant:
-            let basePrompt: String
-            if !settings.customPromptRant.isEmpty {
-                basePrompt = settings.customPromptRant
-            } else if backend == .appleFoundation {
-                basePrompt = Mode.blitztextRant.foundationRewritePrompt
-            } else {
-                basePrompt = Mode.blitztextRant.defaultRewritePrompt
-            }
-            parts.append(basePrompt)
+            parts.append(settings.customPromptRant.isEmpty ? Mode.blitztextRant.defaultRewritePrompt : settings.customPromptRant)
         case .blitztext:
             break
         }
@@ -341,7 +300,7 @@ final class ModeProcessor: ObservableObject {
     // MARK: - Helpers
 
     private func humanReadable(_ error: Error) -> String {
-        if let e = error as? AppleFoundationError, let msg = e.errorDescription { return msg }
+        if let e = error as? OllamaError, let msg = e.errorDescription { return msg }
         if let e = error as? TranscriptionError, let msg = e.errorDescription { return msg }
         if let e = error as? AudioRecorder.RecorderError {
             switch e {

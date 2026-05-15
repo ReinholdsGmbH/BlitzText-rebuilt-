@@ -59,13 +59,6 @@ private struct AnpassenTab: View {
                 HotkeyRecorderRow(mode: .blitztextRant)
             }
 
-            if settings.foundationAvailability != .available {
-                section("APPLE INTELLIGENCE") {
-                    FoundationAvailabilityBanner()
-                        .environmentObject(settings)
-                }
-            }
-
             section("MODUS") {
                 Picker("", selection: $settings.triggerMode) {
                     ForEach(TriggerMode.allCases) { Text($0.label).tag($0) }
@@ -102,6 +95,13 @@ private struct AnpassenTab: View {
                     Text("Rewrite für diesen Mode läuft über die OpenAI-Cloud.")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
+                if settings.rewriteBackendForPlus == .ollama {
+                    TextField("Modell", text: $settings.ollamaModel)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 280)
+                    Text("Ollama muss installiert und gestartet sein (ollama serve). Modell vorher laden: ollama pull phi4-mini")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             }
 
             section("BLITZTEXT $%&!") {
@@ -120,6 +120,13 @@ private struct AnpassenTab: View {
                 if settings.rewriteBackendForRant == .openAI {
                     // WARNING 6: siehe Plus-Block — Hint immer bei .openAI, ohne availability-Suppression.
                     Text("Rewrite für diesen Mode läuft über die OpenAI-Cloud.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+                if settings.rewriteBackendForRant == .ollama {
+                    TextField("Modell", text: $settings.ollamaModel)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 280)
+                    Text("Ollama muss installiert und gestartet sein (ollama serve). Modell vorher laden: ollama pull phi4-mini")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
             }

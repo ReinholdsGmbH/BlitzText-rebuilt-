@@ -53,28 +53,6 @@ enum Mode: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    /// Foundation-spezifischer System-Prompt. Verwendet wenn backend == .appleFoundation
-    /// und kein Custom-Prompt gesetzt ist. OpenAI-Pfad verwendet weiterhin `defaultRewritePrompt`.
-    var foundationRewritePrompt: String {
-        switch self {
-        case .blitztext:
-            return ""
-        case .blitztextPlus:
-            return """
-            Wandle den folgenden gesprochenen Text in geschriebene Sprache um.
-            Halte dich strikt an den Originalinhalt — füge keine neuen Informationen, Begrüßungen, Erklärungen oder Struktur hinzu.
-            Ändere nur das Nötigste: Füllwörter entfernen, Satzbau glätten, Umgangssprache in Schriftsprache überführen.
-            Gib ausschließlich den umgeschriebenen Text zurück.
-            """
-        case .blitztextRant:
-            return """
-            Du bekommst einen eingesprochenen Text. Schreibe ihn sachlich, freundlich und konstruktiv um.
-            Wenn der Text bereits ruhig und sachlich ist, gib ihn leicht geglättet zurück — entferne nur Wiederholungen und Versprecher.
-            Wenn der Text aufgeregt oder emotional ist, wandle ihn in eine professionelle Nachricht um ohne den inhaltlichen Kern zu verändern.
-            Füge keine Erklärungen oder Kommentare hinzu. Gib ausschließlich den umgeschriebenen Text zurück.
-            """
-        }
-    }
 }
 
 enum WritingStyle: String, CaseIterable, Codable, Identifiable {

@@ -14,7 +14,7 @@
 - [ ] **Phase 5: Sprecher-Profile UI** — Settings-Tab "Sprecher" mit Verwaltung, Threshold und Zuordnung
 - [ ] **Phase 6: Sprecher-Enrollment** — Optionaler Erst-Enrollment-Flow für gezielte Profil-Anlage
 - [ ] **Phase 7: Standard-Hotkeys & eigene Hotkeys** — Default-Hotkey-Set + freie Tastenkombo-Vergabe pro Mode (Hybrid CGEventTap + SPM-Hotkey-Package)
-- [ ] **Phase 8: Apple Foundation Rewrite-Backend** — Foundation Models (macOS 26+) als Default-Backend für Plus/Rant, OpenAI als User-Override
+- [x] **Phase 8: Apple Foundation Rewrite-Backend** — Foundation Models (macOS 26+) als Default-Backend für Plus/Rant, OpenAI als User-Override (completed 2026-05-04)
 - [ ] **Phase 9: Vibe Coding — Variable Recognition** — Post-Processor erkennt camelCase/snake_case/kebab/PascalCase/CONSTANT aus Sprache
 - [ ] **Phase 10: Vibe Coding — File Tagging** — Erkennt gesprochene Dateinamen-Token (z. B. "index dot tsx") und formatiert sie korrekt
 - [ ] **Phase 11: Auto-Cleanup-Levels + Undo-AI-Edit** — Style-Presets None/Light/Medium/High auf Rewrite-Backend + Original-Diktat aufbewahren mit "Undo AI edit"
@@ -272,7 +272,7 @@ Plans:
 | 5. Sprecher-Profile UI | 0/0 | Not started | - |
 | 6. Sprecher-Enrollment | 0/0 | Not started | - |
 | 7. Standard-Hotkeys & eigene Hotkeys | 0/0 | Not started | - |
-| 8. Apple Foundation Rewrite-Backend | 1/5 | In Progress | - |
+| 8. Apple Foundation Rewrite-Backend | 9/9 | Complete   | 2026-05-04 |
 | 9. Vibe Coding — Variable Recognition | 0/0 | Not started | - |
 | 10. Vibe Coding — File Tagging | 0/0 | Not started | - |
 | 11. Auto-Cleanup-Levels + Undo-AI-Edit | 0/0 | Not started | - |
