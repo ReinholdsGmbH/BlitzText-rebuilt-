@@ -160,6 +160,7 @@ final class ModeProcessor: ObservableObject {
             case .parakeet: return parakeetTranscriber
             }
         }()
+        Log.write("Pipeline: backend=\(settings.backend.rawValue) mode=\(mode)")
         state = .transcribing(mode)
         let raw: String
         do {

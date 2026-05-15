@@ -546,6 +546,15 @@ private struct SprecherTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            if settings.backend != .parakeet {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    Text("Sprecher-Profile sind nur mit dem Parakeet-Backend aktiv. Wechsle in den Einstellungen unter \"Backend\" zu \"Parakeet TDT v3 (Lokal)\".")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+                .padding(10)
+                .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+            }
             unnamedSection
             allSpeakersSection
             thresholdSection
@@ -797,9 +806,17 @@ private struct DiarizerStatusBlock: View {
         case .installed:
             Toggle("Sprechererkennung (Diarization)", isOn: $settings.parakeetDiarization)
             if settings.parakeetDiarization {
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    Text("Modell vorhanden").font(.caption).foregroundStyle(.green)
+                if settings.backend == .parakeet {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        Text("Modell vorhanden — aktiv").font(.caption).foregroundStyle(.green)
+                    }
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                        Text("Diarization erfordert das Parakeet-Backend — wähle oben \"Parakeet TDT v3 (Lokal)\".")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
                 }
             }
             Text("Aktiviert Sprecher-Annotationen (\"Sprecher 1: …\"). Lädt zusätzlich ein Diarizer-Modell (~80 MB).")

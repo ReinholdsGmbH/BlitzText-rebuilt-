@@ -64,6 +64,7 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
 
             let runtimeSpeakers = await diarizer.speakerManager.getSpeakerList()
             let sessionSpeakerIDs = Array(Set(diarResult.segments.map { $0.speakerId }))
+            Log.write("Parakeet: \(runtimeSpeakers.count) Runtime-Sprecher, \(sessionSpeakerIDs.count) Session-IDs, tokenTimings=\(result.tokenTimings?.count ?? -1)")
 
             // Wenn der User in der UI einen Sprecher umbenannt hat, liegt der neue Name nur
             // auf Disk — der in-memory SpeakerManager kennt ihn nicht. Hier werden
@@ -72,6 +73,7 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
             let mergedSpeakers = Self.mergePersistedNames(runtimeSpeakers, from: speakerStore)
             speakerStore?.saveSession(speakers: mergedSpeakers, sessionSpeakerIDs: sessionSpeakerIDs)
             let speakerNames = Self.buildSpeakerNames(from: mergedSpeakers)
+            Log.write("Parakeet: speakerNames=\(speakerNames), applyDiarization mit \(diarResult.segments.count) Segmenten")
 
             return Self.applyDiarization(asr: result, segments: diarResult.segments, speakerNames: speakerNames)
         } catch {
