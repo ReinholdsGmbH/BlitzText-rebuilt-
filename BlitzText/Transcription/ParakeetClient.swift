@@ -2,22 +2,23 @@ import Foundation
 import FluidAudio
 
 /// Lokale Transkription via NVIDIA Parakeet TDT v3 (FluidAudio, MLX/CoreML, on-device).
-/// Optional Speaker Diarization mit Token-Level-Alignment.
+/// Optional Speaker Diarization mit Token-Level-Alignment und persistenten Sprecher-Profilen.
 final class ParakeetClient: TranscriptionService, @unchecked Sendable {
 
     private let settings: SettingsStore
     private let diarizerManager: DiarizerModelManager
+    private let speakerStore: SpeakerProfileStore?
     private var asrManager: AsrManager?
     private var diarizer: DiarizerManager?
     private var loadingTask: Task<Void, Never>?
 
-    init(settings: SettingsStore, diarizerManager: DiarizerModelManager) {
+    init(settings: SettingsStore, diarizerManager: DiarizerModelManager, speakerStore: SpeakerProfileStore? = nil) {
         self.settings = settings
         self.diarizerManager = diarizerManager
+        self.speakerStore = speakerStore
     }
 
     func warmUp() async {
-        // Wenn Diarization-Setting sich geändert hat, neu laden — sonst fehlt das Modell
         if asrManager != nil {
             let matches = await diarizerStateMatches()
             if matches { return }
@@ -38,7 +39,6 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
         }
         guard let asrManager else { throw TranscriptionError.backendNotAvailable }
 
-        // Audio einmal als [Float] @16kHz laden — beide Pipelines nutzen dieselben Samples
         let converter = AudioConverter()
         let samples = try converter.resampleAudioFile(audioURL)
 
@@ -48,7 +48,6 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
         let result = try await asrManager.transcribe(samples, decoderState: &decoderState)
         Log.write("Parakeet: ASR fertig (\(String(format: "%.1f", Date().timeIntervalSince(t0)))s) — \(result.text.count) Zeichen")
 
-        // Wenn Diarization aktiv und Modell geladen: parallel Speaker erkennen
         guard settings.parakeetDiarization, let diarizer else {
             return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -58,35 +57,58 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
         do {
             let diarResult = try await diarizer.performCompleteDiarization(samples)
             Log.write("Parakeet: Diarization fertig (\(String(format: "%.1f", Date().timeIntervalSince(tDiar)))s) — \(diarResult.segments.count) Segmente, \(Set(diarResult.segments.map { $0.speakerId }).count) Sprecher")
-            return Self.applyDiarization(asr: result, segments: diarResult.segments)
+
+            let speakers = await diarizer.speakerManager.getSpeakerList()
+            speakerStore?.saveSpeakers(speakers)
+            let speakerNames = Self.buildSpeakerNames(from: speakers)
+
+            return Self.applyDiarization(asr: result, segments: diarResult.segments, speakerNames: speakerNames)
         } catch {
             Log.write("Parakeet: Diarization fehlgeschlagen — \(error.localizedDescription) (gebe Text ohne Sprecher zurück)")
             return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
 
+    /// Baut eine ID→Name-Map für bekannte (explizit benannte) Sprecher.
+    /// Sprecher mit FluidAudio-Standardnamen ("Speaker N") gelten als unbenannt.
+    static func buildSpeakerNames(from speakers: [Speaker]) -> [String: String] {
+        speakers.reduce(into: [:]) { dict, s in
+            if s.name != "Speaker \(s.id)" {
+                dict[s.id] = s.name
+            }
+        }
+    }
+
     /// Verbindet ASR-Token-Timings mit Diarizer-Segmenten zu einem Speaker-annotierten Text.
-    /// Format pro Sprecher-Run: `Sprecher 1: …text…`
-    private static func applyDiarization(asr: ASRResult, segments: [TimedSpeakerSegment]) -> String {
+    /// Benannte Sprecher erscheinen als `Thomas: …`, unbenannte als `Sprecher N: …`.
+    static func applyDiarization(
+        asr: ASRResult,
+        segments: [TimedSpeakerSegment],
+        speakerNames: [String: String] = [:]
+    ) -> String {
         let trimmed = asr.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let timings = asr.tokenTimings, !timings.isEmpty, !segments.isEmpty else {
             return trimmed
         }
 
-        // Stabile Sprecher-Nummerierung (Reihenfolge des ersten Auftretens)
-        var nameMap: [String: Int] = [:]
-        for seg in segments where nameMap[seg.speakerId] == nil {
-            nameMap[seg.speakerId] = nameMap.count + 1
+        // Stabile Nummerierung für unbenannte Sprecher (Reihenfolge des ersten Auftretens)
+        var unnamedMap: [String: Int] = [:]
+        for seg in segments where speakerNames[seg.speakerId] == nil && unnamedMap[seg.speakerId] == nil {
+            unnamedMap[seg.speakerId] = unnamedMap.count + 1
         }
 
-        // Pro Token den Sprecher anhand der Token-Mitte ermitteln
+        func label(for speakerId: String) -> String {
+            if let name = speakerNames[speakerId] { return name }
+            let n = unnamedMap[speakerId] ?? 0
+            return "Sprecher \(n)"
+        }
+
         func speaker(at time: TimeInterval) -> String? {
             for seg in segments {
                 if Double(seg.startTimeSeconds) <= time && time <= Double(seg.endTimeSeconds) {
                     return seg.speakerId
                 }
             }
-            // Fallback: nächstes Segment
             return segments.min(by: {
                 let dA = min(abs(Double($0.startTimeSeconds) - time), abs(Double($0.endTimeSeconds) - time))
                 let dB = min(abs(Double($1.startTimeSeconds) - time), abs(Double($1.endTimeSeconds) - time))
@@ -101,13 +123,11 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
         for timing in timings {
             let mid = (timing.startTime + timing.endTime) / 2
             let s = speaker(at: mid) ?? currentSpeaker ?? "?"
-            let token = timing.token
-                .replacingOccurrences(of: "\u{2581}", with: " ") // SentencePiece ▁ → space
+            let token = timing.token.replacingOccurrences(of: "\u{2581}", with: " ")
 
             if s != currentSpeaker {
                 if let cur = currentSpeaker {
-                    let n = nameMap[cur] ?? 0
-                    lines.append("Sprecher \(n): \(currentText.trimmingCharacters(in: .whitespaces))")
+                    lines.append("\(label(for: cur)): \(currentText.trimmingCharacters(in: .whitespaces))")
                 }
                 currentSpeaker = s
                 currentText = token
@@ -116,8 +136,7 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
             }
         }
         if let cur = currentSpeaker, !currentText.isEmpty {
-            let n = nameMap[cur] ?? 0
-            lines.append("Sprecher \(n): \(currentText.trimmingCharacters(in: .whitespaces))")
+            lines.append("\(label(for: cur)): \(currentText.trimmingCharacters(in: .whitespaces))")
         }
 
         return lines.joined(separator: "\n")
@@ -125,10 +144,6 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
 
     // MARK: - Loading
 
-    /// True wenn die aktuell geladene Diarizer-Instanz zur Setting+Manager-Lage passt.
-    /// - Setting on + manager.isInstalled + diarizer != nil → match
-    /// - Setting off + diarizer == nil → match
-    /// - Setting on + manager.isInstalled aber diarizer == nil → mismatch (manager.retry() Erfolg → Re-Init nötig)
     @MainActor
     private func diarizerStateMatches() -> Bool {
         if settings.parakeetDiarization {
@@ -153,17 +168,20 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
                 self.asrManager = manager
 
                 if useDiarization {
-                    // D-16: Manager ist Single-Source-of-Truth für den Diarizer-Modell-
-                    // Lifecycle. Er kümmert sich um Download/Progress/Fehler-Klassifikation.
                     let installed = await self.diarizerManager.ensureInstalled()
                     let cachedModels = await self.diarizerManager.modelsIfInstalled
                     if installed, let models = cachedModels {
                         let diar = DiarizerManager(config: .default)
                         diar.initialize(models: models)
+                        if let store = self.speakerStore {
+                            let knownSpeakers = store.loadSpeakers()
+                            if !knownSpeakers.isEmpty {
+                                await diar.speakerManager.initializeKnownSpeakers(knownSpeakers, mode: .skip)
+                                Log.write("Parakeet: \(knownSpeakers.count) Sprecher-Profile geladen")
+                            }
+                        }
                         self.diarizer = diar
                     } else {
-                        // Nicht installiert oder Fehler: graceful degrade auf ASR-only.
-                        // applyDiarization-Fallback liefert reinen ASR-Text.
                         self.diarizer = nil
                         let stateDesc = await String(describing: self.diarizerManager.state)
                         Log.write("Parakeet: Diarizer nicht verfügbar (state=\(stateDesc)) — fahre ASR-only fort")

@@ -23,6 +23,7 @@ final class ModeProcessor: ObservableObject {
     let suggestionPresenter: SuggestionPresenter
     let modelManager: LocalModelManager
     let diarizerManager: DiarizerModelManager
+    let speakerStore: SpeakerProfileStore
 
     // MARK: - Injection-Slots (Test-Seams, additive Defaults = nil)
     private let _injectedOpenAITranscriber: TranscriptionService?
@@ -35,7 +36,7 @@ final class ModeProcessor: ObservableObject {
     private lazy var defaultOpenAITranscriber: TranscriptionService = WhisperAPIClient(settings: settings)
     private lazy var localClient = LocalWhisperClient(modelManager: modelManager)
     private lazy var defaultLocalTranscriber: TranscriptionService = localClient
-    private lazy var parakeetClient = ParakeetClient(settings: settings, diarizerManager: diarizerManager)
+    private lazy var parakeetClient = ParakeetClient(settings: settings, diarizerManager: diarizerManager, speakerStore: speakerStore)
     private lazy var defaultParakeetTranscriber: TranscriptionService = parakeetClient
     private lazy var defaultRewriter: RewriteService = OpenAIChatClient(settings: settings)
     private lazy var defaultOllamaRewriter: RewriteService = OllamaRewriteClient(settings: settings)
@@ -68,6 +69,7 @@ final class ModeProcessor: ObservableObject {
         history: HistoryStore,
         modelManager: LocalModelManager,
         diarizerManager: DiarizerModelManager,
+        speakerStore: SpeakerProfileStore = SpeakerProfileStore(),
         // NEW (Test-Seams) — Produktion behaelt existierende Lazy-Defaults wenn nil:
         openAITranscriber: TranscriptionService? = nil,
         localTranscriber: TranscriptionService? = nil,
@@ -80,6 +82,7 @@ final class ModeProcessor: ObservableObject {
         self.history = history
         self.modelManager = modelManager
         self.diarizerManager = diarizerManager
+        self.speakerStore = speakerStore
         self.suggestionPresenter = SuggestionPresenter(settings: settings)
         self._injectedOpenAITranscriber = openAITranscriber
         self._injectedLocalTranscriber = localTranscriber
