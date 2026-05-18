@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-04T11:17:22.945Z"
+last_updated: "2026-05-18T11:33:03.511Z"
 progress:
-  total_phases: 20
-  completed_phases: 3
-  total_plans: 17
-  completed_plans: 14
-  percent: 82
+  total_phases: 21
+  completed_phases: 4
+  total_plans: 21
+  completed_plans: 18
+  percent: 19
 ---
 
 # Project State: BlitzText
@@ -30,7 +30,7 @@ Plan: 1 of 8
 - **Milestone:** Sprecher-Profile + Stabilisierung
 - **Phase:** Phase 8 ausführend — Wave 2 UI (08-04: FoundationAvailabilityBanner + Settings-Picker + HUD-Badge + AppDelegate-Lifecycle)
 - **Plan:** 08-04 ✅ — 1 neue View-Datei (FoundationAvailabilityBanner.swift, 133 LOC, 4 State-Varianten) + 3 modifizierte Files (SettingsView Banner-Mount + 2 Picker, RecordingHUDController BackendBadge + Window-Width 268, AppDelegate Refresh + Pre-Warm + didBecomeActive-Observer).
-- **Status:** Executing Phase 8
+- **Status:** Ready to execute
 - **Progress:** 2/6 phases complete (Phase 3 awaiting verification, Phase 8 in progress, 4/5 plans)
 
 ```

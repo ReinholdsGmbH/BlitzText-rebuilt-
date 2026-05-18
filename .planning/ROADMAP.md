@@ -102,7 +102,10 @@
   1. Aus dem Sprecher-Tab startet ein Enrollment-Flow eine ~15-Sekunden-Aufnahme freier Sprache mit Live-Pegel und Restzeit-Anzeige
   2. Nach der Aufnahme wird via `extractSpeakerEmbedding` ein neues, permanentes Profil mit dem vom Nutzer eingegebenen Namen angelegt und in `speakers.json` gespeichert
   3. Bricht die Aufnahme ab oder ist sie zu kurz/zu leise, wird kein Profil angelegt und der Nutzer sieht eine klare Fehlermeldung
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 06-01-PLAN.md — Wave 1: ParakeetClient.enrollSpeaker + EnrollmentError + SpeakerProfileViewModel.addEnrolledSpeaker + ModeProcessor-Sichtbarkeit + Tests
+- [ ] 06-02-PLAN.md — Wave 2: EnrollmentViewModel @MainActor State-Machine (idle/recording/processing/done/failed) + Countdown + Closure-Injection + Unit-Tests
+- [ ] 06-03-PLAN.md — Wave 3: EnrollmentSheet UI + SprecherTab ENROLLMENT-Section + AppDelegate/SettingsWindowController DI + Human-Verify-UAT
 **UI hint**: yes
 
 ### Phase 7: Standard-Hotkeys & eigene Hotkeys
@@ -290,7 +293,7 @@ Plans:
 | 3. Diarization-UX | 0/0 | Not started | - |
 | 4. Sprecher-Profile Core | 0/0 | Not started | - |
 | 5. Sprecher-Profile UI | 0/0 | Not started | - |
-| 6. Sprecher-Enrollment | 0/0 | Not started | - |
+| 6. Sprecher-Enrollment | 0/3 | Planned | - |
 | 7. Standard-Hotkeys & eigene Hotkeys | 0/0 | Not started | - |
 | 8. Apple Foundation Rewrite-Backend | 9/9 | Complete   | 2026-05-04 |
 | 9. Vibe Coding — Variable Recognition | 0/0 | Not started | - |

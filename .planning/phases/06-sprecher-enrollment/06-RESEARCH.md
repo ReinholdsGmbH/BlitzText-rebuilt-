@@ -427,7 +427,7 @@ enrollmentViewModel = EnrollmentViewModel(
 .environmentObject(enrollmentViewModel)
 ```
 
-**Problem:** `modeProcessor.parakeetClient` ist derzeit `private lazy var`. Für die DI muss entweder ein `internal` getter ergänzt werden, oder `enrollSpeaker` wird direkt auf `ModeProcessor` delegiert. Empfehlung: `ParakeetClient` als `internal` property freigeben oder über `ModeProcessor.enrollSpeaker(...)` delegieren.
+**Resolved:** `modeProcessor.parakeetClient` wird in Wave 1 von `private lazy var` auf `lazy var` (internal) umgestellt. AudioRecorder wird direkt von AppDelegate übergeben (kein ModeProcessor-Umweg). Siehe Open Questions (RESOLVED) am Ende des Dokuments.
 
 ### Pattern 5: SprecherTab Button + Sheet
 
@@ -542,11 +542,7 @@ Diese Phase ist greenfield (neuer Enrollment-Pfad). Kein Runtime State zu migrie
 
 **Was schiefläuft:** `modeProcessor.parakeetClient` ist nicht öffentlich zugänglich. `EnrollmentViewModel` braucht aber eine Referenz.
 
-**Lösungsoptionen:**
-- Option A: `internal lazy var parakeetClient` in `ModeProcessor` (Sichtbarkeit erhöhen)
-- Option B: Delegations-Methode `ModeProcessor.enrollSpeaker(audioURL:name:) async throws -> Speaker` — EnrollmentViewModel ruft nur ModeProcessor auf
-
-Option B ist sauberer (kein Zugriff auf Client direkt), aber erfordert eine neue Methode auf ModeProcessor. **Empfehlung:** Option A (lazy var auf `internal` ändern) ist minimalinvasiv für diese Phase.
+**Resolved:** Option A (internal lazy var) — siehe Open Questions (RESOLVED) Punkt 1. Minimalinvasiv, keine bestehenden Tests betroffen.
 
 ---
 
@@ -603,21 +599,21 @@ public var isAvailable: Bool {
 | # | Claim | Section | Risiko bei Fehler |
 |---|-------|---------|-------------------|
 | A1 | `SpeakerManager.upsertSpeaker(_ speaker: Speaker)` existiert als Convenience-Variante | Standard Stack | Müsste durch ausführlichere Signatur ersetzt werden; kein Blocker |
-| A2 | `modeProcessor.parakeetClient` auf `internal` zu setzen bricht keine Tests | Pitfall 6 | Falls Tests auf private-Kapselung setzen, müsste Option B (Delegation) genutzt werden |
+| A2 | `modeProcessor.parakeetClient` auf `internal` zu setzen bricht keine Tests | Pitfall 6 / Open Questions (RESOLVED) #1 | Grep-verifiziert: keine Tests betroffen; Restrisiko minimal |
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`ModeProcessor.parakeetClient`-Sichtbarkeit**
-   - Was wir wissen: Derzeit `private lazy var` in ModeProcessor.
-   - Unklar: Ob es bestehende Tests gibt, die diesen privaten Zustand nutzen.
-   - Empfehlung: `internal` machen — keine Tests direkt auf diese Property.
+   - Was wir wussten: Derzeit `private lazy var` in ModeProcessor.
+   - Unklar war: Ob es bestehende Tests gibt, die diesen privaten Zustand nutzen.
+   - **RESOLVED:** `private lazy var parakeetClient` → `lazy var parakeetClient` (internal). Grep-verifiziert: keine bestehenden Tests greifen auf diese private Property zu (`grep -rn "parakeetClient" BlitzTextTests/` liefert nur indirekte Aufrufe über die öffentliche ModeProcessor-API). Minimalinvasive Lösung — Option A aus Pitfall 6. Option B (Delegation via `ModeProcessor.enrollSpeaker`) verworfen, weil sie eine zweite API-Oberfläche schafft, die im Phase-6-Scope keinen Mehrwert hat.
 
 2. **`EnrollmentViewModel` erhält `AudioRecorder` direkt oder via ModeProcessor?**
-   - Was wir wissen: CONTEXT.md sagt "von AppDelegate übergeben".
-   - Unklar: Ob ModeProcessor.recorder als `let recorder` bereits public ist.
-   - Prüfung: `ModeProcessor.recorder` ist `let recorder = AudioRecorder()` — ja, `internal` Zugriff.
+   - Was wir wussten: CONTEXT.md sagt "von AppDelegate übergeben".
+   - Unklar war: Ob `ModeProcessor.recorder` als `let recorder` bereits public ist.
+   - **RESOLVED:** `AudioRecorder` wird **direkt** von `AppDelegate` an `EnrollmentViewModel` übergeben (kein ModeProcessor-Umweg). `ModeProcessor.recorder` ist `let recorder = AudioRecorder()` mit Default-internal-Sichtbarkeit; `AppDelegate.bootstrap()` reicht `modeProcessor.recorder` direkt an den `EnrollmentViewModel`-Init weiter. Für Testbarkeit wird zusätzlich **Closure-Injection** im VM-Init verwendet (siehe 06-02-PLAN.md Task 1): `init(recorder:, enroll: @escaping (URL, String) async throws -> Speaker, speakerVM:, totalSeconds:)`. Production-Code nutzt einen Convenience-Init, der die Closure aus `parakeetClient.enrollSpeaker` bindet. Damit ist Test-Setup ohne echten ParakeetClient möglich, ohne ein zusätzliches Protocol einführen zu müssen.
 
 ---
 
