@@ -1,7 +1,8 @@
 ---
 phase: 06
 slug: sprecher-enrollment
-status: draft
+status: approved
+reviewed_at: 2026-05-18
 shadcn_initialized: false
 preset: none
 created: 2026-05-18
@@ -30,8 +31,8 @@ shadcn-Gate: entfällt. Kein React/Next.js/Vite-Projekt. Native macOS-App.
 
 ## Spacing Scale
 
-Das Projekt nutzt durchgehend SettingsView-Muster: `spacing: 18` zwischen Sections,
-`spacing: 8` innerhalb von Sections, `padding: 10` auf Cards/Rows, `.padding(20)` auf dem
+Das Projekt nutzt durchgehend SettingsView-Muster: `spacing: 20` zwischen Sections,
+`spacing: 8` innerhalb von Sections, `padding: 10` auf Cards/Rows, `.padding(24)` auf dem
 ScrollView-Inhalt. Für das Enrollment-Sheet gelten dieselben Abstände.
 
 | Token | Wert | Verwendung |
@@ -39,14 +40,15 @@ ScrollView-Inhalt. Für das Enrollment-Sheet gelten dieselben Abstände.
 | xs | 4px | Icon-zu-Text-Gap, Badge-Innenabstand |
 | sm | 8px | Spacing innerhalb einer Section / Card-Padding |
 | md | 16px | Standardabstand zwischen verwandten Elementen |
-| lg | 18px | Section-zu-Section-Spacing (entspricht SettingsView-Muster) |
-| xl | 20px | Sheet-Rand-Padding (`.padding(20)`, analog SettingsView ScrollView) |
+| lg | 20px | Section-zu-Section-Spacing |
+| xl | 24px | Sheet-Rand-Padding (`.padding(24)`, analog SettingsView ScrollView) |
 | 2xl | 32px | Vertikal-Spacing zwischen Haupt-Bereichen im Sheet |
 
-Quelle: SettingsView.swift — `VStack(alignment: .leading, spacing: 18)`, `.padding(20)`,
+Quelle: SettingsView.swift — `VStack(alignment: .leading, spacing: 18)` (Originalwert 18px, im
+Sheet auf Token `lg = 20px` normiert), `.padding(20)` (im Sheet auf Token `xl = 24px` normiert),
 `SpeakerRow: .padding(8)`, `LocalModelRow: .padding(10)`.
 
-Ausnahme: Touch-Targets für Buttons sind ≥ 44 pt Höhe (macOS HIG). kein extra Token nötig,
+Ausnahme: Touch-Targets für Buttons sind ≥ 44 pt Höhe (macOS HIG). Kein extra Token nötig,
 SwiftUI-Buttons erfüllen das von Natur aus bei `.bordered`/`.borderedProminent`.
 
 ---
@@ -54,22 +56,24 @@ SwiftUI-Buttons erfüllen das von Natur aus bei `.bordered`/`.borderedProminent`
 ## Typography
 
 Das Projekt nutzt ausschließlich `.system`-Größen über SwiftUI-Textmodifikatoren.
-Folgende Größen sind im bestehenden Code verankert und gelten auch für das Enrollment-Sheet:
+Folgende 4 Größen sind im Enrollment-Sheet zulässig:
 
 | Rolle | SwiftUI-Modifikator | Verwendung im Sheet |
 |-------|---------------------|---------------------|
-| Heading | `.headline` / `.title3` | Sheet-Titel "Profil aufnehmen" |
+| Heading | `.title3` | Sheet-Titel "Sprecher-Profil aufnehmen" |
 | Body | `.body` (Default) | Name-TextField-Label |
 | Subheadline | `.subheadline` | Zustandstext ("Aufnahme läuft …", "Verarbeite …") |
-| Caption | `.caption` | Restzeit-Anzeige, Qualitäts-Feedback-Caption |
-| Caption2 | `.caption2` | Fehler-Caption rot, Hinweis-Caption tertiär |
+| Caption | `.caption` | Restzeit-Anzeige, Qualitäts-Feedback-Caption, Fehler-Caption (rot) |
 
 Gewichte: standard (400) + bold/semibold wo Kontrast nötig.
 Body-Line-Height: SwiftUI-Standard (≈ 1.5 implizit).
 Heading-Line-Height: SwiftUI-Standard (≈ 1.2 implizit).
 
+Maximale Anzahl Font-Größen: 4 (title3, body, subheadline, caption). `.caption2` und `.headline`
+werden im Enrollment-Sheet nicht verwendet.
+
 Quelle: SettingsView.swift, DiarizerStatusBlock, SpeakerRow — konsistent `.caption`,
-`.caption2`, `.subheadline`, `.headline` ohne px-Fixwerte.
+`.subheadline`, `.headline` ohne px-Fixwerte. `.headline` entfällt im Sheet zugunsten `.title3`.
 
 ---
 
@@ -82,18 +86,21 @@ und SF-Symbole-Farben. Folgendes ist in der bestehenden Codebasis etabliert:
 |-------|--------------|------------|
 | Dominant (60%) | `.background` / `.windowBackground` | Sheet-Hintergrund, ScrollView |
 | Secondary (30%) | `.quaternary` | Row-Cards (`.background(.quaternary, in: RoundedRectangle)`) |
-| Akzent (10%) | `.accentColor` (blau) | "Aufnehmen"-Button (`.borderedProminent`), aktiver Fokus-Ring |
+| Akzent (10%) | `.accentColor` (blau) | "Aufnahme starten"-Button (`.borderedProminent`), aktiver Fokus-Ring |
 | Fehler / Destruktiv | `.red` | Fehler-Caption, Fehler-Symbol (`exclamationmark.triangle.fill`) |
 | Warnung | `.orange` | Diarizer-nicht-installiert-Banner (analog SprecherTab-Muster) |
 | Erfolg | `.green` | Bestätigungssymbol nach Enrollment, "PERMANENT"-Badge |
 
-Akzent reserviert für: "Aufnehmen"-Button (primäre CTA im Sheet), aktive Pegel-Balken-Farbe
+Akzent reserviert für: "Aufnahme starten"-Button (primäre CTA im Sheet), aktive Pegel-Balken-Farbe
 während Aufnahme.
 
 Rot reserviert für: Fehler-Caption unter Pegel, Fehler-Icon, keine anderen Elemente.
 
 Orange reserviert für: Disabled-Banner wenn Diarizer nicht installiert (genau wie bestehende
 SprecherTab-Warning-Row).
+
+Primärer visueller Anker: "Aufnahme starten"-Button in `.borderedProminent` (Akzent-Blau) zieht
+das Auge als einziges farbiges Element im Sheet.
 
 Quelle: SettingsView.swift Zeilen 556, 725, 812–819, 857–861; SpeakerRow-PERMANENT-Badge.
 
@@ -110,7 +117,7 @@ eigene Section `enrollmentSection`.
 ┌────────────────────────────────────────────────┐
 │  ENROLLMENT                          [caption]  │
 │  [Button "Neues Profil aufnehmen"]              │  ← .borderedProminent wenn aktiv
-│  [Disabled-Caption — nur wenn !isInstalled]     │  ← .caption2, .secondary
+│  [Disabled-Caption — nur wenn !isInstalled]     │  ← .caption, .secondary
 └────────────────────────────────────────────────┘
 ```
 
@@ -126,7 +133,7 @@ eigene Section `enrollmentSection`.
 
 > "Diarizer-Modell nicht installiert. Aktiviere Sprechererkennung im Backend-Tab."
 
-Stil: `.font(.caption2).foregroundStyle(.secondary)` — analog bestehende Captions in LokalTab.
+Stil: `.font(.caption).foregroundStyle(.secondary)` — analog bestehende Captions in LokalTab.
 
 ---
 
@@ -135,7 +142,7 @@ Stil: `.font(.caption2).foregroundStyle(.secondary)` — analog bestehende Capti
 Präsentation: SwiftUI `.sheet(isPresented: $showEnrollmentSheet)`.
 Mindestgröße: 380 pt Breite × 320 pt Höhe. Kein Resize nötig.
 
-**Layout (Top → Bottom, VStack spacing: 18):**
+**Layout (Top → Bottom, VStack spacing: lg = 20px):**
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -147,9 +154,9 @@ Mindestgröße: 380 pt Breite × 320 pt Höhe. Kein Resize nötig.
 │  [Pegel-Visualisierung — 8px Höhe, Balken]  │  ← nur sichtbar in .recording
 │  [Restzeit "12 s verbleibend"]               │  ← .caption, .secondary; nur in .recording
 │  [Verarbeitungs-Indikator]                  │  ← ProgressView().controlSize(.small); nur in .processing
-│  [Fehler-Caption — rot]                     │  ← .caption2, .red; nur in .failed
+│  [Fehler-Caption — rot]                     │  ← .caption, .red; nur in .failed
 ├─────────────────────────────────────────────┤
-│  [Abbrechen]          [Aufnehmen] / [Stopp] │  ← HStack, trailing
+│  [Enrollment abbrechen]  [Aufnahme starten] / [Stopp] │  ← HStack, trailing
 └─────────────────────────────────────────────┘
 ```
 
@@ -228,7 +235,7 @@ HStack(spacing: 6) {
     Image(systemName: "exclamationmark.triangle.fill")
         .foregroundStyle(.red)
     Text(errorMessage)
-        .font(.caption2)
+        .font(.caption)
         .foregroundStyle(.red)
 }
 ```
@@ -237,19 +244,19 @@ Sichtbarkeit: Nur in State `.failed(let message)`.
 Verhalten nach Fehler: Caption bleibt sichtbar, Name-Feld behält vorherige Eingabe, Buttons
 stehen für erneuten Versuch bereit. Sheet schließt sich NICHT automatisch.
 
-### Komponente E: Aufnehmen / Stopp Button
+### Komponente E: Aufnahme starten / Stopp Button
 
 | Zustand | Button-Label | Stil | Disabled? |
 |---------|-------------|------|-----------|
-| `.idle`, Name leer | "Aufnehmen" | `.borderedProminent` | `true` |
-| `.idle`, Name ausgefüllt | "Aufnehmen" | `.borderedProminent` | `false` |
+| `.idle`, Name leer | "Aufnahme starten" | `.borderedProminent` | `true` |
+| `.idle`, Name ausgefüllt | "Aufnahme starten" | `.borderedProminent` | `false` |
 | `.recording(...)` | "Stopp" | `.bordered` | `false` |
 | `.processing` | "Stopp" | `.bordered` | `true` (deaktiviert während Verarbeitung) |
 | `.done` | — | — | Sheet bereits geschlossen |
-| `.failed(...)` | "Aufnehmen" | `.borderedProminent` | `false` (erneuter Versuch) |
+| `.failed(...)` | "Aufnahme starten" | `.borderedProminent` | `false` (erneuter Versuch) |
 
-"Abbrechen"-Button (trailing-aligned links): immer sichtbar, `.plain`-Stil oder sekundäres
-`.bordered`, schließt Sheet wenn State != `.processing`. Während `.processing` disabled.
+"Enrollment abbrechen"-Button (trailing-aligned links): immer sichtbar, `.plain`-Stil oder
+sekundäres `.bordered`, schließt Sheet wenn State != `.processing`. Während `.processing` disabled.
 
 ---
 
@@ -257,7 +264,7 @@ stehen für erneuten Versuch bereit. Sheet schließt sich NICHT automatisch.
 
 ```
 .idle
-  │  User tippt Name + klickt "Aufnehmen"
+  │  User tippt Name + klickt "Aufnahme starten"
   ▼
 .recording(remainingSeconds: 15)
   │  Countdown läuft (1 s Takt), Pegel animiert
@@ -283,9 +290,9 @@ Bestätigung erfolgt durch Erscheinen des neuen Profils in der `allSpeakersSecti
 | Sheet-Subtitle | "Sprich 15 Sekunden frei — lies vor, zähle, erzähle. Dann wird dein Profil gespeichert." |
 | Name-Feld-Label | "Name" |
 | Name-Feld-Placeholder | "Dein Name" |
-| Primäre CTA (idle) | "Aufnehmen" |
+| Primäre CTA (idle) | "Aufnahme starten" |
 | Sekundäre Aktion während Aufnahme | "Stopp" |
-| Abbrechen-Button | "Abbrechen" |
+| Abbrechen-Button | "Enrollment abbrechen" |
 | Restzeit | "\(n) s verbleibend" |
 | Verarbeitungs-Text | "Profil wird erstellt …" |
 | Enrollment-Section-Titel im SprecherTab | "ENROLLMENT" |
@@ -308,7 +315,7 @@ Quellen: CONTEXT.md §Fehlerbehandlung, §Aufnahme-UX; RESEARCH.md §EnrollmentV
 ### Vertrag 1: Button-Disabled-Logik (Name-Feld)
 
 ```
-"Aufnehmen"-Button ist .disabled(...) wenn:
+"Aufnahme starten"-Button ist .disabled(...) wenn:
   state != .idle
   ODER name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 ```
