@@ -26,6 +26,7 @@
 		54291188A3089EC6A6BB9740 /* DiarizerModelManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5979B1D34E929ACE08145C36 /* DiarizerModelManagerTests.swift */; };
 		5686138DCFFFE5C917B0FE4D /* SpeakerMatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF6046C8A4A89F1A0897798 /* SpeakerMatchingTests.swift */; };
 		5F5ED9CACF17BB6A4F1AA69D /* EnrollmentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3687E141D728DFA80406F204 /* EnrollmentViewModel.swift */; };
+		9859B98AAC1946AFBBF39BB2 /* EnrollmentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC170A21E3974600BECE7632 /* EnrollmentSheet.swift */; };
 		640EA0BBFCB94793A3249A8A /* SpeakerProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC2481613ACCD25CBEAF2743 /* SpeakerProfileStore.swift */; };
 		64E5EE6B9DC6242A0AB2F32B /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D65A4763CEF07729B97C85 /* HistoryStore.swift */; };
 		6A57486CAFB50F6574ADC0CA /* FakeFoundationAvailabilityProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F558B7AB9E54ED6811566DAB /* FakeFoundationAvailabilityProvider.swift */; };
@@ -104,6 +105,7 @@
 		348D2A9B82C4E47649588269 /* AppleFoundationError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleFoundationError.swift; sourceTree = "<group>"; };
 		356F8219BA6FA6EC7C8AAF2F /* TextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserter.swift; sourceTree = "<group>"; };
 		3687E141D728DFA80406F204 /* EnrollmentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentViewModel.swift; sourceTree = "<group>"; };
+		DC170A21E3974600BECE7632 /* EnrollmentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentSheet.swift; sourceTree = "<group>"; };
 		38A9386794DEAB135CD98A78 /* LanguageModelInferring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageModelInferring.swift; sourceTree = "<group>"; };
 		3925FA0463AF1B23B45E07CB /* DiarizerLoaderProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiarizerLoaderProtocol.swift; sourceTree = "<group>"; };
 		3E89BF7B08768F054ADC1C5C /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
@@ -371,6 +373,7 @@
 			isa = PBXGroup;
 			children = (
 				3687E141D728DFA80406F204 /* EnrollmentViewModel.swift */,
+				DC170A21E3974600BECE7632 /* EnrollmentSheet.swift */,
 			);
 			path = Enrollment;
 			sourceTree = "<group>";
@@ -571,6 +574,7 @@
 				308AADD4F997689906E454F6 /* EigennamenAISuggester.swift in Sources */,
 				83CB9CC4E6AFF69C80A73269 /* EigennamenAnalyzer.swift in Sources */,
 				5F5ED9CACF17BB6A4F1AA69D /* EnrollmentViewModel.swift in Sources */,
+				9859B98AAC1946AFBBF39BB2 /* EnrollmentSheet.swift in Sources */,
 				97411EAC9E461B3308862230 /* FoundationAvailabilityBanner.swift in Sources */,
 				C430E3F7AF00371C98A7FE1A /* FoundationAvailabilityProvider.swift in Sources */,
 				FCC8B3B6D10C022F810FF51E /* HUDView.swift in Sources */,

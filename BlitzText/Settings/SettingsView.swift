@@ -538,11 +538,14 @@ private struct FlowLayout: Layout {
 private struct SprecherTab: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var speakerVM: SpeakerProfileViewModel
+    @EnvironmentObject var enrollmentVM: EnrollmentViewModel
+    @EnvironmentObject var diarizerManager: DiarizerModelManager
     @State private var speakerToDelete: Speaker?
     @State private var showDeleteConfirm = false
     @State private var pendingNames: [String: String] = [:]
     @State private var mergeTargetID: String = ""
     @State private var speakerToMerge: String?
+    @State private var showEnrollmentSheet = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -557,7 +560,14 @@ private struct SprecherTab: View {
             }
             unnamedSection
             allSpeakersSection
+            enrollmentSection
             thresholdSection
+        }
+        .sheet(isPresented: $showEnrollmentSheet, onDismiss: {
+            enrollmentVM.reset()
+        }) {
+            EnrollmentSheet(viewModel: enrollmentVM)
+                .environmentObject(speakerVM)
         }
     }
 
@@ -623,6 +633,23 @@ private struct SprecherTab: View {
         } message: {
             if let s = speakerToDelete {
                 Text("\"\(s.name)\" ist als permanent markiert. Trotzdem löschen?")
+            }
+        }
+    }
+
+    // MARK: - Enrollment (SPK-08)
+
+    @ViewBuilder
+    private var enrollmentSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+            Text("ENROLLMENT").font(.caption).foregroundStyle(.secondary).bold()
+            Button("Neues Profil aufnehmen") { showEnrollmentSheet = true }
+                .buttonStyle(.borderedProminent)
+                .disabled(!diarizerManager.isInstalled)
+            if !diarizerManager.isInstalled {
+                Text("Diarizer-Modell nicht installiert. Aktiviere Sprechererkennung im Backend-Tab.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
