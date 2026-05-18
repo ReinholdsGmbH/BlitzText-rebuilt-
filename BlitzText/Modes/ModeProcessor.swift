@@ -36,7 +36,7 @@ final class ModeProcessor: ObservableObject {
     private lazy var defaultOpenAITranscriber: TranscriptionService = WhisperAPIClient(settings: settings)
     private lazy var localClient = LocalWhisperClient(modelManager: modelManager)
     private lazy var defaultLocalTranscriber: TranscriptionService = localClient
-    private lazy var parakeetClient = ParakeetClient(settings: settings, diarizerManager: diarizerManager, speakerStore: speakerStore)
+    lazy var parakeetClient = ParakeetClient(settings: settings, diarizerManager: diarizerManager, speakerStore: speakerStore)
     private lazy var defaultParakeetTranscriber: TranscriptionService = parakeetClient
     private lazy var defaultRewriter: RewriteService = OpenAIChatClient(settings: settings)
     private lazy var defaultOllamaRewriter: RewriteService = OllamaRewriteClient(settings: settings)

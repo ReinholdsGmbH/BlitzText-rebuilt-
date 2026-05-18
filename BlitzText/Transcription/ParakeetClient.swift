@@ -1,6 +1,19 @@
 import Foundation
 import FluidAudio
 
+// MARK: - Enrollment
+
+enum EnrollmentError: Error {
+    /// Diarizer-Modell ist nicht geladen oder nicht initialisiert.
+    case diarizerNotReady
+    /// Audio ist kürzer als 5 Sekunden.
+    case tooShort
+    /// Audio-Pegel (RMS) zu niedrig (< 0.005).
+    case tooQuiet
+}
+
+// MARK: - ParakeetClient
+
 /// Lokale Transkription via NVIDIA Parakeet TDT v3 (FluidAudio, MLX/CoreML, on-device).
 /// Optional Speaker Diarization mit Token-Level-Alignment und persistenten Sprecher-Profilen.
 final class ParakeetClient: TranscriptionService, @unchecked Sendable {
@@ -80,6 +93,66 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
             Log.write("Parakeet: Diarization fehlgeschlagen — \(error.localizedDescription) (gebe Text ohne Sprecher zurück)")
             return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
+    }
+
+    /// Erstellt ein permanentes Sprecher-Profil aus einer Audio-Datei (SPK-08).
+    /// Extrahiert ein 256-dim Speaker-Embedding via FluidAudio und persistiert das Profil.
+    /// - Parameters:
+    ///   - audioURL: Pfad zur Audio-Datei (wird auf 16 kHz Mono resampled).
+    ///   - name: Anzeigename des neuen Profils.
+    /// - Returns: Der neu angelegte `Speaker` mit `isPermanent = true`.
+    /// - Throws: `EnrollmentError.diarizerNotReady`, `.tooShort` oder `.tooQuiet`.
+    func enrollSpeaker(audioURL: URL, name: String) async throws -> Speaker {
+        // 1. Diarizer sicherstellen
+        if diarizer == nil {
+            await ensureLoaded()
+        }
+        guard let diarizer else {
+            throw EnrollmentError.diarizerNotReady
+        }
+
+        // 2. Audio resamplen (identisches Muster wie transcribe)
+        let converter = AudioConverter()
+        let samples = try converter.resampleAudioFile(audioURL)
+
+        // 3. Längenprüfung (T-06-01: Mindestdauer 5 Sekunden)
+        let durationSeconds = Double(samples.count) / 16_000.0
+        guard durationSeconds >= 5.0 else {
+            throw EnrollmentError.tooShort
+        }
+
+        // 4. Pegelprüfung — RMS über alle Samples (T-06-01: selbe Schwelle wie AudioRecorder)
+        let sumOfSquares = samples.reduce(Float(0)) { $0 + $1 * $1 }
+        let rms = sqrtf(sumOfSquares / Float(samples.count))
+        guard rms >= 0.005 else {
+            throw EnrollmentError.tooQuiet
+        }
+
+        // 5. Embedding extrahieren (synchron-throws; läuft korrekt im async-Kontext)
+        let embedding = try diarizer.extractSpeakerEmbedding(from: samples)
+
+        // 6. Speaker-Struct anlegen
+        let newID = UUID().uuidString
+        let speaker = Speaker(
+            id: newID,
+            name: name,
+            currentEmbedding: embedding,
+            isPermanent: true
+        )
+
+        // 7. In-Memory-SpeakerManager aktualisieren (Convenience-Variante)
+        await diarizer.speakerManager.upsertSpeaker(speaker)
+
+        // 8. Auf Disk persistieren (Deduplizierung per ID)
+        if let store = speakerStore {
+            var current = store.loadSpeakers()
+            current.removeAll { $0.id == newID }
+            current.append(speaker)
+            store.saveSpeakers(current)
+        }
+
+        Log.write("Enrollment erfolgreich: id=\(newID) name='\(name)'")
+        return speaker
     }
 
     /// Übernimmt benutzerdefinierte Namen und isPermanent aus dem persistierten Store
