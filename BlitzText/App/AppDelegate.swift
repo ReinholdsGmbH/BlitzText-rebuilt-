@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let modelManager = LocalModelManager()
     let diarizerManager = DiarizerModelManager()
     private(set) var speakerProfileViewModel: SpeakerProfileViewModel!
+    private(set) var enrollmentViewModel: EnrollmentViewModel!
     private var menuBarController: MenuBarController!
     private var hotkeyManager: HotkeyManager!
     private var modeProcessor: ModeProcessor!
@@ -67,11 +68,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             diarizerManager: diarizerManager
         )
         speakerProfileViewModel = SpeakerProfileViewModel(store: modeProcessor.speakerStore)
+        enrollmentViewModel = EnrollmentViewModel(
+            audioRecorder: modeProcessor.recorder,
+            parakeetClient: modeProcessor.parakeetClient,
+            speakerVM: speakerProfileViewModel
+        )
         settingsWindow = SettingsWindowController(
             settings: settingsStore,
             modelManager: modelManager,
             diarizerManager: diarizerManager,
-            speakerViewModel: speakerProfileViewModel
+            speakerViewModel: speakerProfileViewModel,
+            enrollmentViewModel: enrollmentViewModel
         )
         historyWindow = HistoryWindowController(history: historyStore)
         recordingHUD = RecordingHUDController(recorder: modeProcessor.recorder, processor: modeProcessor, settings: settingsStore)
