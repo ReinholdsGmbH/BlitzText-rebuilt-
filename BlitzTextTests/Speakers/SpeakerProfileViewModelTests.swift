@@ -256,6 +256,45 @@ final class SpeakerProfileViewModelTests: XCTestCase {
         XCTAssertTrue(vm.unnamedFromLastTranscript.isEmpty)
     }
 
+    // MARK: - Enrollment hinzufügen (SPK-08)
+
+    func testAddEnrolledSpeaker_appendsAndSaves() throws {
+        // leerer Store, neuen Speaker enrollen
+        let embedding = [Float](repeating: 0.1, count: 256)
+        var speaker = Speaker(id: "enroll-1", name: "Thomas", currentEmbedding: embedding)
+        speaker.isPermanent = true
+
+        vm.addEnrolledSpeaker(speaker)
+
+        XCTAssertEqual(vm.speakers.count, 1)
+        XCTAssertEqual(vm.speakers[0].id, "enroll-1")
+        XCTAssertTrue(vm.speakers[0].isPermanent)
+
+        // Auf Disk persistiert
+        let reloaded = SpeakerProfileStore(url: tmpURL).loadSpeakers()
+        XCTAssertEqual(reloaded.count, 1)
+        XCTAssertEqual(reloaded.first?.id, "enroll-1")
+        XCTAssertTrue(reloaded.first?.isPermanent == true)
+    }
+
+    func testAddEnrolledSpeaker_replacesExistingId() {
+        // Bestehenden Speaker mit id="dup" vorbereiten
+        let existingSpeaker = makeSpeaker(id: "dup", name: "Alt", permanent: false)
+        store.saveSpeakers([existingSpeaker])
+        let freshVM = SpeakerProfileViewModel(store: store)
+
+        // Speaker mit gleicher ID aber neuem Namen enrollen
+        var updated = Speaker(id: "dup", name: "Neu", currentEmbedding: [Float](repeating: 0.5, count: 256))
+        updated.isPermanent = true
+
+        freshVM.addEnrolledSpeaker(updated)
+
+        // kein Duplikat — nur ein Eintrag
+        XCTAssertEqual(freshVM.speakers.count, 1)
+        XCTAssertEqual(freshVM.speakers[0].name, "Neu")
+        XCTAssertTrue(freshVM.speakers[0].isPermanent)
+    }
+
     // MARK: - Hilfsmethoden
 
     private func makeSpeaker(id: String, name: String, permanent: Bool = false) -> Speaker {

@@ -60,6 +60,17 @@ final class SpeakerProfileViewModel: ObservableObject {
         lastTranscriptSpeakerIDs.removeAll { $0 == sourceID }
     }
 
+    /// Fügt einen enrollierten Speaker hinzu oder ersetzt einen bestehenden mit gleicher ID (SPK-08).
+    /// Der Speaker ist bereits vollständig (Name, Embedding, isPermanent=true) — kein Trimming nötig.
+    func addEnrolledSpeaker(_ speaker: Speaker) {
+        if let idx = speakers.firstIndex(where: { $0.id == speaker.id }) {
+            speakers[idx] = speaker
+        } else {
+            speakers.append(speaker)
+        }
+        store.saveSpeakers(speakers)
+    }
+
     /// Weist einem bisher unbekannten Sprecher einen Namen zu und setzt ihn auf permanent (SPK-06).
     func assignName(to id: String, name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
