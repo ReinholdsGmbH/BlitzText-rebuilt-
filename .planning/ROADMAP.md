@@ -22,6 +22,7 @@
 - [ ] **Phase 13: Experimental — Voice Commands** — End-of-Dictation-Commands ("neue Zeile", "Enter drücken", "lösche das") via CGEvent-Synthese
 - [ ] **Phase 14: Experimental — Bulk Import** — JSON/CSV-Import ins Custom Vocabulary über NSOpenPanel
 - [ ] **Phase 15: System-Polish & QoL** — Launch-at-Login, Show-in-Dock, Dictation-/Notification-Sounds, Mute-Music-while-Dictating
+- [ ] **Phase 16: Sprecher-Sample-Wiedergabe** — Audio-Fragmente pro Sprecher aus dem letzten Transkript abspielen, damit unbekannte Stimmen nachträglich benannt werden können
 
 ## Phase Details
 
@@ -223,6 +224,25 @@
 **Plans**: TBD
 **UI hint**: yes
 
+### Phase 16: Sprecher-Sample-Wiedergabe
+
+**Goal**: Unbekannte Sprecher aus dem letzten Transkript lassen sich durch Anhören ihrer Audio-Fragmente identifizieren und direkt benennen
+
+**Depends on**: Phase 6 (Enrollment — Profil-Anlage muss existieren), Phase 5 (Sprecher-Tab als UI-Anker)
+
+**Requirements**: keine v1-Mapping (milestone-erweiternd, neu)
+
+**Success Criteria** (what must be TRUE):
+
+  1. Nach jeder Aufnahme mit Diarization werden die Audio-Segmente pro Sprecher-ID (WAV/PCM-Slices) temporär in einem In-Memory-Buffer oder einer kurzlebigen Temp-Datei behalten — spätestens bis zur nächsten Aufnahme
+  2. Im Sprecher-Tab erscheint für Sprecher aus dem letzten Transkript ein Play-Button (▶) — ein Klick spielt die gespeicherten Segmente dieses Sprechers nacheinander ab (AVAudioPlayer oder AVAudioEngine)
+  3. Direkt neben dem Play-Button liegt das bestehende Name-zuweisen-Widget (SPK-06), sodass der User nach dem Anhören sofort benennen kann — kein Fokuswechsel nötig
+  4. Sind keine Audio-Segmente mehr verfügbar (neue Aufnahme gestartet, App-Neustart), ist der Play-Button deaktiviert mit Tooltip "Nur für letzte Aufnahme verfügbar"
+  5. Kein Audio-Segment wird je auf Disk persistiert (DSGVO Art. 9 — Stimme ist biometrisches Datum); In-Memory-only, Freigabe nach Aufnahme-Wechsel
+
+**Plans**: TBD
+**UI hint**: yes
+
 ## Backlog
 
 Eingeplante Initiativen für künftige Milestones — werden bei Bedarf via `/gsd-insert-phase` oder neuem Milestone aktiviert.
@@ -280,6 +300,7 @@ Plans:
 | 13. Experimental — Voice Commands | 0/0 | Not started | - |
 | 14. Experimental — Bulk Import | 0/0 | Not started | - |
 | 15. System-Polish & QoL | 0/0 | Not started | - |
+| 16. Sprecher-Sample-Wiedergabe | 0/0 | Not started | - |
 | 999.1. iOS-/iPadOS-Port | 0/0 | Backlog | - |
 | 999.2. Meeting-Transkription | 0/0 | Backlog | - |
 | 999.3. Meeting-Zusammenfassungen | 0/0 | Backlog | - |
