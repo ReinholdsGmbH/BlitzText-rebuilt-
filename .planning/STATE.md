@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-18T11:33:03.511Z"
+last_updated: "2026-05-19T11:20:29.551Z"
 progress:
   total_phases: 21
-  completed_phases: 4
-  total_plans: 21
-  completed_plans: 18
-  percent: 19
+  completed_phases: 5
+  total_plans: 26
+  completed_plans: 22
+  percent: 24
 ---
 
 # Project State: BlitzText
@@ -20,18 +20,18 @@ progress:
 
 **Core Value:** Vom gedrückten Hotkey bis zum eingefügten Text wenige Sekunden — Text muss benutzbar sein, ohne nachzubearbeiten.
 
-**Current Focus:** Phase 8 — apple-foundation-rewrite-backend
+**Current Focus:** Phase 07 — standard-hotkeys-und-eigene-hotkeys
 
 ## Current Position
 
-Phase: 8 (apple-foundation-rewrite-backend) — EXECUTING
-Plan: 1 of 8
+Phase: 06 (sprecher-enrollment) — EXECUTING
+Plan: 1 of 3
 
 - **Milestone:** Sprecher-Profile + Stabilisierung
 - **Phase:** Phase 8 ausführend — Wave 2 UI (08-04: FoundationAvailabilityBanner + Settings-Picker + HUD-Badge + AppDelegate-Lifecycle)
 - **Plan:** 08-04 ✅ — 1 neue View-Datei (FoundationAvailabilityBanner.swift, 133 LOC, 4 State-Varianten) + 3 modifizierte Files (SettingsView Banner-Mount + 2 Picker, RecordingHUDController BackendBadge + Window-Width 268, AppDelegate Refresh + Pre-Warm + didBecomeActive-Observer).
-- **Status:** Ready to execute
-- **Progress:** 2/6 phases complete (Phase 3 awaiting verification, Phase 8 in progress, 4/5 plans)
+- **Status:** Executing Phase 06
+- **Progress:** [█████████░] 85%
 
 ```
 [██████░░░░░░░░░░░░░░] 33% (2/6 phases)
@@ -107,7 +107,7 @@ Keine.
 
 **Letzte Aktion:** Plan 08-04 (Wave 2 UI-Surfaces) ausgeführt — 1 neue View-Datei (FoundationAvailabilityBanner.swift, 133 LOC: 4 State-Varianten A/B/C + autoFallbackRow D, alle deutschen Strings mit Umlauten, Systemeinstellungen-Link via x-apple.systempreferences-URL, Variante-D-Suppression bei deviceNotEligible per UI-SPEC Zeile 216) + 3 modifizierte Files (SettingsView: APPLE INTELLIGENCE-Section mit Banner-Mount + 2 Picker für rewriteBackendForPlus/Rant + Privacy-Hint-Caption immer bei .openAI per WARNING 6; RecordingHUDController: BackendBadge-Capsule mit apple.logo/cloud + activeMode/showsBackendBadge/backendSymbol/backendTooltip computed-Properties + Window-Width 240→268 + Show-while-Transcribing/Rewriting; AppDelegate: import FoundationModels + refreshFoundationAvailability vor hotkeyManager.start + Task.detached Pre-Warm mit session.prewarm() per PIN(A6) + didBecomeActiveNotification-Observer mit Doppel-Capture [weak self, weak settingsStore]). 3 atomic Commits (e1fdbd5, 7b30d6d, b2576f4). Volle Suite 57/57 grün, Build grün. Ein Auto-fix: Rule 3 Compile-Error — Plan-Snippet [weak settingsStore]-only erzeugt Swift-6 sending-data-races-Fehler bei non-Sendable SettingsStore; gefixt mit zusätzlichem [weak self]-Capture und MainActor-Aufruf via self.settingsStore.
 
-**Nächste Aktion:** `/gsd-verify-phase 8` (08-05 Verification/UAT) — visueller End-to-End-Check der 4 Mode×Backend-Pfade, Banner-Render-Test in allen 4 Varianten, HUD-Badge-Test bei Plus/Rant, App-Boot-Latenz-Messung trotz Pre-Warm, Banner-verschwindet-ohne-Restart-Test (AC-AVAIL-2).
+**Nächste Aktion:** `/gsd:execute-phase 7` — Standard-Hotkeys & eigene Hotkeys ausführen (5 Pläne, 4 Wellen, sindresorhus/KeyboardShortcuts, additiver HotkeyManager-Toggle-Layer, neuer Hotkeys-Tab).
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*

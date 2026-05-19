@@ -120,7 +120,7 @@
 **Plans**: 5 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — Wave 0 Spike: keyCode-Äquivalenz A3 (CGEvent ↔ Carbon auf Apple-Silicon verifizieren)
+- [x] 07-01-PLAN.md — Wave 0 Spike: keyCode-Äquivalenz A3 (CGEvent ↔ Carbon auf Apple-Silicon verifizieren)
 - [ ] 07-02-PLAN.md — Wave 1: SPM-Integration (sindresorhus/KeyboardShortcuts 2.4.0) + SettingsStore Toggle-Hotkey-Properties + Snapshot + Accessoren
 - [ ] 07-03-PLAN.md — Wave 2: HotkeyManager additiver Toggle-Layer (setupToggleHotkeys/teardown/reload + Combine-Sink + Idempotenz-Guard)
 - [ ] 07-04-PLAN.md — Wave 2: UI HotkeysTab (HoldHotkeyRow + ToggleHotkeyRow 5 States + ConflictWarningBanner) + AnpassenTab-Refactoring
@@ -301,7 +301,7 @@ Plans:
 | 4. Sprecher-Profile Core | 0/0 | Not started | - |
 | 5. Sprecher-Profile UI | 0/0 | Not started | - |
 | 6. Sprecher-Enrollment | 3/3 | Executed (UAT pending) | 2026-05-18 |
-| 7. Standard-Hotkeys & eigene Hotkeys | 0/0 | Not started | - |
+| 7. Standard-Hotkeys & eigene Hotkeys | 1/5 | In Progress|  |
 | 8. Apple Foundation Rewrite-Backend | 9/9 | Complete   | 2026-05-04 |
 | 9. Vibe Coding — Variable Recognition | 0/0 | Not started | - |
 | 10. Vibe Coding — File Tagging | 0/0 | Not started | - |
