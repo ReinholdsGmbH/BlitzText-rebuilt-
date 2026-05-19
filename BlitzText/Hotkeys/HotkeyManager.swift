@@ -50,6 +50,8 @@ final class HotkeyManager: @unchecked Sendable {
 
     private var currentMode: Mode?
     private var lastTriggerAt: Date = .distantPast
+    private var lastReleaseTime: [Mode: Date] = [:]
+    private static let doubleTapThreshold: TimeInterval = 0.30
     private var activeKeyMode: (mode: Mode, keyCode: UInt16)?
 
     init(settings: SettingsStore, onTrigger: @escaping @Sendable (Mode, Action) -> Void) {
@@ -249,6 +251,18 @@ final class HotkeyManager: @unchecked Sendable {
             guard let binding = bindings[mode], binding.isModifierOnly else { return false }
             return binding.matches(flags: flags)
         }
+
+        // Doppeltipp-Erkennung: dieselbe Kombo innerhalb doubleTapThreshold nach Release → Toggle
+        if let next = newMode,
+           let releaseTime = lastReleaseTime[next],
+           now.timeIntervalSince(releaseTime) < Self.doubleTapThreshold,
+           now.timeIntervalSince(lastTriggerAt) >= Self.holdDebounce {
+            lastReleaseTime.removeValue(forKey: next)
+            lastTriggerAt = now
+            currentMode = nil
+            return [.toggle(next)]
+        }
+
         return holdOutcomes(newMode: newMode, now: now)
     }
 
@@ -259,6 +273,7 @@ final class HotkeyManager: @unchecked Sendable {
 
         var result: [Outcome] = []
         if let active = currentMode, newMode != active {
+            lastReleaseTime[active] = now   // Release-Zeit fuer Doppeltipp-Erkennung merken
             currentMode = nil
             result.append(.stop(active))
         }
