@@ -103,9 +103,9 @@
   2. Nach der Aufnahme wird via `extractSpeakerEmbedding` ein neues, permanentes Profil mit dem vom Nutzer eingegebenen Namen angelegt und in `speakers.json` gespeichert
   3. Bricht die Aufnahme ab oder ist sie zu kurz/zu leise, wird kein Profil angelegt und der Nutzer sieht eine klare Fehlermeldung
 **Plans**: 3 plans
-- [ ] 06-01-PLAN.md — Wave 1: ParakeetClient.enrollSpeaker + EnrollmentError + SpeakerProfileViewModel.addEnrolledSpeaker + ModeProcessor-Sichtbarkeit + Tests
-- [ ] 06-02-PLAN.md — Wave 2: EnrollmentViewModel @MainActor State-Machine (idle/recording/processing/done/failed) + Countdown + Closure-Injection + Unit-Tests
-- [ ] 06-03-PLAN.md — Wave 3: EnrollmentSheet UI + SprecherTab ENROLLMENT-Section + AppDelegate/SettingsWindowController DI + Human-Verify-UAT
+- [x] 06-01-PLAN.md — Wave 1: ParakeetClient.enrollSpeaker + EnrollmentError + SpeakerProfileViewModel.addEnrolledSpeaker + ModeProcessor-Sichtbarkeit + Tests
+- [x] 06-02-PLAN.md — Wave 2: EnrollmentViewModel @MainActor State-Machine (idle/recording/processing/done/failed) + Countdown + Closure-Injection + Unit-Tests
+- [x] 06-03-PLAN.md — Wave 3: EnrollmentSheet UI + SprecherTab ENROLLMENT-Section + AppDelegate/SettingsWindowController DI + Human-Verify-UAT (pending)
 **UI hint**: yes
 
 ### Phase 7: Standard-Hotkeys & eigene Hotkeys
@@ -117,7 +117,14 @@
   2. Pro Mode kann optional eine freie Tastenkombo (z.B. ⌘⇧B) für den Toggle-Pfad gesetzt werden — registriert via SPM-Hotkey-Package, persistiert im `SettingsStore`-Snapshot
   3. Neuer Settings-Tab "Hotkeys" zeigt eine Tabelle mit Hold-/Toggle-Bindings, Recorder-Widget, "Auf Standard zurücksetzen"-Button pro Zeile
   4. Bei Verdacht auf System-Konflikt erscheint ein dezentes Warn-Banner; In-App-Doppelbelegungen werden im Recorder vorab verhindert
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Wave 0 Spike: keyCode-Äquivalenz A3 (CGEvent ↔ Carbon auf Apple-Silicon verifizieren)
+- [ ] 07-02-PLAN.md — Wave 1: SPM-Integration (sindresorhus/KeyboardShortcuts 2.4.0) + SettingsStore Toggle-Hotkey-Properties + Snapshot + Accessoren
+- [ ] 07-03-PLAN.md — Wave 2: HotkeyManager additiver Toggle-Layer (setupToggleHotkeys/teardown/reload + Combine-Sink + Idempotenz-Guard)
+- [ ] 07-04-PLAN.md — Wave 2: UI HotkeysTab (HoldHotkeyRow + ToggleHotkeyRow 5 States + ConflictWarningBanner) + AnpassenTab-Refactoring
+- [ ] 07-05-PLAN.md — Wave 3: Tests (ToggleHotkeyTests: Snapshot-Roundtrip, Doppelbelegung, fn-Check, Nur-Modifier, Conflict-Detection)
 **UI hint**: yes
 **Context**: 07-CONTEXT.md (gathered 2026-04-30 als 999.6, promoted via /gsd-review-backlog)
 
@@ -293,7 +300,7 @@ Plans:
 | 3. Diarization-UX | 0/0 | Not started | - |
 | 4. Sprecher-Profile Core | 0/0 | Not started | - |
 | 5. Sprecher-Profile UI | 0/0 | Not started | - |
-| 6. Sprecher-Enrollment | 0/3 | Planned | - |
+| 6. Sprecher-Enrollment | 3/3 | Executed (UAT pending) | 2026-05-18 |
 | 7. Standard-Hotkeys & eigene Hotkeys | 0/0 | Not started | - |
 | 8. Apple Foundation Rewrite-Backend | 9/9 | Complete   | 2026-05-04 |
 | 9. Vibe Coding — Variable Recognition | 0/0 | Not started | - |
