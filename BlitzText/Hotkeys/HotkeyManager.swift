@@ -1,8 +1,5 @@
 import AppKit
-import Carbon.HIToolbox
-import Combine
 import CoreGraphics
-import KeyboardShortcuts
 
 /// Globaler Hotkey-Watcher für konfigurierbare Tastenkombinationen.
 /// Nutzt CGEventTap auf .flagsChanged/.keyDown/.keyUp, weil fn nicht via Carbon RegisterEventHotKey
@@ -55,10 +52,6 @@ final class HotkeyManager: @unchecked Sendable {
     private var lastTriggerAt: Date = .distantPast
     private var activeKeyMode: (mode: Mode, keyCode: UInt16)?
 
-    // Phase 7: Toggle-Hotkey via Carbon/KeyboardShortcuts
-    private var cancellables = Set<AnyCancellable>()
-    private var toggleHotkeysActive = false
-
     init(settings: SettingsStore, onTrigger: @escaping @Sendable (Mode, Action) -> Void) {
         self.settings = settings
         self.onTrigger = onTrigger
@@ -69,7 +62,6 @@ final class HotkeyManager: @unchecked Sendable {
         Log.write("HotkeyManager.start() — AXIsProcessTrusted = \(trusted)")
         if trusted {
             installEventTap()
-            setupToggleHotkeys()   // Phase 7: additiver Toggle-Pfad
         } else {
             Log.write("Accessibility fehlt — Hotkeys aus, beobachte TCC-Status (1 Hz Polling).")
             startPermissionWatcher()
@@ -87,7 +79,6 @@ final class HotkeyManager: @unchecked Sendable {
         }
         eventTap = nil
         runLoopSource = nil
-        teardownToggleHotkeys()   // Phase 7: Toggle-Pfad stoppen
     }
 
     private func installEventTap() {
@@ -157,10 +148,6 @@ final class HotkeyManager: @unchecked Sendable {
     /// zu verlieren. Quelle: empirisch ermittelt am M1, siehe ARCHITECTURE.md.
     private static let holdDebounce: TimeInterval = 0.05
 
-    /// Mindestabstand zwischen zwei Toggle-Edges. 300 ms verhindert, dass ein
-    /// Doppeltipp ungewollt zweimal toggelt (start → stop sofort danach).
-    private static let toggleDebounce: TimeInterval = 0.30
-
     // MARK: - Detection
 
     private func handleFlagsChanged(event: CGEvent) {
@@ -177,7 +164,7 @@ final class HotkeyManager: @unchecked Sendable {
         // Wenn ein Key-Binding aktiv ist: prüfen ob die Modifier noch stimmen.
         if let active = activeKeyMode {
             let binding = settings.hotkeyBinding(for: active.mode)
-            if !binding.matchesModifiers(input) && settings.triggerMode == .hold {
+            if !binding.matchesModifiers(input) {
                 activeKeyMode = nil
                 currentMode = nil
                 let trigger = self.onTrigger
@@ -192,7 +179,7 @@ final class HotkeyManager: @unchecked Sendable {
             .blitztextPlus: settings.hotkeyForBlitztextPlus,
             .blitztextRant: settings.hotkeyForBlitztextRant,
         ]
-        let outcomes = decideTransition(flags: input, triggerMode: settings.triggerMode, bindings: bindings, now: Date())
+        let outcomes = decideTransition(flags: input, bindings: bindings, now: Date())
         let trigger = self.onTrigger
         for outcome in outcomes {
             switch outcome {
@@ -223,26 +210,18 @@ final class HotkeyManager: @unchecked Sendable {
             guard let bindingKey = binding.keyCode, bindingKey == keyCode else { continue }
             guard binding.matchesModifiers(input) else { continue }
             let now = Date()
-            switch settings.triggerMode {
-            case .hold:
-                guard now.timeIntervalSince(lastTriggerAt) >= Self.holdDebounce else { return }
-                lastTriggerAt = now
-                activeKeyMode = (mode: mode, keyCode: keyCode)
-                currentMode = mode
-                let trigger = self.onTrigger
-                DispatchQueue.main.async { trigger(mode, .start) }
-            case .toggle:
-                guard now.timeIntervalSince(lastTriggerAt) >= Self.toggleDebounce else { return }
-                lastTriggerAt = now
-                let trigger = self.onTrigger
-                DispatchQueue.main.async { trigger(mode, .toggle) }
-            }
+            guard now.timeIntervalSince(lastTriggerAt) >= Self.holdDebounce else { return }
+            lastTriggerAt = now
+            activeKeyMode = (mode: mode, keyCode: keyCode)
+            currentMode = mode
+            let trigger = self.onTrigger
+            DispatchQueue.main.async { trigger(mode, .start) }
             return
         }
     }
 
     private func handleKeyUp(event: CGEvent) {
-        guard settings.triggerMode == .hold, let active = activeKeyMode else { return }
+        guard let active = activeKeyMode else { return }
         let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
         guard keyCode == active.keyCode else { return }
         let now = Date()
@@ -263,7 +242,6 @@ final class HotkeyManager: @unchecked Sendable {
     /// `bindings` default = `HotkeyManager.defaultBindings` damit bestehende Tests unverändert bleiben.
     internal func decideTransition(
         flags: FlagsInput,
-        triggerMode: TriggerMode,
         bindings: [Mode: HotkeyBinding] = HotkeyManager.defaultBindings,
         now: Date
     ) -> [Outcome] {
@@ -271,13 +249,7 @@ final class HotkeyManager: @unchecked Sendable {
             guard let binding = bindings[mode], binding.isModifierOnly else { return false }
             return binding.matches(flags: flags)
         }
-
-        switch triggerMode {
-        case .hold:
-            return holdOutcomes(newMode: newMode, now: now)
-        case .toggle:
-            return toggleOutcomes(newMode: newMode, now: now)
-        }
+        return holdOutcomes(newMode: newMode, now: now)
     }
 
     private func holdOutcomes(newMode: Mode?, now: Date) -> [Outcome] {
@@ -297,14 +269,6 @@ final class HotkeyManager: @unchecked Sendable {
         return result
     }
 
-    private func toggleOutcomes(newMode: Mode?, now: Date) -> [Outcome] {
-        // Nur die "Drücken"-Edge zählt: Übergang von kein Mode → ein Mode.
-        guard let next = newMode else { return [] }
-        if now.timeIntervalSince(lastTriggerAt) < Self.toggleDebounce { return [] }
-        lastTriggerAt = now
-        return [.toggle(next)]
-    }
-
     // MARK: - Permission
 
     @discardableResult
@@ -315,73 +279,6 @@ final class HotkeyManager: @unchecked Sendable {
         return AXIsProcessTrustedWithOptions(opts)
     }
 
-    // MARK: - Toggle-Hotkey-Verwaltung (Phase 7)
-
-    private func setupToggleHotkeys() {
-        guard !toggleHotkeysActive else { return }   // Idempotenz-Guard (Pitfall 4)
-        toggleHotkeysActive = true
-
-        // Shortcuts aus SettingsStore in Carbon-Registry laden
-        for mode in Mode.allCases {
-            if let binding = settings.toggleHotkeyBinding(for: mode),
-               !binding.isEmpty, !binding.isModifierOnly {
-                registerToggleHotkey(binding, for: mode)
-            }
-        }
-
-        // onKeyDown-Handler (Carbon feuert auf Main Thread via KeyboardShortcuts)
-        for mode in Mode.allCases {
-            let captured = mode
-            KeyboardShortcuts.onKeyDown(for: toggleName(for: mode)) { [weak self] in
-                guard let self else { return }
-                let trigger = self.onTrigger
-                DispatchQueue.main.async { trigger(captured, .toggle) }
-            }
-        }
-
-        // Binding-Änderungen beobachten (Pitfall 2: cancellables, Pitfall 5: receive on main)
-        Publishers.MergeMany([
-            settings.$toggleHotkeyForBlitztext.map { _ in () }.eraseToAnyPublisher(),
-            settings.$toggleHotkeyForBlitztextPlus.map { _ in () }.eraseToAnyPublisher(),
-            settings.$toggleHotkeyForBlitztextRant.map { _ in () }.eraseToAnyPublisher()
-        ])
-        .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
-        .receive(on: RunLoop.main)
-        .sink { [weak self] in self?.reloadToggleHotkeys() }
-        .store(in: &cancellables)
-    }
-
-    private func teardownToggleHotkeys() {
-        toggleHotkeysActive = false
-        cancellables.removeAll()
-        KeyboardShortcuts.removeAllHandlers()
-        for mode in Mode.allCases {
-            KeyboardShortcuts.setShortcut(nil, for: toggleName(for: mode))
-        }
-    }
-
-    private func reloadToggleHotkeys() {
-        teardownToggleHotkeys()
-        setupToggleHotkeys()
-    }
-
-    private func registerToggleHotkey(_ binding: HotkeyBinding, for mode: Mode) {
-        guard let keyCode = binding.keyCode else { return }
-        // fn hat kein Carbon-Äquivalent — Guard (Pitfall 3, RESEARCH.md)
-        guard !binding.modifiers.contains(.fn) else { return }
-        let carbonMods = binding.modifiers.reduce(0) { $0 | $1.carbonModifierFlag }
-        let shortcut = KeyboardShortcuts.Shortcut(carbonKeyCode: Int(keyCode),
-                                                   carbonModifiers: carbonMods)
-        KeyboardShortcuts.setShortcut(shortcut, for: toggleName(for: mode))
-    }
-
-    private func toggleName(for mode: Mode) -> KeyboardShortcuts.Name {
-        switch mode {
-        case .blitztext:     return .toggleBlitztext
-        case .blitztextPlus: return .toggleBlitztextPlus
-        case .blitztextRant: return .toggleBlitztextRant
-        }
-    }
 }
 
 // MARK: - HotkeyModifier
@@ -473,27 +370,3 @@ struct HotkeyBinding: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-// MARK: - HotkeyModifier Carbon-Konvertierung (Phase 7)
-
-extension HotkeyModifier {
-    /// Carbon-Modifier-Flag für KeyboardShortcuts.Shortcut(carbonKeyCode:carbonModifiers:).
-    /// fn hat kein Carbon-Äquivalent — gibt 0 zurück. Caller muss fn-Modifier VOR dem
-    /// Aufruf ablehnen (Pitfall 3 — RESEARCH.md).
-    var carbonModifierFlag: Int {
-        switch self {
-        case .fn:      return 0                  // kein Carbon-Äquivalent
-        case .command: return Int(cmdKey)         // 0x0100
-        case .shift:   return Int(shiftKey)       // 0x0200
-        case .option:  return Int(optionKey)      // 0x0800
-        case .control: return Int(controlKey)     // 0x1000
-        }
-    }
-}
-
-// MARK: - KeyboardShortcuts.Name (Phase 7)
-
-extension KeyboardShortcuts.Name {
-    static let toggleBlitztext     = Self("toggleBlitztext")
-    static let toggleBlitztextPlus = Self("toggleBlitztextPlus")
-    static let toggleBlitztextRant = Self("toggleBlitztextRant")
-}
