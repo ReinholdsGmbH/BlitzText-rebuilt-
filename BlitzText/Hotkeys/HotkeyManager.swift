@@ -1,5 +1,8 @@
 import AppKit
+import Carbon.HIToolbox
+import Combine
 import CoreGraphics
+import KeyboardShortcuts
 
 /// Globaler Hotkey-Watcher für konfigurierbare Tastenkombinationen.
 /// Nutzt CGEventTap auf .flagsChanged/.keyDown/.keyUp, weil fn nicht via Carbon RegisterEventHotKey
@@ -345,7 +348,7 @@ enum HotkeyModifier: Int, Codable, CaseIterable, Equatable, Hashable, Sendable {
 
 // MARK: - HotkeyBinding
 
-struct HotkeyBinding: Codable, Equatable, Sendable {
+struct HotkeyBinding: Codable, Equatable, Hashable, Sendable {
     var modifiers: Set<HotkeyModifier>
     var keyCode: UInt16?
     var keyLabel: String?
@@ -394,4 +397,29 @@ struct HotkeyBinding: Codable, Equatable, Sendable {
         case .blitztextRant: return .defaultBlitztextRant
         }
     }
+}
+
+// MARK: - HotkeyModifier Carbon-Konvertierung (Phase 7)
+
+extension HotkeyModifier {
+    /// Carbon-Modifier-Flag für KeyboardShortcuts.Shortcut(carbonKeyCode:carbonModifiers:).
+    /// fn hat kein Carbon-Äquivalent — gibt 0 zurück. Caller muss fn-Modifier VOR dem
+    /// Aufruf ablehnen (Pitfall 3 — RESEARCH.md).
+    var carbonModifierFlag: Int {
+        switch self {
+        case .fn:      return 0                  // kein Carbon-Äquivalent
+        case .command: return Int(cmdKey)         // 0x0100
+        case .shift:   return Int(shiftKey)       // 0x0200
+        case .option:  return Int(optionKey)      // 0x0800
+        case .control: return Int(controlKey)     // 0x1000
+        }
+    }
+}
+
+// MARK: - KeyboardShortcuts.Name (Phase 7)
+
+extension KeyboardShortcuts.Name {
+    static let toggleBlitztext     = Self("toggleBlitztext")
+    static let toggleBlitztextPlus = Self("toggleBlitztextPlus")
+    static let toggleBlitztextRant = Self("toggleBlitztextRant")
 }
