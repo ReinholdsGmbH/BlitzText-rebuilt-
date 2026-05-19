@@ -1047,6 +1047,240 @@ private struct HoldHotkeyRow: View {
     }
 }
 
+// MARK: ToggleHotkeyRow
+
+/// Interaktive Zeile für Toggle-Hotkeys. 5 States: A (leer), B (belegt), C (Recorder aktiv),
+/// D (Fehler Doppelbelegung), E (Fehler ungültige Kombination).
+private struct ToggleHotkeyRow: View {
+    let mode: Mode
+    @EnvironmentObject var settings: SettingsStore
+    @State private var isRecording = false
+    @State private var errorMessage: String? = nil
+    @StateObject private var recorder = KeyRecorderViewModel()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: mode.systemImage)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(mode.title).font(.body).bold()
+                    Text(mode.subtitle).font(.caption2).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if isRecording {
+                    recordingField         // State C
+                } else if let binding = settings.toggleHotkeyBinding(for: mode), !binding.isEmpty {
+                    occupiedField(binding) // State B
+                } else {
+                    emptyField             // State A
+                }
+            }
+            // Fehler-Inline unter der Zeile (State D + E)
+            if let msg = errorMessage {
+                Text(msg)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.top, 4)
+            }
+        }
+        .onDisappear {
+            recorder.stop()
+            isRecording = false
+        }
+    }
+
+    // MARK: State A — leer
+
+    @ViewBuilder
+    private var emptyField: some View {
+        Text("—")
+            .font(.system(.body, design: .monospaced))
+            .foregroundStyle(.tertiary)
+            .frame(minWidth: 100, alignment: .center)
+        Button("Hotkey belegen") { startRecording() }
+    }
+
+    // MARK: State B — belegt
+
+    @ViewBuilder
+    private func occupiedField(_ binding: HotkeyBinding) -> some View {
+        Text(binding.displayString)
+            .font(.system(.body, design: .monospaced))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
+        Button("Hotkey ändern") { startRecording() }
+        Button {
+            clearBinding()
+        } label: {
+            Image(systemName: "xmark.circle")
+                .accessibilityLabel("Hotkey entfernen")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help("Hotkey entfernen")
+    }
+
+    // MARK: State C — Recorder aktiv
+
+    @ViewBuilder
+    private var recordingField: some View {
+        Text(recorder.liveDisplay)
+            .font(.system(.body, design: .monospaced))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(minWidth: 160, alignment: .leading)
+            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.accentColor, lineWidth: 1))
+        Button {
+            stopRecording()
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .accessibilityLabel("Aufnahme abbrechen")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help("Abbrechen")
+    }
+
+    // MARK: Hilfsmethoden
+
+    private func startRecording() {
+        isRecording = true
+        recorder.start { [self] binding in handleCommit(binding) }
+    }
+
+    private func stopRecording() {
+        recorder.stop()
+        isRecording = false
+    }
+
+    private func clearBinding() {
+        settings.setToggleHotkeyBinding(nil, for: mode)
+    }
+
+    private func handleCommit(_ binding: HotkeyBinding?) {
+        guard let b = binding, !b.isEmpty else {
+            isRecording = false
+            return // Escape-Abbruch, kein Fehler
+        }
+        // Validierung 1 (State E): Nur Modifier ohne Buchstabe/F-Taste
+        if b.isModifierOnly {
+            errorMessage = "Kombination ohne Buchstaben oder Funktionstaste ist nicht erlaubt."
+            isRecording = false
+            clearErrorAfterDelay()
+            return
+        }
+        // Validierung 2 (State E): fn-Modifier hat kein Carbon-Äquivalent
+        if b.modifiers.contains(.fn) {
+            errorMessage = "fn-Taste kann nicht für freie Toggle-Hotkeys verwendet werden."
+            isRecording = false
+            clearErrorAfterDelay()
+            return
+        }
+        // Validierung 3 (State D): Doppelbelegung
+        for other in Mode.allCases where other != mode {
+            if let existing = settings.toggleHotkeyBinding(for: other), existing == b {
+                errorMessage = "\(b.displayString) ist bereits für \(other.title) vergeben."
+                isRecording = false
+                clearErrorAfterDelay()
+                return
+            }
+        }
+        // Erfolg
+        settings.setToggleHotkeyBinding(b, for: mode)
+        isRecording = false
+        errorMessage = nil
+    }
+
+    private func clearErrorAfterDelay() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { errorMessage = nil }
+    }
+}
+
+// MARK: HotkeysTab
+
+private struct HotkeysTab: View {
+    @EnvironmentObject var settings: SettingsStore
+
+    // Statische Konflikt-Liste (CONTEXT.md: "nachsichtig, statische Liste")
+    // Array statt Dictionary, da HotkeyBinding nicht Hashable (nur Equatable).
+    private let knownConflicts: [(HotkeyBinding, String)] = [
+        (HotkeyBinding(modifiers: [.command], keyCode: 49, keyLabel: "Space"),           "Spotlight"),
+        (HotkeyBinding(modifiers: [.command, .option], keyCode: 49, keyLabel: "Space"),  "Spotlight (Finder-Suche)"),
+        (HotkeyBinding(modifiers: [.control], keyCode: 49, keyLabel: "Space"),           "Eingabequellen wechseln"),
+        (HotkeyBinding(modifiers: [.command, .control], keyCode: 12, keyLabel: "Q"),     "Bildschirm sperren"),
+        (HotkeyBinding(modifiers: [.command, .shift], keyCode: 20, keyLabel: "3"),       "Screenshot"),
+        (HotkeyBinding(modifiers: [.command, .shift], keyCode: 21, keyLabel: "4"),       "Screenshot (Auswahl)"),
+        (HotkeyBinding(modifiers: [.command, .shift], keyCode: 23, keyLabel: "5"),       "Screenshot-Optionen"),
+        (HotkeyBinding(modifiers: [.control], keyCode: 0x78, keyLabel: "F2"),            "Menüleiste fokussieren"),
+        (HotkeyBinding(modifiers: [.control], keyCode: 0x63, keyLabel: "F3"),            "Dock fokussieren"),
+    ]
+
+    private var conflictingModes: [(Mode, String)] {
+        Mode.allCases.compactMap { mode in
+            guard let binding = settings.toggleHotkeyBinding(for: mode) else { return nil }
+            guard let entry = knownConflicts.first(where: { $0.0 == binding }) else { return nil }
+            return (mode, entry.1)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+
+            // HOLD-HOTKEYS Section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("HOLD-HOTKEYS").font(.caption).foregroundStyle(.secondary).bold()
+                Text("fn + Modifier — Halten aktiviert Aufnahme. Nicht konfigurierbar.")
+                    .font(.caption).foregroundStyle(.secondary)
+                ForEach(Mode.allCases) { HoldHotkeyRow(mode: $0) }
+            }
+
+            Divider()
+
+            // TOGGLE-HOTKEYS Section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("TOGGLE-HOTKEYS").font(.caption).foregroundStyle(.secondary).bold()
+                Text("Freie Tastenkombination für den Drücken-Modus. Optional — leer = kein Toggle-Hotkey.")
+                    .font(.caption).foregroundStyle(.secondary)
+                ForEach(Mode.allCases) { ToggleHotkeyRow(mode: $0) }
+            }
+
+            // ConflictWarningBanner (conditional)
+            if !conflictingModes.isEmpty {
+                Divider()
+                ConflictWarningBanner(conflicts: conflictingModes)
+            }
+        }
+    }
+}
+
+// MARK: ConflictWarningBanner
+
+private struct ConflictWarningBanner: View {
+    let conflicts: [(Mode, String)]
+    @EnvironmentObject var settings: SettingsStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Text("Möglicher Konflikt mit einem System-Hotkey")
+                    .font(.body).bold()
+            }
+            ForEach(conflicts, id: \.0) { mode, systemName in
+                let bindingDisplay = settings.toggleHotkeyBinding(for: mode)?.displayString ?? ""
+                Text("\(bindingDisplay) wird von \(systemName) verwendet. Der Hotkey funktioniert möglicherweise nicht zuverlässig.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(8)
+        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 /// Interaktive Zeile für eine Hotkey-Bindung in den Settings.
 /// Zeigt die aktuelle Bindung und erlaubt dem User, eine neue aufzuzeichnen.
 struct HotkeyRecorderRow: View {
@@ -1123,3 +1357,4 @@ struct HotkeyRecorderRow: View {
         }
     }
 }
+
