@@ -12,6 +12,9 @@ packages:
   FluidAudio:
     url: https://github.com/FluidInference/FluidAudio
     from: "0.6.0"
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: "2.4.0"
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -36,6 +39,8 @@ targets:
         product: WhisperKit
       - package: FluidAudio
         product: FluidAudio
+      - package: KeyboardShortcuts
+        product: KeyboardShortcuts
     info:
       path: BlitzText/Info.plist
       properties:
