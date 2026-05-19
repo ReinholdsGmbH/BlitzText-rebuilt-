@@ -58,10 +58,10 @@ private struct AnpassenTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            section("TASTENKÜRZEL") {
-                HotkeyRecorderRow(mode: .blitztext)
-                HotkeyRecorderRow(mode: .blitztextPlus)
-                HotkeyRecorderRow(mode: .blitztextRant)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("TASTENKÜRZEL").font(.caption).foregroundStyle(.secondary).bold()
+                Text("Hotkeys werden im Tab \"Hotkeys\" konfiguriert.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             section("MODUS") {
