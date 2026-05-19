@@ -23,7 +23,6 @@
 		3835AE5005D99B7F4BF71978 /* PipelineErrorPathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC07BCC7706BB1698EEB8BC /* PipelineErrorPathTests.swift */; };
 		388A20FFA327573617E38D13 /* ETAEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E67FF7B7EA8F79E8466984 /* ETAEstimator.swift */; };
 		456C649FD65C53DA1F55446B /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05E474160016E12581FCA33 /* HistoryView.swift */; };
-		4898D1926CB6EE620A432CA4 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 2E9CAA2644A7D9FA6CD99261 /* KeyboardShortcuts */; };
 		494485E2925F0CB379B53C2C /* SpeakerProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E533CB80125A47E8FB6EF758 /* SpeakerProfileViewModel.swift */; };
 		54291188A3089EC6A6BB9740 /* DiarizerModelManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5979B1D34E929ACE08145C36 /* DiarizerModelManagerTests.swift */; };
 		5686138DCFFFE5C917B0FE4D /* SpeakerMatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF6046C8A4A89F1A0897798 /* SpeakerMatchingTests.swift */; };
@@ -166,7 +165,6 @@
 			files = (
 				BC8CBD42ECD07A5ED9A691F3 /* WhisperKit in Frameworks */,
 				CE788668DFA306BE1E825F0D /* FluidAudio in Frameworks */,
-				4898D1926CB6EE620A432CA4 /* KeyboardShortcuts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -458,7 +456,6 @@
 			packageProductDependencies = (
 				2299B5A7C14B72204275495C /* WhisperKit */,
 				485D66E923451799A62CA1CB /* FluidAudio */,
-				2E9CAA2644A7D9FA6CD99261 /* KeyboardShortcuts */,
 			);
 			productName = BlitzText;
 			productReference = B4A664FB1ABDE15B48788C4C /* BlitzText.app */;
@@ -512,7 +509,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				18F49C1D6BD7C91660FABB3D /* XCRemoteSwiftPackageReference "FluidAudio" */,
-				81BFF569AD6F46D455CEC5B8 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				B1C4B752DF8DD0AEB261DD86 /* XCRemoteSwiftPackageReference "WhisperKit" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -876,14 +872,6 @@
 				minimumVersion = 0.6.0;
 			};
 		};
-		81BFF569AD6F46D455CEC5B8 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.4.0;
-			};
-		};
 		B1C4B752DF8DD0AEB261DD86 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
@@ -899,11 +887,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B1C4B752DF8DD0AEB261DD86 /* XCRemoteSwiftPackageReference "WhisperKit" */;
 			productName = WhisperKit;
-		};
-		2E9CAA2644A7D9FA6CD99261 /* KeyboardShortcuts */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 81BFF569AD6F46D455CEC5B8 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
-			productName = KeyboardShortcuts;
 		};
 		485D66E923451799A62CA1CB /* FluidAudio */ = {
 			isa = XCSwiftPackageProductDependency;
