@@ -55,6 +55,10 @@ final class HotkeyManager: @unchecked Sendable {
     private var lastTriggerAt: Date = .distantPast
     private var activeKeyMode: (mode: Mode, keyCode: UInt16)?
 
+    // Phase 7: Toggle-Hotkey via Carbon/KeyboardShortcuts
+    private var cancellables = Set<AnyCancellable>()
+    private var toggleHotkeysActive = false
+
     init(settings: SettingsStore, onTrigger: @escaping @Sendable (Mode, Action) -> Void) {
         self.settings = settings
         self.onTrigger = onTrigger
@@ -65,6 +69,7 @@ final class HotkeyManager: @unchecked Sendable {
         Log.write("HotkeyManager.start() — AXIsProcessTrusted = \(trusted)")
         if trusted {
             installEventTap()
+            setupToggleHotkeys()   // Phase 7: additiver Toggle-Pfad
         } else {
             Log.write("Accessibility fehlt — Hotkeys aus, beobachte TCC-Status (1 Hz Polling).")
             startPermissionWatcher()
@@ -82,6 +87,7 @@ final class HotkeyManager: @unchecked Sendable {
         }
         eventTap = nil
         runLoopSource = nil
+        teardownToggleHotkeys()   // Phase 7: Toggle-Pfad stoppen
     }
 
     private func installEventTap() {
@@ -307,6 +313,74 @@ final class HotkeyManager: @unchecked Sendable {
         // nicht concurrency-safe, deshalb hartkodiert.
         let opts: NSDictionary = ["AXTrustedCheckOptionPrompt": true]
         return AXIsProcessTrustedWithOptions(opts)
+    }
+
+    // MARK: - Toggle-Hotkey-Verwaltung (Phase 7)
+
+    private func setupToggleHotkeys() {
+        guard !toggleHotkeysActive else { return }   // Idempotenz-Guard (Pitfall 4)
+        toggleHotkeysActive = true
+
+        // Shortcuts aus SettingsStore in Carbon-Registry laden
+        for mode in Mode.allCases {
+            if let binding = settings.toggleHotkeyBinding(for: mode),
+               !binding.isEmpty, !binding.isModifierOnly {
+                registerToggleHotkey(binding, for: mode)
+            }
+        }
+
+        // onKeyDown-Handler (Carbon feuert auf Main Thread via KeyboardShortcuts)
+        for mode in Mode.allCases {
+            let captured = mode
+            KeyboardShortcuts.onKeyDown(for: toggleName(for: mode)) { [weak self] in
+                guard let self else { return }
+                let trigger = self.onTrigger
+                DispatchQueue.main.async { trigger(captured, .toggle) }
+            }
+        }
+
+        // Binding-Änderungen beobachten (Pitfall 2: cancellables, Pitfall 5: receive on main)
+        Publishers.MergeMany([
+            settings.$toggleHotkeyForBlitztext.map { _ in () }.eraseToAnyPublisher(),
+            settings.$toggleHotkeyForBlitztextPlus.map { _ in () }.eraseToAnyPublisher(),
+            settings.$toggleHotkeyForBlitztextRant.map { _ in () }.eraseToAnyPublisher()
+        ])
+        .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+        .receive(on: RunLoop.main)
+        .sink { [weak self] in self?.reloadToggleHotkeys() }
+        .store(in: &cancellables)
+    }
+
+    private func teardownToggleHotkeys() {
+        toggleHotkeysActive = false
+        cancellables.removeAll()
+        KeyboardShortcuts.removeAllHandlers()
+        for mode in Mode.allCases {
+            KeyboardShortcuts.setShortcut(nil, for: toggleName(for: mode))
+        }
+    }
+
+    private func reloadToggleHotkeys() {
+        teardownToggleHotkeys()
+        setupToggleHotkeys()
+    }
+
+    private func registerToggleHotkey(_ binding: HotkeyBinding, for mode: Mode) {
+        guard let keyCode = binding.keyCode else { return }
+        // fn hat kein Carbon-Äquivalent — Guard (Pitfall 3, RESEARCH.md)
+        guard !binding.modifiers.contains(.fn) else { return }
+        let carbonMods = binding.modifiers.reduce(0) { $0 | $1.carbonModifierFlag }
+        let shortcut = KeyboardShortcuts.Shortcut(carbonKeyCode: Int(keyCode),
+                                                   carbonModifiers: carbonMods)
+        KeyboardShortcuts.setShortcut(shortcut, for: toggleName(for: mode))
+    }
+
+    private func toggleName(for mode: Mode) -> KeyboardShortcuts.Name {
+        switch mode {
+        case .blitztext:     return .toggleBlitztext
+        case .blitztextPlus: return .toggleBlitztextPlus
+        case .blitztextRant: return .toggleBlitztextRant
+        }
     }
 }
 
