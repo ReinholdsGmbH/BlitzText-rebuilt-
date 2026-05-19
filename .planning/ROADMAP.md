@@ -13,7 +13,7 @@
 - [ ] **Phase 4: Sprecher-Profile Core** — Persistenter Store + Integration mit `DiarizerManager.speakerManager`
 - [ ] **Phase 5: Sprecher-Profile UI** — Settings-Tab "Sprecher" mit Verwaltung, Threshold und Zuordnung
 - [ ] **Phase 6: Sprecher-Enrollment** — Optionaler Erst-Enrollment-Flow für gezielte Profil-Anlage
-- [ ] **Phase 7: Standard-Hotkeys & eigene Hotkeys** — Default-Hotkey-Set + freie Tastenkombo-Vergabe pro Mode (Hybrid CGEventTap + SPM-Hotkey-Package)
+- [x] **Phase 7: Standard-Hotkeys & eigene Hotkeys** — Default-Hotkey-Set + freie Tastenkombo-Vergabe pro Mode (Hybrid CGEventTap + SPM-Hotkey-Package) (completed 2026-05-19)
 - [x] **Phase 8: Apple Foundation Rewrite-Backend** — Foundation Models (macOS 26+) als Default-Backend für Plus/Rant, OpenAI als User-Override (completed 2026-05-04)
 - [ ] **Phase 9: Vibe Coding — Variable Recognition** — Post-Processor erkennt camelCase/snake_case/kebab/PascalCase/CONSTANT aus Sprache
 - [ ] **Phase 10: Vibe Coding — File Tagging** — Erkennt gesprochene Dateinamen-Token (z. B. "index dot tsx") und formatiert sie korrekt
@@ -124,7 +124,7 @@ Plans:
 - [x] 07-02-PLAN.md — Wave 1: SPM-Integration (sindresorhus/KeyboardShortcuts 2.4.0) + SettingsStore Toggle-Hotkey-Properties + Snapshot + Accessoren
 - [x] 07-03-PLAN.md — Wave 2: HotkeyManager additiver Toggle-Layer (setupToggleHotkeys/teardown/reload + Combine-Sink + Idempotenz-Guard)
 - [x] 07-04-PLAN.md — Wave 2: UI HotkeysTab (HoldHotkeyRow + ToggleHotkeyRow 5 States + ConflictWarningBanner) + AnpassenTab-Refactoring
-- [ ] 07-05-PLAN.md — Wave 3: Tests (ToggleHotkeyTests: Snapshot-Roundtrip, Doppelbelegung, fn-Check, Nur-Modifier, Conflict-Detection)
+- [x] 07-05-PLAN.md — Wave 3: Tests (ToggleHotkeyTests: Snapshot-Roundtrip, Doppelbelegung, fn-Check, Nur-Modifier, Conflict-Detection)
 **UI hint**: yes
 **Context**: 07-CONTEXT.md (gathered 2026-04-30 als 999.6, promoted via /gsd-review-backlog)
 
@@ -301,7 +301,7 @@ Plans:
 | 4. Sprecher-Profile Core | 0/0 | Not started | - |
 | 5. Sprecher-Profile UI | 0/0 | Not started | - |
 | 6. Sprecher-Enrollment | 3/3 | Executed (UAT pending) | 2026-05-18 |
-| 7. Standard-Hotkeys & eigene Hotkeys | 4/5 | In Progress|  |
+| 7. Standard-Hotkeys & eigene Hotkeys | 5/5 | Complete   | 2026-05-19 |
 | 8. Apple Foundation Rewrite-Backend | 9/9 | Complete   | 2026-05-04 |
 | 9. Vibe Coding — Variable Recognition | 0/0 | Not started | - |
 | 10. Vibe Coding — File Tagging | 0/0 | Not started | - |
