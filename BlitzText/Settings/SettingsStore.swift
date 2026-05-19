@@ -10,6 +10,12 @@ final class SettingsStore: ObservableObject {
     @Published var hotkeyForBlitztext: HotkeyBinding = .defaultBlitztext
     @Published var hotkeyForBlitztextPlus: HotkeyBinding = .defaultBlitztextPlus
     @Published var hotkeyForBlitztextRant: HotkeyBinding = .defaultBlitztextRant
+
+    // MARK: - Toggle-Hotkey-Bindungen (Phase 7 — opt-in, Toggle-Pfad per Mode)
+    @Published var toggleHotkeyForBlitztext: HotkeyBinding?     = nil
+    @Published var toggleHotkeyForBlitztextPlus: HotkeyBinding? = nil
+    @Published var toggleHotkeyForBlitztextRant: HotkeyBinding? = nil
+
     @Published var styleForPlus: WritingStyle = .neutral
     @Published var customPromptPlus: String = Mode.blitztextPlus.defaultRewritePrompt
     @Published var customPromptRant: String = Mode.blitztextRant.defaultRewritePrompt
@@ -136,6 +142,23 @@ final class SettingsStore: ObservableObject {
         save()
     }
 
+    func toggleHotkeyBinding(for mode: Mode) -> HotkeyBinding? {
+        switch mode {
+        case .blitztext:     return toggleHotkeyForBlitztext
+        case .blitztextPlus: return toggleHotkeyForBlitztextPlus
+        case .blitztextRant: return toggleHotkeyForBlitztextRant
+        }
+    }
+
+    /// KEIN manuelles save() — objectWillChange-Debounce (150 ms) übernimmt auto-save.
+    func setToggleHotkeyBinding(_ binding: HotkeyBinding?, for mode: Mode) {
+        switch mode {
+        case .blitztext:     toggleHotkeyForBlitztext     = binding
+        case .blitztextPlus: toggleHotkeyForBlitztextPlus = binding
+        case .blitztextRant: toggleHotkeyForBlitztextRant = binding
+        }
+    }
+
     /// Einmalige Migration: alter UserDefaults-Eintrag → Keychain.
     /// Idempotent (kein Eintrag = No-Op). Bei Keychain-Fehler bleibt der
     /// Legacy-Eintrag erhalten, damit der User den Key nicht verliert.
@@ -180,6 +203,10 @@ final class SettingsStore: ObservableObject {
         var ollamaBaseURL: String?
         // Sprecher-Matching-Threshold: additives Optional — alte Snapshots laden ohne Crash.
         var speakerMatchThreshold: Double?
+        // Toggle-Hotkey-Bindungen: Phase 7 — additive Optionals mit nil-Default für Rückwärtskompatibilität.
+        var toggleHotkeyForBlitztext: HotkeyBinding?     = nil
+        var toggleHotkeyForBlitztextPlus: HotkeyBinding? = nil
+        var toggleHotkeyForBlitztextRant: HotkeyBinding? = nil
     }
 
     private func load() {
@@ -209,6 +236,9 @@ final class SettingsStore: ObservableObject {
         ollamaModel = snap.ollamaModel ?? "phi4-mini"
         ollamaBaseURL = snap.ollamaBaseURL ?? "http://localhost:11434"
         speakerMatchThreshold = snap.speakerMatchThreshold ?? 0.7
+        toggleHotkeyForBlitztext     = snap.toggleHotkeyForBlitztext     ?? nil
+        toggleHotkeyForBlitztextPlus = snap.toggleHotkeyForBlitztextPlus ?? nil
+        toggleHotkeyForBlitztextRant = snap.toggleHotkeyForBlitztextRant ?? nil
     }
 
     func save() {
@@ -233,7 +263,10 @@ final class SettingsStore: ObservableObject {
             hotkeyForBlitztextRant: hotkeyForBlitztextRant,
             ollamaModel: ollamaModel,
             ollamaBaseURL: ollamaBaseURL,
-            speakerMatchThreshold: speakerMatchThreshold
+            speakerMatchThreshold: speakerMatchThreshold,
+            toggleHotkeyForBlitztext: toggleHotkeyForBlitztext,
+            toggleHotkeyForBlitztextPlus: toggleHotkeyForBlitztextPlus,
+            toggleHotkeyForBlitztextRant: toggleHotkeyForBlitztextRant
         )
         do {
             let data = try JSONEncoder().encode(snap)
