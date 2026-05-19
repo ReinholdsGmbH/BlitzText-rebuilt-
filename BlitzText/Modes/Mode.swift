@@ -73,10 +73,3 @@ enum WritingStyle: String, CaseIterable, Codable, Identifiable {
         }
     }
 }
-
-enum TriggerMode: String, CaseIterable, Codable, Identifiable {
-    case hold        // Halten
-    case toggle      // Drücken
-    var id: String { rawValue }
-    var label: String { self == .hold ? "Halten" : "Drücken" }
-}
