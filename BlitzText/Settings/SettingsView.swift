@@ -1233,9 +1233,9 @@ private struct HotkeysTab: View {
             // HOLD-HOTKEYS Section
             VStack(alignment: .leading, spacing: 8) {
                 Text("HOLD-HOTKEYS").font(.caption).foregroundStyle(.secondary).bold()
-                Text("fn + Modifier — Halten aktiviert Aufnahme. Nicht konfigurierbar.")
+                Text("fn + Modifier — Halten aktiviert Aufnahme.")
                     .font(.caption).foregroundStyle(.secondary)
-                ForEach(Mode.allCases) { HoldHotkeyRow(mode: $0) }
+                ForEach(Mode.allCases) { HotkeyRecorderRow(mode: $0) }
             }
 
             Divider()
