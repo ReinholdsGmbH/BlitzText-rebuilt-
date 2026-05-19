@@ -49,7 +49,6 @@
 		A57B855CD2C550E2C591A57B /* TextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356F8219BA6FA6EC7C8AAF2F /* TextInserter.swift */; };
 		A5E4C93FFA621E33DC18CB2B /* Mode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B2D3A0A4629965089470A00 /* Mode.swift */; };
 		AA02B22D6BAA2708816EDD04 /* DeescalatedOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A64CD9A3AD51B4A1A7433CA /* DeescalatedOutput.swift */; };
-		AC8540D9FF7DBA684B61938D /* ToggleHotkeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D2407EAAB9FBD7DB6ECD7A7 /* ToggleHotkeyTests.swift */; };
 		ADF29B8DC8EA98913FC9B237 /* FakeTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB93AE4AD0A783AB5C77E03 /* FakeTranscriptionService.swift */; };
 		AE37061031BB60CDECB889D4 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3AACF0EFD9C84527CCBE459 /* AppDelegate.swift */; };
 		B15443D7155D166A9FC1B850 /* FakeRewriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CC93F3BF4D7DB8B1DD340A /* FakeRewriter.swift */; };
@@ -122,7 +121,6 @@
 		6D48C58EC4522B0B55F71E50 /* LocalWhisperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWhisperClient.swift; sourceTree = "<group>"; };
 		6F2E6055D0437286F7CE4214 /* EnrollmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentTests.swift; sourceTree = "<group>"; };
 		7341D5C92497D5A0157B9DE0 /* AppleFoundationRewriteClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleFoundationRewriteClient.swift; sourceTree = "<group>"; };
-		7D2407EAAB9FBD7DB6ECD7A7 /* ToggleHotkeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToggleHotkeyTests.swift; sourceTree = "<group>"; };
 		87692707404FB25B34C93E70 /* FakeLanguageModelInferring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeLanguageModelInferring.swift; sourceTree = "<group>"; };
 		89FDC98DE27281D9AFE21823 /* FakeDiarizerLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeDiarizerLoader.swift; sourceTree = "<group>"; };
 		8A64CD9A3AD51B4A1A7433CA /* DeescalatedOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeescalatedOutput.swift; sourceTree = "<group>"; };
@@ -283,7 +281,6 @@
 			isa = PBXGroup;
 			children = (
 				5E1E474CF8226C104EB674C4 /* HotkeyStateMachineTests.swift */,
-				7D2407EAAB9FBD7DB6ECD7A7 /* ToggleHotkeyTests.swift */,
 			);
 			path = Hotkeys;
 			sourceTree = "<group>";
@@ -558,7 +555,6 @@
 				5686138DCFFFE5C917B0FE4D /* SpeakerMatchingTests.swift in Sources */,
 				9B70AF6569118D808D309FB4 /* SpeakerProfileStoreTests.swift in Sources */,
 				EE81687387E610E55E72EBAE /* SpeakerProfileViewModelTests.swift in Sources */,
-				AC8540D9FF7DBA684B61938D /* ToggleHotkeyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
