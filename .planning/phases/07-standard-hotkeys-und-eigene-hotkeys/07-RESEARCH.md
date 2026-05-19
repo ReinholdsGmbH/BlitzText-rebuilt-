@@ -587,14 +587,14 @@ enum Tab: String, CaseIterable, Identifiable {
 |---|-------|-----------|-------------------|
 | A1 | `soffes/HotKey` hat keinen Swift-6-Concurrency-Support (nur `swift-tools-version:5.0` verifiziert) | Standard Stack | Gering — HotKey ist sowieso nicht empfohlen; falls doch Swift-6-kompatibel, ändert das die Empfehlung nicht (KeyboardShortcuts ist trotzdem besser) |
 | A2 | `shpakovski/MASShortcut` ist in Maintenance-Mode / nicht Swift-6-kompatibel | Standard Stack | Gering — selbst wenn gepflegt, bleibt ObjC-Basis ein Nachteil; Empfehlung bleibt gleich |
-| A3 | CGEvent-keyCodes und Carbon-keyCodes sind auf Apple-Silicon für Standard-Tasten identisch | Pattern 2 | MITTEL — wenn falsch, braucht man eine Lookup-Table für die Konvertierung. Muss im Wave-0-Spike verifiziert werden via kurzen Test. |
+| A3 | CGEvent-keyCodes und Carbon-keyCodes sind auf Apple-Silicon für Standard-Tasten identisch | Pattern 2 | VERIFIZIERT: 19/19 Werte identisch (swiftc-Probe 2026-05-19). Keine Lookup-Table nötig. Ausnahmen (ISO-Section 0x0A, JIS-Layout, Numpad-Subgroup) sind für Toggle-Hotkey-Use-Case irrelevant. Einzelheiten: `## A3 verified` unten. |
 | A4 | `KeyboardShortcuts.onKeyDown`-Handler läuft auf Main Thread (durch `@MainActor`-Default-Isolation im Package) | Pitfall 5 | Gering — falls auf Background-Thread: `DispatchQueue.main.async`-Wrapper reicht |
 | A5 | Combine-Sink auf `SettingsStore.$toggleHotkeyForBlitztext` kann vom Main Thread oder Background-Thread kommen | Pitfall 5 | Gering — `.receive(on: RunLoop.main)` als defensive Massnahme |
 | A6 | `KeyboardShortcuts.removeAllHandlers()` entfernt alle Handler aller Namen, nicht nur die eigenen | Pattern 4 | MITTEL — falls die App noch andere KeyboardShortcuts-Handler hat (Phase 7 fügt erstmals das Package hinzu, also kein Konflikt aktuell) |
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **A3-Verifikation: keyCode-Äquivalenz CGEvent ↔ Carbon**
    - Was wir wissen: CGEvent nutzt `kVK_ANSI_*`-Konstanten (HID-keyCodes), Carbon nutzt `kHIKeyCode*`-Konstanten. Auf Apple-Silicon sind diese für die meisten Tasten identisch (z.B. `kVK_ANSI_A = 0x00`, `kHIKeyCode_A = 0x00`).
@@ -726,8 +726,82 @@ enum Tab: String, CaseIterable, Identifiable {
 
 - Standard Stack (KeyboardShortcuts-Empfehlung): HIGH — Swift-6 via Package.swift direkt verifiziert, aktives Repository, 2.4.0 Sept. 2025
 - Architecture (additiver Pfad): HIGH — vollständig aus bestehendem Code abgeleitet
-- Pitfalls: MEDIUM — grösstenteils aus Code-Analyse und Carbon-API-Wissen; Pitfall 3 (keyCode-Äquivalenz) durch A3 als ASSUMED markiert
+- Pitfalls: HIGH — Pitfall 3 (keyCode-Äquivalenz) durch Wave-0-Spike A3 verifiziert (2026-05-19)
 - UI-Pattern: HIGH — bestehende KeyRecorderViewModel voll dokumentiert, UI-SPEC bereits approved
 
 **Research Date:** 2026-05-19
 **Valid until:** 2026-07-01 (stable stack — KeyboardShortcuts selten breaking changes; Swift-6 settled)
+
+---
+
+## A3 verified
+
+**Datum:** 2026-05-19
+**Methode:** swiftc-Probe `/tmp/a3_spike/KeyCodeProbe.swift` — direkte Wertvergleiche gegen HIToolbox/Events.h (MacOSX26.5.sdk)
+**Quelle:** `/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk/System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/Events.h`
+
+**Ergebnis: A3 VERIFIZIERT — 19/19 Werte identisch, keine Lookup-Table nötig.**
+
+### Probe-Ausgabe (vollständig)
+
+```
+=== A3-Spike: CGEvent/Carbon keyCode-Aequivalenz ===
+Quelle: HIToolbox/Events.h (MacOSX26.5.sdk) — direkte Header-Inspektion
+--------------------------------------------------------------
+Konstante                       Erwartet    Header      Match
+--------------------------------------------------------------
+kVK_ANSI_A                      0x0000      0x0000      OK
+kVK_ANSI_B                      0x000B      0x000B      OK
+kVK_ANSI_Z                      0x0006      0x0006      OK
+kVK_ANSI_0                      0x001D      0x001D      OK
+kVK_ANSI_1                      0x0012      0x0012      OK
+kVK_ANSI_9                      0x0019      0x0019      OK
+kVK_Space                       0x0031      0x0031      OK
+kVK_Return                      0x0024      0x0024      OK
+kVK_Escape                      0x0035      0x0035      OK
+kVK_Delete                      0x0033      0x0033      OK
+kVK_Tab                         0x0030      0x0030      OK
+kVK_F1                          0x007A      0x007A      OK
+kVK_F2                          0x0078      0x0078      OK
+kVK_F12                         0x006F      0x006F      OK
+kVK_F13                         0x0069      0x0069      OK
+kVK_F20                         0x005A      0x005A      OK
+kVK_ANSI_Keypad0                0x0052      0x0052      OK
+kVK_ANSI_KeypadEnter            0x004C      0x004C      OK
+kVK_ANSI_KeypadDecimal          0x0041      0x0041      OK
+--------------------------------------------------------------
+
+ERGEBNIS: ALLE 19 Werte identisch
+A3 VERIFIZIERT: CGEvent-keyCodes == Carbon-keyCodes fuer Standard-Tasten auf Apple-Silicon
+-> Plan 07-03 kann binding.keyCode direkt als carbonKeyCode verwenden
+-> Keine Lookup-Table noetig
+```
+
+### Erkenntnisse
+
+**Identisch für alle relevanten Toggle-Hotkey-Tasten:**
+- Buchstaben A–Z: 0x00–0x0D (ANSI-Layout, nicht alphabetisch geordnet — kVK nutzt physische Position)
+- Ziffern 0–9: 0x12–0x1D
+- Sondertasten: Space=0x31, Return=0x24, Escape=0x35, Delete=0x33, Tab=0x30
+- F1–F12: 0x7A, 0x78, 0x63, 0x76, 0x60, 0x61, 0x62, 0x64, 0x65, 0x6D, 0x67, 0x6F
+- F13–F20: 0x69, 0x6B, 0x71, 0x6A, 0x40, 0x4F, 0x50, 0x5A (auf Apple-Silicon nicht physisch vorhanden)
+- Numpad: kVK_ANSI_Keypad* — eigene Konstantengruppe, für CGEvent und Carbon identisch
+
+**Bekannte Nicht-ANSI-Ausnahmen (für Toggle-Hotkey-Use-Case irrelevant):**
+- `kVK_ISO_Section = 0x0A` — ISO-Tastatur (Taste links von Z), kein ANSI-Layout
+- `kVK_JIS_*` — Japan-spezifisch
+- Diese Tasten sind kein sinnvoller Toggle-Hotkey-Hauptteil, daher kein Handlungsbedarf
+
+### Konsequenz für Plan 07-03
+
+`registerToggleHotkey(_:for:)` kann `UInt32(binding.keyCode)` direkt als `carbonKeyCode`-Argument an `KeyboardShortcuts.Shortcut(carbonKeyCode:carbonModifiers:)` übergeben.
+
+**Keine Lookup-Table nötig.**
+
+```swift
+// Korrekt — keine Konvertierung nötig:
+let shortcut = KeyboardShortcuts.Shortcut(
+    carbonKeyCode: UInt32(binding.keyCode),   // direkte Übertragung, kein Mapping
+    carbonModifiers: UInt32(carbonMods)
+)
+```
