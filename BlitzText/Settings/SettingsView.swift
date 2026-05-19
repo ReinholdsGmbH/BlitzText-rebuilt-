@@ -8,7 +8,7 @@ struct SettingsView: View {
     @State private var selectedTab: Tab = .anpassen
 
     enum Tab: String, CaseIterable, Identifiable {
-        case anpassen, zugang, lokal, sprecher
+        case anpassen, zugang, lokal, sprecher, hotkeys
         var id: String { rawValue }
         var label: String {
             switch self {
@@ -16,6 +16,7 @@ struct SettingsView: View {
             case .zugang:    return "Zugang"
             case .lokal:     return "Lokales Modell"
             case .sprecher:  return "Sprecher"
+            case .hotkeys:   return "Hotkeys"
             }
         }
     }
@@ -38,6 +39,7 @@ struct SettingsView: View {
                     case .zugang:    ZugangTab()
                     case .lokal:     LokalTab()
                     case .sprecher:  SprecherTab()
+                    case .hotkeys:   HotkeysTab()
                     }
                 }
                 .padding(20)
@@ -287,16 +289,6 @@ private struct ZugangTab: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("OPENAI-MODELLE").font(.caption).foregroundStyle(.secondary).bold()
-                Text("Backend-Auswahl im Tab 'Lokales Modell'. Sprache kann direkt im Popover umgeschaltet werden.")
-                    .font(.caption).foregroundStyle(.secondary)
-                TextField("Whisper-Modell (Cloud)", text: $settings.transcriptionModel)
-                TextField("Rewrite-Modell (Cloud)", text: $settings.rewriteModel)
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
                 Text("AUSGABE").font(.caption).foregroundStyle(.secondary).bold()
                 Toggle("Direkt einfügen (statt nur Zwischenablage)", isOn: $settings.autoInsert)
             }
@@ -374,58 +366,69 @@ private struct LokalTab: View {
                 Picker("Backend", selection: $settings.backend) {
                     ForEach(TranscriptionBackend.allCases) { Text($0.label).tag($0) }
                 }
-                if settings.backend == .local && modelManager.activeID == nil {
-                    Text("Lokales Backend gewählt, aber kein Modell aktiviert. Wähle unten ein Modell zum Aktivieren oder lade eines herunter.")
-                        .font(.caption).foregroundStyle(.orange)
-                }
-                if modelManager.isPreloading {
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("Modell wird geladen … (CoreML-Compile, beim ersten Mal 1–3 min)")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                } else if let id = modelManager.preloadedID, let dur = modelManager.preloadDurationSeconds {
-                    Text("Modell '\(id)' einsatzbereit (\(String(format: "%.1f", dur)) s).")
-                        .font(.caption).foregroundStyle(.green)
-                }
             }
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("MODELLE").font(.caption).foregroundStyle(.secondary).bold()
-                    Spacer()
-                    Picker("", selection: $langFilter) {
-                        ForEach(LangFilter.allCases) { Text($0.label).tag($0) }
+            switch settings.backend {
+            case .openAI:
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("OPENAI-MODELLE").font(.caption).foregroundStyle(.secondary).bold()
+                    Text("Modellnamen wie von der OpenAI-API definiert. API-Key im Tab \"Zugang\".")
+                        .font(.caption).foregroundStyle(.secondary)
+                    LabeledContent("Transkription") {
+                        TextField("whisper-1", text: $settings.transcriptionModel)
+                            .textFieldStyle(.roundedBorder)
                     }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 280)
+                    LabeledContent("Rewrite") {
+                        TextField("gpt-4o-mini", text: $settings.rewriteModel)
+                            .textFieldStyle(.roundedBorder)
+                    }
                 }
-
-                Text("Lokale Whisper-Modelle laufen on-device via WhisperKit (CoreML, Apple-Silicon-optimiert). Keine Cloud, keine API-Kosten. Für Deutsch nur die multilingualen Modelle wählen — `.en`-Varianten verstehen ausschließlich Englisch.")
-                    .font(.caption).foregroundStyle(.secondary)
-
-                ForEach(filteredModels) { model in
-                    LocalModelRow(model: model)
+            case .local:
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("WHISPER-MODELLE (LOKAL)").font(.caption).foregroundStyle(.secondary).bold()
+                        Spacer()
+                        Picker("", selection: $langFilter) {
+                            ForEach(LangFilter.allCases) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 280)
+                    }
+                    Text("Laufen on-device via WhisperKit (CoreML, Apple-Silicon-optimiert). Keine Cloud, keine API-Kosten. Für Deutsch nur die multilingualen Modelle wählen — `.en`-Varianten verstehen ausschließlich Englisch.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if modelManager.activeID == nil {
+                        Text("Kein Modell aktiviert. Wähle unten ein Modell oder lade eines herunter.")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                    if modelManager.isPreloading {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Modell wird geladen … (CoreML-Compile, beim ersten Mal 1–3 min)")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    } else if let id = modelManager.preloadedID, let dur = modelManager.preloadDurationSeconds {
+                        Text("Modell '\(id)' einsatzbereit (\(String(format: "%.1f", dur)) s).")
+                            .font(.caption).foregroundStyle(.green)
+                    }
+                    ForEach(filteredModels) { LocalModelRow(model: $0) }
+                    if let err = modelManager.lastError {
+                        Text(err).foregroundStyle(.red).font(.caption)
+                    }
+                    Text("Speicherort: \(LocalModelManager.modelsRoot.path)")
+                        .font(.caption2).foregroundStyle(.tertiary)
                 }
-
-                Divider().padding(.vertical, 4)
-
+            case .parakeet:
                 VStack(alignment: .leading, spacing: 8) {
                     Text("PARAKEET TDT v3 (NVIDIA, via FluidAudio)").font(.caption).foregroundStyle(.secondary).bold()
-                    Text("Alternatives lokales STT-Backend. NVIDIA Parakeet TDT v3 läuft via CoreML auf Apple Silicon. Modell wird beim ersten Start automatisch heruntergeladen (~600 MB).")
+                    Text("NVIDIA Parakeet TDT v3 läuft via CoreML auf Apple Silicon. Modell wird beim ersten Start automatisch heruntergeladen (~600 MB).")
                         .font(.caption).foregroundStyle(.secondary)
-                    Text("Wähle oben Backend: 'Parakeet TDT v3 (Lokal)' aus, um Parakeet aktiv zu nutzen.")
+                    Text("Sprechererkennung und Profil-Verwaltung findest du im Tab \"Sprecher\".")
                         .font(.caption2).foregroundStyle(.tertiary)
-                    DiarizerStatusBlock()
-                }
-
-                Text("Speicherort: \(LocalModelManager.modelsRoot.path)")
-                    .font(.caption2).foregroundStyle(.tertiary)
-
-                if let err = modelManager.lastError {
-                    Text(err).foregroundStyle(.red).font(.caption)
+                    if let err = modelManager.lastError {
+                        Text(err).foregroundStyle(.red).font(.caption)
+                    }
                 }
             }
         }
@@ -549,6 +552,7 @@ private struct SprecherTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            DiarizerStatusBlock()
             if settings.backend != .parakeet {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -646,9 +650,9 @@ private struct SprecherTab: View {
             Text("ENROLLMENT").font(.caption).foregroundStyle(.secondary).bold()
             Button("Neues Profil aufnehmen") { showEnrollmentSheet = true }
                 .buttonStyle(.borderedProminent)
-                .disabled(!diarizerManager.isInstalled)
+                .disabled(!diarizerManager.isInstalled || !settings.parakeetDiarization)
             if !diarizerManager.isInstalled {
-                Text("Diarizer-Modell nicht installiert. Aktiviere Sprechererkennung im Backend-Tab.")
+                Text("Diarizer-Modell nicht installiert. Lade es im Backend-Tab herunter.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -991,6 +995,54 @@ final class KeyRecorderViewModel: ObservableObject {
         case 0x24: return "↩"
         case 0x7B: return "←"; case 0x7C: return "→"; case 0x7D: return "↓"; case 0x7E: return "↑"
         default:   return event.charactersIgnoringModifiers?.uppercased() ?? "?"
+        }
+    }
+}
+
+// MARK: - Hotkeys Tab (Phase 7)
+
+// MARK: HoldHotkeyRow
+
+/// Read-only Zeile für Hold-Hotkeys (fn + Modifier). Nicht editierbar.
+private struct HoldHotkeyRow: View {
+    let mode: Mode
+
+    private var holdModifierSymbols: [String] {
+        switch mode {
+        case .blitztext:     return ["fn", "⇧"]
+        case .blitztextPlus: return ["fn", "⌃"]
+        case .blitztextRant: return ["fn", "⌥"]
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                Image(systemName: mode.systemImage)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(mode.title).font(.body).bold()
+                    Text(mode.subtitle).font(.caption2).foregroundStyle(.secondary)
+                }
+                Spacer()
+                HStack(spacing: 4) {
+                    ForEach(holdModifierSymbols, id: \.self) { symbol in
+                        Text(symbol)
+                            .font(.system(.caption, design: .monospaced))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+            }
+            Text("Nicht änderbar — fn-Schnellpfad")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 28)
         }
     }
 }
