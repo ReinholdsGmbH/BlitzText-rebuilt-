@@ -162,7 +162,45 @@ final class HotkeyStateMachineTests: XCTestCase {
         XCTAssertEqual(p1, [.start(.blitztext)])
         let r1 = m.decideTransition(flags: Self.allOff, now: t(0.100))
         XCTAssertEqual(r1, [.stop(.blitztext)])
-        let p2 = m.decideTransition(flags: Self.fnShift, now: t(0.200))
+        // Zweiter Press ausserhalb des 300 ms Doppeltipp-Fensters (400 ms nach Release) → Hold-Start.
+        let p2 = m.decideTransition(flags: Self.fnShift, now: t(0.500))
         XCTAssertEqual(p2, [.start(.blitztext)])
+    }
+
+    // MARK: - Doppeltipp (Toggle mode)
+
+    /// Schneller Doppeltipp innerhalb 300 ms loest Toggle aus.
+    func test_doubleTap_triggersToggle() {
+        let m = makeManager()
+        // Erster Tipp: Press @ t0 → start(.blitztext)
+        let press1 = m.decideTransition(flags: Self.fnShift, now: t(0))
+        XCTAssertEqual(press1, [.start(.blitztext)])
+        // Release @ t0+0.08 (> 50 ms holdDebounce) → stop(.blitztext), Release-Zeit wird gemerkt
+        let release1 = m.decideTransition(flags: Self.allOff, now: t(0.08))
+        XCTAssertEqual(release1, [.stop(.blitztext)])
+        // Zweiter Tipp @ t0+0.20 (0.12 s nach Release, < 300 ms) → Toggle
+        let press2 = m.decideTransition(flags: Self.fnShift, now: t(0.20))
+        XCTAssertEqual(press2, [.toggle(.blitztext)])
+    }
+
+    /// Langsamer zweiter Tipp (> 300 ms nach Release) → normaler Hold-Start, kein Toggle.
+    func test_slowSecondTap_triggersHold() {
+        let m = makeManager()
+        _ = m.decideTransition(flags: Self.fnShift, now: t(0))
+        _ = m.decideTransition(flags: Self.allOff, now: t(0.08))
+        // 400 ms nach Release → ausserhalb doubleTapThreshold → normaler Hold-Start
+        let result = m.decideTransition(flags: Self.fnShift, now: t(0.50))
+        XCTAssertEqual(result, [.start(.blitztext)])
+    }
+
+    /// Gedrückt halten ohne Release → kein Doppeltipp moeglich.
+    func test_hold_noRelease_noDoubleTap() {
+        let m = makeManager()
+        // Gedrückt halten → Hold-Start
+        let start = m.decideTransition(flags: Self.fnShift, now: t(0))
+        XCTAssertEqual(start, [.start(.blitztext)])
+        // Weiterhin gedrückt (kein Release) → newMode == currentMode → idempotent
+        let held = m.decideTransition(flags: Self.fnShift, now: t(0.5))
+        XCTAssertEqual(held, [])
     }
 }
