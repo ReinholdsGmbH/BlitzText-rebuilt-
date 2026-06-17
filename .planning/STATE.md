@@ -6,7 +6,7 @@ status: executing
 last_updated: "2026-05-19T11:35:52.275Z"
 progress:
   total_phases: 21
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 26
   completed_plans: 26
   percent: 29
@@ -20,18 +20,16 @@ progress:
 
 **Core Value:** Vom gedrückten Hotkey bis zum eingefügten Text wenige Sekunden — Text muss benutzbar sein, ohne nachzubearbeiten.
 
-**Current Focus:** Phase 07 — standard-hotkeys-und-eigene-hotkeys
+**Current Focus:** Phase 04 — sprecher-profile-core (nächste offene Phase)
 
 ## Current Position
 
-Phase: 06 (sprecher-enrollment) — EXECUTING
-Plan: 1 of 3
+Phase: 07 (standard-hotkeys-und-eigene-hotkeys) — VERIFIED ✅
 
 - **Milestone:** Sprecher-Profile + Stabilisierung
-- **Phase:** Phase 8 ausführend — Wave 2 UI (08-04: FoundationAvailabilityBanner + Settings-Picker + HUD-Badge + AppDelegate-Lifecycle)
-- **Plan:** 08-04 ✅ — 1 neue View-Datei (FoundationAvailabilityBanner.swift, 133 LOC, 4 State-Varianten) + 3 modifizierte Files (SettingsView Banner-Mount + 2 Picker, RecordingHUDController BackendBadge + Window-Width 268, AppDelegate Refresh + Pre-Warm + didBecomeActive-Observer).
-- **Status:** Executing Phase 06
-- **Progress:** [██████████] 96%
+- **Phase:** Phase 7 UAT abgeschlossen — 6 Tests pass, 4 skipped (obsolet nach Rework), 2 Issues geschlossen
+- **Status:** Phase 7 vollständig abgeschlossen
+- **Progress:** [██████████] 100%
 
 ```
 [██████░░░░░░░░░░░░░░] 33% (2/6 phases)
@@ -105,9 +103,9 @@ Keine.
 
 ## Session Continuity
 
-**Letzte Aktion:** Plan 08-04 (Wave 2 UI-Surfaces) ausgeführt — 1 neue View-Datei (FoundationAvailabilityBanner.swift, 133 LOC: 4 State-Varianten A/B/C + autoFallbackRow D, alle deutschen Strings mit Umlauten, Systemeinstellungen-Link via x-apple.systempreferences-URL, Variante-D-Suppression bei deviceNotEligible per UI-SPEC Zeile 216) + 3 modifizierte Files (SettingsView: APPLE INTELLIGENCE-Section mit Banner-Mount + 2 Picker für rewriteBackendForPlus/Rant + Privacy-Hint-Caption immer bei .openAI per WARNING 6; RecordingHUDController: BackendBadge-Capsule mit apple.logo/cloud + activeMode/showsBackendBadge/backendSymbol/backendTooltip computed-Properties + Window-Width 240→268 + Show-while-Transcribing/Rewriting; AppDelegate: import FoundationModels + refreshFoundationAvailability vor hotkeyManager.start + Task.detached Pre-Warm mit session.prewarm() per PIN(A6) + didBecomeActiveNotification-Observer mit Doppel-Capture [weak self, weak settingsStore]). 3 atomic Commits (e1fdbd5, 7b30d6d, b2576f4). Volle Suite 57/57 grün, Build grün. Ein Auto-fix: Rule 3 Compile-Error — Plan-Snippet [weak settingsStore]-only erzeugt Swift-6 sending-data-races-Fehler bei non-Sendable SettingsStore; gefixt mit zusätzlichem [weak self]-Capture und MainActor-Aufruf via self.settingsStore.
+**Letzte Aktion:** Phase 7 UAT abgeschlossen (2026-05-19). Rework: Carbon/KeyboardShortcuts-Toggle-Layer durch CGEventTap-Double-Tap-Erkennung (300 ms Fenster) ersetzt — fn-Modifier zweimal schnell = Toggle. ToggleHotkeyRow + ConflictWarningBanner entfernt. HotkeyStateMachineTests aktualisiert (16 Tests, 3 neue Double-Tap-Tests). ToggleHotkeyTests.swift gelöscht.
 
-**Nächste Aktion:** `/gsd:execute-phase 7` — Standard-Hotkeys & eigene Hotkeys ausführen (5 Pläne, 4 Wellen, sindresorhus/KeyboardShortcuts, additiver HotkeyManager-Toggle-Layer, neuer Hotkeys-Tab).
+**Nächste Aktion:** Phase 4 — Sprecher-Profile Core (`/gsd-discuss-phase 4` oder `/gsd:plan-phase 4`).
 
 ---
 *Phase 1 abgeschlossen: 2026-04-30*
@@ -117,3 +115,4 @@ Keine.
 *Phase 8 Plan 02 ausgefuehrt: 2026-05-04*
 *Phase 8 Plan 03 ausgefuehrt: 2026-05-04*
 *Phase 8 Plan 04 ausgefuehrt: 2026-05-04*
+*Phase 7 verifiziert: 2026-05-19*
