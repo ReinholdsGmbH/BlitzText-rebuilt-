@@ -32,6 +32,8 @@ final class HistoryStore: ObservableObject {
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent("BlitzText", isDirectory: true)
         try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        // Nur-Besitzer-Zugriff: der Verlauf enthält vollständige Diktat-Texte.
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: support.path)
         self.url = support.appendingPathComponent("history.json")
         load()
     }
@@ -70,8 +72,12 @@ final class HistoryStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? encoder.encode(entries) {
-            try? data.write(to: url, options: .atomic)
+        do {
+            let data = try encoder.encode(entries)
+            try data.write(to: url, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        } catch {
+            Log.write("HistoryStore: Speichern fehlgeschlagen — \(error.localizedDescription)")
         }
     }
 }

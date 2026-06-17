@@ -6,8 +6,11 @@ import Security
 /// "Immer erlauben" klicken, dann fragt er nicht mehr, solange das
 /// "BlitzText Local Dev"-Cert (Scripts/create-signing-cert.sh) verwendet
 /// wird. Bei ad-hoc-Signing wechselt der Code-Hash bei jedem Build und der
-/// Prompt erscheint erneut.
+/// Prompt erscheint erneut — daher: immer stabil signiert bauen/installieren.
 ///
+/// Bewusst KEIN `SecAccessCreate(nil)` mehr: das hätte JEDER lokalen App ohne
+/// Prompt Lesezugriff auf den OpenAI-Key gegeben. Der einmalige Prompt pro
+/// Signatur ist der korrekte, sichere Preis.
 /// Hinweis: kSecUseDataProtectionKeychain wäre prompt-frei, braucht aber
 /// eine echte Apple-Team-ID — funktioniert mit Self-signed-Cert nicht.
 final class Keychain: @unchecked Sendable {
@@ -27,7 +30,9 @@ final class Keychain: @unchecked Sendable {
         SecItemDelete(base as CFDictionary)
         var attrs = base
         attrs[kSecValueData as String] = data
-        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
+        // ThisDeviceOnly: kein iCloud-Keychain-Sync für einen API-Key, der pro Gerät
+        // ohnehin neu eingegeben werden kann.
+        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         let status = SecItemAdd(attrs as CFDictionary, nil)
         if status != errSecSuccess {
             Log.write("Keychain write failed for \(account): OSStatus \(status)")
