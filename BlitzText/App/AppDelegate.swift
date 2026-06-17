@@ -17,46 +17,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var historyWindow: HistoryWindowController!
     private var recordingHUD: RecordingHUDController!
     private var suggestionToast: SuggestionToastController!
-    /// Token des `didBecomeActiveNotification`-Observers. Muss in
     private var didBecomeActiveObserver: NSObjectProtocol?
 
-    nonisolated func applicationWillFinishLaunching(_ notification: Notification) {
-        MainActor.assumeIsolated { self.enforceSingleInstance() }
+    // Ping-Pong: Duplikat-Instanzen senden einen Ping und warten auf den Pong der bereits
+    // laufenden Instanz. DistributedNotificationCenter ist dafür der macOS-idiomatische Weg —
+    // kein Dateisystem-Locking, kein Timing-Race beim gleichzeitigen Start.
+    private static let pingName = Notification.Name("de.blitztext.instance.ping")
+    private static let pongName = Notification.Name("de.blitztext.instance.pong")
+
+    // Bewusst NICHT `nonisolated` + `MainActor.assumeIsolated`: AppKit ruft diese
+    // NSApplicationDelegate-Methoden auf dem Main-Actor auf. `assumeIsolated` würde den
+    // fragilen `swift_task_isCurrentExecutor`-Check triggern (Swift 6.3), der hier als
+    // EXC_BAD_ACCESS crasht. Als `@MainActor`-Methoden der `@MainActor`-Klasse entfällt der Check.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        enforceSingleInstance()
     }
 
-    nonisolated func applicationDidFinishLaunching(_ notification: Notification) {
-        MainActor.assumeIsolated { self.bootstrap() }
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        bootstrap()
     }
 
-    /// Prüft, ob bereits eine BlitzText-Instanz läuft. Wenn ja: Hinweis-Dialog,
-    /// alte Instanz in den Vordergrund holen, und sich selbst beenden.
+    /// Single-Instance via DistributedNotificationCenter Ping-Pong.
+    /// Sendet einen Ping; antwortet eine laufende Instanz mit einem Pong, zeigen wir
+    /// den Duplikat-Dialog. Kein Dateisystem-Lock nötig, kein Timing-Race.
     private func enforceSingleInstance() {
-        // Im XCTest-Hosted-Run laeuft die echte App im Test-Runner als Bundle-Loader —
-        // ein Single-Instance-Check wuerde den Test-Host beenden, sobald der User
-        // BlitzText im Hintergrund laufen hat. Skip, wenn XCTest die App hostet.
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return }
-        guard let bundleID = Bundle.main.bundleIdentifier else { return }
-        let me = NSRunningApplication.current
-        let others = NSRunningApplication
-            .runningApplications(withBundleIdentifier: bundleID)
-            .filter { $0.processIdentifier != me.processIdentifier }
-        guard let other = others.first else { return }
+        // Im XCTest-Hosted-Run läuft die echte App als Bundle-Loader im Test-Runner —
+        // ein Single-Instance-Check würde den Test-Host beim parallelen Testen beenden.
+        let env = ProcessInfo.processInfo.environment
+        if env["XCTestConfigurationFilePath"] != nil
+            || env["XCTestBundlePath"] != nil
+            || env["XCInjectBundleInto"] != nil { return }
 
-        let alert = NSAlert()
-        alert.messageText = "BlitzText läuft bereits"
-        alert.informativeText = "Eine andere Instanz von BlitzText ist schon offen (PID \(other.processIdentifier)). Diese Instanz wird beendet."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Verstanden")
-        NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
+        var pongReceived = false
+        let pongObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Self.pongName,
+            object: nil,
+            queue: .main
+        ) { _ in pongReceived = true }
 
-        other.activate(options: [.activateIgnoringOtherApps])
-        Log.write("Doppelte Instanz erkannt — beende mich (PID \(me.processIdentifier)), aktive PID = \(other.processIdentifier)")
-        exit(0)
+        DistributedNotificationCenter.default().postNotificationName(
+            Self.pingName, object: nil, userInfo: nil, deliverImmediately: true
+        )
+
+        // 200 ms auf Pong warten — ausreichend für jede laufende Instanz auf demselben Rechner.
+        let deadline = Date().addingTimeInterval(0.2)
+        while !pongReceived && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+        DistributedNotificationCenter.default().removeObserver(pongObserver)
+
+        guard pongReceived else { return }
+
+        // Eine andere Instanz läuft — alle anderen beenden und selbst übernehmen.
+        // Kein Dialog: Re-Launch aus Xcode oder Terminal soll einfach funktionieren.
+        Log.write("Doppelte Instanz erkannt (PID \(ProcessInfo.processInfo.processIdentifier)) — ersetze vorhandene Instanz(en).")
+        if let bundleID = Bundle.main.bundleIdentifier {
+            let me = ProcessInfo.processInfo.processIdentifier
+            NSRunningApplication
+                .runningApplications(withBundleIdentifier: bundleID)
+                .filter { $0.processIdentifier != me }
+                .forEach { $0.forceTerminate() }
+        }
+        // KEIN Thread.sleep + Rekursion mehr: das blockierte den Main-Thread während des
+        // Launches (Watchdog-Risiko). forceTerminate ist asynchron, aber für unseren Zweck
+        // (eine bereits laufende Instanz ablösen) genügt ein einmaliger Versuch.
     }
 
     private func bootstrap() {
         NSApp.setActivationPolicy(.accessory)
+
+        // Auf Ping einer Duplikat-Instanz antworten und Popover zeigen.
+        DistributedNotificationCenter.default().addObserver(
+            forName: Self.pingName,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            DistributedNotificationCenter.default().postNotificationName(
+                Self.pongName, object: nil, userInfo: nil, deliverImmediately: true
+            )
+            Task { @MainActor [weak self] in self?.menuBarController?.showPopover() }
+        }
+
+        // Hinweis: Der frühere `de.blitztext.showPopover`-Observer wurde entfernt — er hatte
+        // KEINEN internen Sender (reine externe Trigger-Fläche: jede lokale App hätte das
+        // Popover aufzwingen können). DistributedNotificationCenter authentifiziert Sender nicht.
 
         // DI-Wiring: Manager-Reference in Store, damit Toggle-On den Manager triggert (D-01).
         settingsStore.diarizerManager = diarizerManager
@@ -141,9 +185,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// True, wenn der OpenAI-Key bei aktueller Config gebraucht wird, aber fehlt.
-    /// Gebraucht wird er, wenn das Cloud-Backend aktiv ist ODER KI-Eigennamen-Vorschläge an sind.
-    /// Rewrite (Blitztext+, $%&!) braucht ihn auch — aber das fängt der Pipeline-Fehler später ab,
-    /// kein Grund für Auto-Open beim Start.
     private func needsOpenAIKey() -> Bool {
         guard settingsStore.apiKey.isEmpty else { return false }
         if settingsStore.backend == .openAI { return true }
@@ -151,16 +192,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
-    nonisolated func applicationWillTerminate(_ notification: Notification) {
-        MainActor.assumeIsolated {
-            if let token = self.didBecomeActiveObserver {
-                NotificationCenter.default.removeObserver(token)
-                self.didBecomeActiveObserver = nil
-            }
-            self.settingsStore.save()
-            self.hotkeyManager?.stop()
-            self.cleanupTempFiles()
+    func applicationWillTerminate(_ notification: Notification) {
+        if let token = didBecomeActiveObserver {
+            NotificationCenter.default.removeObserver(token)
+            didBecomeActiveObserver = nil
         }
+        settingsStore.save()
+        hotkeyManager?.stop()
+        cleanupTempFiles()
     }
 
     private func cleanupTempFiles() {

@@ -166,17 +166,14 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
 
     // MARK: - Permission
 
+    /// Prüft nur den aktuellen Permission-Status — fordert NICHT an. Das proaktive
+    /// `AVCaptureDevice.requestAccess` passiert beim App-Start (AppDelegate.bootstrap),
+    /// damit hier nichts den Main-Thread blockiert (vorher: `DispatchSemaphore.wait()` →
+    /// einfrierende Menüleiste während des System-Dialogs).
     private func ensureMicrophonePermissionSync() throws {
-        let status = AVCaptureDevice.authorizationStatus(for: .audio)
-        switch status {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized: return
-        case .notDetermined:
-            let sema = DispatchSemaphore(value: 0)
-            var granted = false
-            AVCaptureDevice.requestAccess(for: .audio) { ok in granted = ok; sema.signal() }
-            sema.wait()
-            if !granted { throw RecorderError.micDenied }
-        case .denied, .restricted: throw RecorderError.micDenied
+        case .notDetermined, .denied, .restricted: throw RecorderError.micDenied
         @unknown default: throw RecorderError.micDenied
         }
     }

@@ -26,9 +26,13 @@ final class MenuBarController: NSObject {
         configureStatusItem()
         configurePopover()
 
-        // State-Indikator im Menubar-Icon
+        // State-Indikator im Menubar-Icon.
+        // Bewusst `DispatchQueue.main` statt `RunLoop.main`: Der MainActor-Executor IST die
+        // Main-DispatchQueue. `RunLoop.main`-Delivery ist genau der Übergang, an dem der
+        // Swift-6-`isCurrentExecutor`-Check in eine komplexe Executor-Vergleichslogik fällt
+        // und (bei `strict-concurrency: minimal`) als EXC_BAD_ACCESS durchschlagen kann.
         processor.$state
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] state in self?.updateIcon(for: state) }
             .store(in: &cancellables)
     }
@@ -65,7 +69,16 @@ final class MenuBarController: NSObject {
         popover.contentViewController = host
     }
 
-    @objc private func togglePopover() {
+    // `nonisolated` + GCD-Dispatch: AppKit ruft die @objc-Action via `sendAction:to:from:`
+    // OHNE Swift-Task-Kontext auf. Eine `@MainActor`-`@objc`-Methode bekäme im Prolog den
+    // dynamischen `swift_task_isCurrentExecutor`-Check, der hier (strict-concurrency: minimal,
+    // Swift 6.3) als EXC_BAD_ACCESS in `isMainExecutor`/`getObjectType` durchschlägt.
+    // `nonisolated` vermeidet den Prolog-Check; `DispatchQueue.main` garantiert den Main-Thread.
+    @objc nonisolated private func togglePopover() {
+        DispatchQueue.main.async { [weak self] in self?.togglePopoverOnMain() }
+    }
+
+    @MainActor private func togglePopoverOnMain() {
         guard let button = statusItem.button else { return }
         if popover.isShown {
             popover.performClose(nil)
@@ -73,6 +86,12 @@ final class MenuBarController: NSObject {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
+    }
+
+    func showPopover() {
+        guard let button = statusItem.button, !popover.isShown else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
     }
 
     private func updateIcon(for state: ModeProcessor.State) {

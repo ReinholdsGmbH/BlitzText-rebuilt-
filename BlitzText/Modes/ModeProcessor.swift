@@ -111,6 +111,9 @@ final class ModeProcessor: ObservableObject {
     // MARK: - Public API
 
     func start(mode: Mode) async {
+        // Hängenden Error-State vor einem neuen Zyklus räumen — sonst bleibt das Menubar-Icon
+        // gelb und der HUD (zeigt nur bei recording/transcribing/rewriting) erscheint nicht.
+        if case .error = state { state = .idle }
         guard activeMode == nil else { return }
         activeMode = mode
         do {
@@ -178,7 +181,7 @@ final class ModeProcessor: ObservableObject {
             return
         }
         if isLikelyHallucination(raw) {
-            Log.write("Whisper-Halluzination erkannt, verworfen: \(raw)")
+            Log.write("Whisper-Halluzination erkannt, verworfen (\(raw.count) Zeichen)")
             state = .idle
             return
         }
