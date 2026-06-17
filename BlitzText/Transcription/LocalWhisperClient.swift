@@ -10,6 +10,8 @@ final class LocalWhisperClient: TranscriptionService, @unchecked Sendable {
     private var pipeline: WhisperKit?
     private var loadedID: String?
     private var loadingTask: Task<Void, Never>?
+    /// Schützt das Check-and-Set von `loadingTask` gegen TOCTOU. Nie über `await` gehalten.
+    private let loadLock = NSLock()
 
     init(modelManager: LocalModelManager) {
         self.modelManager = modelManager
@@ -60,16 +62,15 @@ final class LocalWhisperClient: TranscriptionService, @unchecked Sendable {
     private func ensureLoaded(activeID: String) async {
         if loadedID == activeID && pipeline != nil { return }
 
-        // Wenn schon ein Load läuft, warte darauf
-        if let existing = loadingTask {
-            await existing.value
-            return
-        }
-
         let manager = modelManager
         let folder = await MainActor.run { manager.folder(for: activeID) }
 
-        let task = Task { [weak self] in
+        // Genau EINE Load-Task erzeugen, auch bei parallelen Aufrufen (Lock nur ums Check-and-Set).
+        let task: Task<Void, Never> = {
+            loadLock.lock()
+            defer { loadLock.unlock() }
+            if let existing = loadingTask { return existing }
+            let created = Task { [weak self] in
             guard let self else { return }
             await MainActor.run {
                 manager.isPreloading = true
@@ -97,9 +98,11 @@ final class LocalWhisperClient: TranscriptionService, @unchecked Sendable {
                     manager.lastError = "Modell-Load: \(error.localizedDescription)"
                 }
             }
-        }
-        loadingTask = task
+            }
+            loadingTask = created
+            return created
+        }()
         await task.value
-        loadingTask = nil
+        loadLock.withLock { loadingTask = nil }
     }
 }

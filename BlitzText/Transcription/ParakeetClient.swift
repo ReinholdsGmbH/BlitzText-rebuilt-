@@ -24,6 +24,9 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
     private var asrManager: AsrManager?
     private var diarizer: DiarizerManager?
     private var loadingTask: Task<Void, Never>?
+    /// Schützt das Check-and-Set von `loadingTask` gegen TOCTOU bei parallelen
+    /// `warmUp()`/`transcribe()`-Aufrufen. Wird NIE über ein `await` gehalten.
+    private let loadLock = NSLock()
 
     init(settings: SettingsStore, diarizerManager: DiarizerModelManager, speakerStore: SpeakerProfileStore? = nil) {
         self.settings = settings
@@ -86,7 +89,7 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
             let mergedSpeakers = Self.mergePersistedNames(runtimeSpeakers, from: speakerStore)
             speakerStore?.saveSession(speakers: mergedSpeakers, sessionSpeakerIDs: sessionSpeakerIDs)
             let speakerNames = Self.buildSpeakerNames(from: mergedSpeakers)
-            Log.write("Parakeet: speakerNames=\(speakerNames), applyDiarization mit \(diarResult.segments.count) Segmenten")
+            Log.write("Parakeet: \(speakerNames.count) benannte Sprecher, applyDiarization mit \(diarResult.segments.count) Segmenten")
 
             return Self.applyDiarization(asr: result, segments: diarResult.segments, speakerNames: speakerNames)
         } catch {
@@ -151,7 +154,7 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
             store.saveSpeakers(current)
         }
 
-        Log.write("Enrollment erfolgreich: id=\(newID) name='\(name)'")
+        Log.write("Enrollment erfolgreich: id=\(newID) (\(name.count) Zeichen Name)")
         return speaker
     }
 
@@ -226,8 +229,12 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
 
         for timing in timings {
             let mid = (timing.startTime + timing.endTime) / 2
-            let s = speaker(at: mid) ?? currentSpeaker ?? "?"
-            let token = timing.token.replacingOccurrences(of: "\u{2581}", with: " ")
+            let detectedSpeaker = speaker(at: mid) ?? currentSpeaker ?? "?"
+            // Sprecherwechsel nur an Wortgrenzen. FluidAudio normalisiert ▁ (U+2581) zu
+            // führendem Leerzeichen — deshalb auf " " (U+0020) prüfen, nicht auf ▁.
+            let isWordBoundary = timing.token.hasPrefix(" ")
+            let s = (currentSpeaker == nil || isWordBoundary) ? detectedSpeaker : currentSpeaker!
+            let token = timing.token
 
             if s != currentSpeaker {
                 if let cur = currentSpeaker {
@@ -258,12 +265,14 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
     }
 
     private func ensureLoaded() async {
-        if let existing = loadingTask {
-            await existing.value
-            return
-        }
-        let useDiarization = settings.parakeetDiarization
-        let task = Task {
+        // Genau EINE Load-Task erzeugen, auch bei parallelen Aufrufen. Der Lock schützt nur
+        // das synchrone Check-and-Set — das eigentliche Warten passiert lockfrei via `await`.
+        let task: Task<Void, Never> = {
+            loadLock.lock()
+            defer { loadLock.unlock() }
+            if let existing = loadingTask { return existing }
+            let useDiarization = settings.parakeetDiarization
+            let created = Task {
             Log.write("Parakeet: lade Modelle (ASR\(useDiarization ? " + Diarizer" : ""))…")
             let t0 = Date()
             do {
@@ -278,10 +287,12 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
                         let diar = DiarizerManager(config: .default)
                         diar.initialize(models: models)
                         if let store = self.speakerStore {
-                            let knownSpeakers = store.loadSpeakers()
+                            // Nur permanente (enrollte) Sprecher laden — anonyme Session-Sprecher
+                            // aus alten Sessions würden den Matcher verwirren.
+                            let knownSpeakers = store.loadSpeakers().filter { $0.isPermanent }
                             if !knownSpeakers.isEmpty {
                                 await diar.speakerManager.initializeKnownSpeakers(knownSpeakers, mode: .skip)
-                                Log.write("Parakeet: \(knownSpeakers.count) Sprecher-Profile geladen")
+                                Log.write("Parakeet: \(knownSpeakers.count) enrollte Sprecher-Profile geladen")
                             }
                         }
                         self.diarizer = diar
@@ -297,9 +308,11 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
             } catch {
                 Log.write("Parakeet: Init-Fehler — \(error.localizedDescription)")
             }
-        }
-        loadingTask = task
+            }
+            loadingTask = created
+            return created
+        }()
         await task.value
-        loadingTask = nil
+        loadLock.withLock { loadingTask = nil }
     }
 }

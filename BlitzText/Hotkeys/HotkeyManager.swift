@@ -84,6 +84,11 @@ final class HotkeyManager: @unchecked Sendable {
     }
 
     private func installEventTap() {
+        // Invariante: Tap wird auf dem Main-RunLoop installiert (start() läuft im bootstrap auf
+        // dem Main-Actor, der permissionTimer feuert auf queue:.main). Damit werden ALLE
+        // Tap-Callbacks (handleFlagsChanged/KeyDown/KeyUp) auf dem Main-Thread serialisiert —
+        // der `@unchecked Sendable`-State von HotkeyManager wird nie wirklich nebenläufig berührt.
+        assert(Thread.isMainThread, "installEventTap muss auf dem Main-Thread laufen")
         guard eventTap == nil else { return }   // idempotent — kein doppelter Tap
         let mask = (1 << CGEventType.flagsChanged.rawValue)
                  | (1 << CGEventType.keyDown.rawValue)
