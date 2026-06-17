@@ -14,3 +14,7 @@ xcuserdata/
 # Secrets
 *.env
 *.env.local
+
+# Explorations- / Test-Binaries (Float16/x86_64-Abklärung, gehören nicht ins Repo)
+/main
+/test_float16

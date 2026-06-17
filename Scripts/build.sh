@@ -13,11 +13,17 @@ echo "→ Generiere Xcode-Projekt"
 xcodegen generate
 
 echo "→ Build (Debug)"
+# arm64-only erzwingen: macOS 26 ist arm64-only, Intel wird nicht unterstützt.
+# Diese Flags MÜSSEN als Command-Line-Override gesetzt werden — `EXCLUDED_ARCHS`
+# aus der project.yml greift NICHT auf die SwiftPM-Dependency-Targets (FluidAudio
+# nutzt Float16, das auf x86_64-macOS nicht existiert → Build-Fehler).
 xcodebuild \
   -project BlitzText.xcodeproj \
   -scheme BlitzText \
   -configuration Debug \
-  -destination 'platform=macOS' \
+  -destination 'platform=macOS,arch=arm64' \
+  ARCHS=arm64 \
+  ONLY_ACTIVE_ARCH=YES \
   CODE_SIGN_IDENTITY="-" \
   CODE_SIGNING_REQUIRED=NO \
   CODE_SIGNING_ALLOWED=NO \
