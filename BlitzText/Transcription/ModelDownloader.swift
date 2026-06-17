@@ -34,9 +34,11 @@ enum ModelDownloader {
             if downloaded.path != destination.path,
                FileManager.default.fileExists(atPath: downloaded.path) {
                 if FileManager.default.fileExists(atPath: destination.path) {
-                    try? FileManager.default.removeItem(at: destination)
+                    try FileManager.default.removeItem(at: destination)
                 }
-                try? FileManager.default.moveItem(at: downloaded, to: destination)
+                // `try` statt `try?`: schlägt das Verschieben fehl, liegt das Modell NICHT am
+                // erwarteten Pfad — dann muss der Aufrufer .failure sehen, nicht fälschlich .success.
+                try FileManager.default.moveItem(at: downloaded, to: destination)
             }
             return .success
         } catch {

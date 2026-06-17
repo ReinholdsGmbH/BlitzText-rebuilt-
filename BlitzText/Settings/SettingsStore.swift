@@ -182,10 +182,14 @@ final class SettingsStore: ObservableObject {
     }
 
     private func load() {
-        guard
-            let data = UserDefaults.standard.data(forKey: Self.defaultsKey),
-            let snap = try? JSONDecoder().decode(Snapshot.self, from: data)
-        else { return }
+        guard let data = UserDefaults.standard.data(forKey: Self.defaultsKey) else { return }
+        let snap: Snapshot
+        do {
+            snap = try JSONDecoder().decode(Snapshot.self, from: data)
+        } catch {
+            Log.write("SettingsStore: load() fehlgeschlagen — \(error) — Defaults werden verwendet")
+            return
+        }
         styleForPlus = snap.styleForPlus
         // Migration: alter Default-Prompt → leer, damit backend-spezifischer Prompt greift
         customPromptPlus = snap.customPromptPlus.isEmpty ? Mode.blitztextPlus.defaultRewritePrompt : snap.customPromptPlus
@@ -252,6 +256,11 @@ enum TranscriptionBackend: String, CaseIterable, Codable, Identifiable {
         case .local:    return "Whisper (Lokal)"
         case .parakeet: return "Parakeet TDT v3 (Lokal)"
         }
+    }
+    // Unbekannte Werte aus älteren Builds → .openAI statt Decode-Fehler
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = TranscriptionBackend(rawValue: raw) ?? .openAI
     }
 }
 
