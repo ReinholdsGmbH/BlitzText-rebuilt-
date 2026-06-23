@@ -186,11 +186,23 @@ final class ModeProcessor: ObservableObject {
             return
         }
 
+        // Problem A: gespeicherte Eigennamen korrigieren aktiv den ASR-Output.
+        let corrector = VocabularyCorrector()
+        let correction = corrector.correct(raw, using: settings.properNouns)
+        let corrected = correction.text
+        for match in correction.matches {
+            settings.bumpOccurrence(termID: match.termID)
+            if !match.wasExact {
+                settings.addAlias(match.original, toTermID: match.termID)
+                Log.write("Eigenname-Alias gelernt: \(match.original) → \(match.canonical)")
+            }
+        }
+
         let output: String
         let polished: String?
         switch mode {
         case .blitztext:
-            output = raw
+            output = corrected
             polished = nil
         case .blitztextPlus, .blitztextRant:
             state = .rewriting(mode)
@@ -202,7 +214,7 @@ final class ModeProcessor: ObservableObject {
                     systemPrompt += "\n\nAntworte ausschließlich auf Deutsch."
                 }
                 let p = try await activeRewriter.rewrite(
-                    input: raw,
+                    input: corrected,
                     systemPrompt: systemPrompt,
                     model: settings.rewriteModel
                 )

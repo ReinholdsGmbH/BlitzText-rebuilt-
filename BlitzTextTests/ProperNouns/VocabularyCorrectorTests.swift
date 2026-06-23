@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import BlitzText
 
@@ -60,5 +61,36 @@ struct VocabularyCorrectorTests {
         let result = corrector().correct("Wardhaman", using: nouns)
         #expect(result.text == "Vardhaman")
         #expect(result.matches.first?.wasExact == true) // Alias = bekannte Form
+    }
+}
+
+struct VocabularyCorrectorPipelineTests {
+
+    private func freshStore() -> SettingsStore {
+        let suite = "bt-corr-pipe-\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: suite)!
+        d.removePersistentDomain(forName: suite)
+        return SettingsStore(defaults: d)
+    }
+
+    @Test("Pipeline-Schritt korrigiert Text, lernt Alias und zählt Vorkommen")
+    @MainActor
+    func appliesCorrectionAndLearns() {
+        let store = freshStore()
+        let term = ProperNoun(text: "Vardhaman")
+        store.properNouns = [term]
+
+        let corrector = VocabularyCorrector(checker: FakeChecker(known: []))
+        let result = corrector.correct("Hallo Wardhaman", using: store.properNouns)
+
+        // Das ist exakt die Logik, die ModeProcessor anwendet:
+        for match in result.matches {
+            store.bumpOccurrence(termID: match.termID)
+            if !match.wasExact { store.addAlias(match.original, toTermID: match.termID) }
+        }
+
+        #expect(result.text == "Hallo Vardhaman")
+        #expect(store.properNouns.first?.aliases == ["Wardhaman"])
+        #expect(store.properNouns.first?.occurrenceCount == 1)
     }
 }
