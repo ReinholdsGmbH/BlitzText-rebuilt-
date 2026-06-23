@@ -4,7 +4,7 @@ import SwiftUI
 /// Eigenständiges Einstellungsfenster — funktioniert in Accessory-Apps (LSUIElement),
 /// wo der Selector `showSettingsWindow:` nicht greift, weil es kein App-Menu gibt.
 @MainActor
-final class SettingsWindowController {
+final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let settings: SettingsStore
     private let modelManager: LocalModelManager
     private let diarizerManager: DiarizerModelManager
@@ -18,9 +18,13 @@ final class SettingsWindowController {
         self.diarizerManager = diarizerManager
         self.speakerViewModel = speakerViewModel
         self.enrollmentViewModel = enrollmentViewModel
+        super.init()
     }
 
     func show() {
+        // Dock-Icon einblenden, solange das Einstellungsfenster offen ist (Accessory → Regular),
+        // damit man die Einstellungen über das Dock schnell wieder nach vorne holen kann.
+        NSApp.setActivationPolicy(.regular)
         if let window {
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
@@ -48,10 +52,17 @@ final class SettingsWindowController {
         window.isReleasedWhenClosed = false
         window.center()
         window.collectionBehavior = [.fullScreenAuxiliary]
+        window.delegate = self
         self.window = window
 
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
+    }
+
+    /// Beim Schließen des Einstellungsfensters zurück zur Accessory-Policy (Dock-Icon weg).
+    /// `NSWindowDelegate` ist im macOS-SDK `@MainActor` — daher kein `assumeIsolated` nötig.
+    func windowWillClose(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
     }
 }

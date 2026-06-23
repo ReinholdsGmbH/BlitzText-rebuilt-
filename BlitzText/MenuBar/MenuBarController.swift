@@ -41,8 +41,10 @@ final class MenuBarController: NSObject {
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "bolt.fill",
                                    accessibilityDescription: "BlitzText")
-            button.action = #selector(togglePopover)
+            button.action = #selector(statusItemClicked)
             button.target = self
+            // Links- UND Rechtsklick an dieselbe Action liefern (Rechtsklick → Kontextmenü).
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
     }
 
@@ -69,27 +71,78 @@ final class MenuBarController: NSObject {
         popover.contentViewController = host
     }
 
-    // `nonisolated` + GCD-Dispatch: AppKit ruft die @objc-Action via `sendAction:to:from:`
-    // OHNE Swift-Task-Kontext auf. Eine `@MainActor`-`@objc`-Methode bekäme im Prolog den
-    // dynamischen `swift_task_isCurrentExecutor`-Check, der hier (strict-concurrency: minimal,
-    // Swift 6.3) als EXC_BAD_ACCESS in `isMainExecutor`/`getObjectType` durchschlägt.
-    // `nonisolated` vermeidet den Prolog-Check; `DispatchQueue.main` garantiert den Main-Thread.
-    @objc nonisolated private func togglePopover() {
-        DispatchQueue.main.async { [weak self] in self?.togglePopoverOnMain() }
+    // `nonisolated` @objc: AppKit ruft die Action via `sendAction:to:from:` OHNE Swift-Task-
+    // Kontext auf. Eine `@MainActor`-`@objc`-Methode bekäme im Prolog den dynamischen
+    // `swift_task_isCurrentExecutor`-Check, der hier (strict-concurrency: minimal, Swift 6.3)
+    // als EXC_BAD_ACCESS crasht. Das Klick-Event wird SYNCHRON ausgewertet (`currentEvent`
+    // gilt nur während des Klicks), dann synchron in den (ohnehin Main-)Kontext gereicht —
+    // kein async-Defer, der mit `.transient`-Popovers flackert.
+    @objc nonisolated private func statusItemClicked() {
+        let event = NSApp.currentEvent
+        let isRightClick = event.map {
+            $0.type == .rightMouseUp || $0.modifierFlags.contains(.control)
+        } ?? false
+        Log.write("StatusItem-Klick: type=\(event?.type.rawValue.description ?? "nil") right=\(isRightClick)")
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { Log.write("StatusItem-Klick: self deallokiert"); return }
+            self.handleStatusClick(rightClick: isRightClick)
+        }
     }
 
-    @MainActor private func togglePopoverOnMain() {
-        guard let button = statusItem.button else { return }
+    @MainActor private func handleStatusClick(rightClick: Bool) {
+        if rightClick {
+            showContextMenu()
+        } else {
+            togglePopover()
+        }
+    }
+
+    /// Rechtsklick-Kontextmenü: Einstellungen öffnen oder App beenden.
+    private func showContextMenu() {
+        guard let button = statusItem.button else { Log.write("Kontextmenü: kein Button"); return }
+        if popover.isShown { popover.performClose(nil) }
+
+        let menu = NSMenu()
+        let settingsItem = NSMenuItem(title: "Einstellungen…", action: #selector(openSettingsFromMenu), keyEquivalent: "")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+        menu.addItem(.separator())
+        let quitItem = NSMenuItem(title: "BlitzText beenden", action: #selector(quitFromMenu), keyEquivalent: "")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 4), in: button)
+        Log.write("Kontextmenü angezeigt")
+    }
+
+    // Menü-Actions ebenfalls `nonisolated` @objc (AppKit-Dispatch ohne Task-Kontext) — die
+    // @MainActor-Arbeit läuft über DispatchQueue.main (vermeidet Prolog-Executor-Check + Crash).
+    @objc nonisolated private func openSettingsFromMenu() {
+        DispatchQueue.main.async { [weak self] in self?.settingsWindow.show() }
+    }
+    @objc nonisolated private func quitFromMenu() {
+        DispatchQueue.main.async { NSApp.terminate(nil) }
+    }
+
+    private func togglePopover() {
+        guard let button = statusItem.button else { Log.write("Popover: kein Button"); return }
+        Log.write("Popover toggle: isShown=\(popover.isShown) inWindow=\(button.window != nil)")
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            // Accessory-App (LSUIElement): ein `.transient`-Popover zeigt sich nur, wenn die
+            // App aktiv ist — sonst verschwindet es sofort wieder. `activate()` (modern, macOS 14+)
+            // statt des deprecated `activate(ignoringOtherApps:)`, das auf neuem macOS oft no-op ist.
+            NSApp.activate()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
+            Log.write("Popover.show → isShown=\(popover.isShown)")
         }
     }
 
     func showPopover() {
         guard let button = statusItem.button, !popover.isShown else { return }
+        NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
     }
