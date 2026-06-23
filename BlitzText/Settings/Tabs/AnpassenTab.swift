@@ -89,18 +89,18 @@ struct AnpassenTab: View {
             }
 
             section("EIGENNAMEN") {
-                Text("Begriffe, die korrekt geschrieben werden müssen.")
+                Text("Begriffe, die korrekt geschrieben werden müssen. Die Liste korrigiert jede Transkription automatisch.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 Toggle("KI-Vorschläge nach jeder Aufnahme (gpt-4o-mini)", isOn: $settings.aiSuggestProperNouns)
-                Text("Heuristik (großgeschriebene Wörter, Diff Roh ↔ Poliert) ist immer aktiv. KI-Vorschläge sind zusätzlich.")
+                Text("Erkennung läuft on-device (großgeschriebene, dem Wörterbuch unbekannte Wörter). Neue Begriffe werden erst nach dem 2. Vorkommen übernommen.")
                     .font(.caption).foregroundStyle(.secondary)
-                FlowLayout(spacing: 6) {
-                    ForEach(settings.properNouns) { noun in
-                        TagView(text: noun.text) {
-                            settings.properNouns.removeAll { $0.id == noun.id }
-                        }
+
+                ForEach(settings.properNouns.sorted { $0.occurrenceCount > $1.occurrenceCount }) { noun in
+                    ProperNounRow(noun: noun) {
+                        settings.properNouns.removeAll { $0.id == noun.id }
                     }
                 }
+
                 HStack {
                     TextField("Neuer Begriff", text: $newProperNoun)
                         .textFieldStyle(.roundedBorder)
@@ -147,6 +147,33 @@ private struct TagView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(.quaternary, in: Capsule())
+    }
+}
+
+// MARK: - Eigennamen-Zeile (Übersicht)
+
+private struct ProperNounRow: View {
+    let noun: ProperNoun
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(noun.text).font(.body)
+                if !noun.aliases.isEmpty {
+                    Text("Varianten: " + noun.aliases.joined(separator: ", "))
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+            Spacer()
+            Text("\(noun.occurrenceCount)×")
+                .font(.caption).foregroundStyle(.secondary)
+                .help(noun.lastSeenAt.map { "Zuletzt: \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Noch nicht vorgekommen")
+            Button(action: onRemove) {
+                Image(systemName: "trash").font(.caption)
+            }.buttonStyle(.plain).foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
     }
 }
 
