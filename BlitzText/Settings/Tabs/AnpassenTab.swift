@@ -95,9 +95,9 @@ struct AnpassenTab: View {
                 Text("Heuristik (großgeschriebene Wörter, Diff Roh ↔ Poliert) ist immer aktiv. KI-Vorschläge sind zusätzlich.")
                     .font(.caption).foregroundStyle(.secondary)
                 FlowLayout(spacing: 6) {
-                    ForEach(settings.properNouns, id: \.self) { noun in
-                        TagView(text: noun) {
-                            settings.properNouns.removeAll { $0 == noun }
+                    ForEach(settings.properNouns) { noun in
+                        TagView(text: noun.text) {
+                            settings.properNouns.removeAll { $0.id == noun.id }
                         }
                     }
                 }
@@ -117,8 +117,8 @@ struct AnpassenTab: View {
 
     private func addNoun() {
         let trimmed = newProperNoun.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !settings.properNouns.contains(trimmed) else { return }
-        settings.properNouns.append(trimmed)
+        guard !trimmed.isEmpty, !settings.properNounTexts.contains(trimmed) else { return }
+        settings.properNouns.append(ProperNoun(text: trimmed))
         newProperNoun = ""
     }
 

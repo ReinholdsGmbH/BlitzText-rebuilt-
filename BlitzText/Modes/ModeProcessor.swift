@@ -243,8 +243,8 @@ final class ModeProcessor: ObservableObject {
         if !settings.context.isEmpty {
             pieces.append(settings.context)
         }
-        if !settings.properNouns.isEmpty {
-            pieces.append("Eigennamen: " + settings.properNouns.joined(separator: ", "))
+        if !settings.properNounTexts.isEmpty {
+            pieces.append("Eigennamen: " + settings.properNounTexts.joined(separator: ", "))
         }
         let combined = pieces.joined(separator: "\n")
         return combined.isEmpty ? nil : combined
@@ -264,8 +264,8 @@ final class ModeProcessor: ObservableObject {
         if !settings.context.isEmpty {
             parts.append("Kontext der sprechenden Person: \(settings.context)")
         }
-        if !settings.properNouns.isEmpty {
-            parts.append("Schreibe folgende Eigennamen exakt richtig: " + settings.properNouns.joined(separator: ", ") + ".")
+        if !settings.properNounTexts.isEmpty {
+            parts.append("Schreibe folgende Eigennamen exakt richtig: " + settings.properNounTexts.joined(separator: ", ") + ".")
         }
         parts.append("Gib ausschließlich den umgeschriebenen Text zurück, keine Vorbemerkungen, keine Anführungszeichen.")
         return parts.joined(separator: "\n\n")

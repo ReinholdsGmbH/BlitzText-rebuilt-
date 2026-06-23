@@ -14,7 +14,9 @@ final class SettingsStore: ObservableObject {
     @Published var customPromptPlus: String = Mode.blitztextPlus.defaultRewritePrompt
     @Published var customPromptRant: String = Mode.blitztextRant.defaultRewritePrompt
     @Published var context: String = ""
-    @Published var properNouns: [String] = []
+    @Published var properNouns: [ProperNoun] = []
+    /// Alle kanonischen Texte der Eigennamen (für Prompt-Builder und Duplikatprüfung).
+    var properNounTexts: [String] { properNouns.map(\.text) }
     @Published var autoInsert: Bool = false
     @Published var transcriptionLanguage: String = "de"
     @Published var rewriteModel: String = "gpt-4o-mini"
@@ -89,7 +91,10 @@ final class SettingsStore: ObservableObject {
     private static let defaultsKey = "de.reinholds.blitztext.settings"
     private var cancellables = Set<AnyCancellable>()
 
-    init() {
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         load()
         migrateAPIKeyFromUserDefaultsIfNeeded()
         objectWillChange
@@ -140,7 +145,6 @@ final class SettingsStore: ObservableObject {
     /// Idempotent (kein Eintrag = No-Op). Bei Keychain-Fehler bleibt der
     /// Legacy-Eintrag erhalten, damit der User den Key nicht verliert.
     private func migrateAPIKeyFromUserDefaultsIfNeeded() {
-        let defaults = UserDefaults.standard
         guard let legacy = defaults.string(forKey: Self.apiKeyLegacyDefaultsKey),
               !legacy.isEmpty else { return }
 
@@ -160,7 +164,8 @@ final class SettingsStore: ObservableObject {
         var customPromptPlus: String
         var customPromptRant: String
         var context: String
-        var properNouns: [String]
+        var properNouns: [String]?          // Legacy (vor V2) — nur noch zum Migrieren gelesen
+        var properNounsV2: [ProperNoun]?    // Aktuelles Modell
         var autoInsert: Bool
         var transcriptionLanguage: String
         var rewriteModel: String
@@ -182,7 +187,7 @@ final class SettingsStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: Self.defaultsKey) else { return }
+        guard let data = defaults.data(forKey: Self.defaultsKey) else { return }
         let snap: Snapshot
         do {
             snap = try JSONDecoder().decode(Snapshot.self, from: data)
@@ -195,7 +200,11 @@ final class SettingsStore: ObservableObject {
         customPromptPlus = snap.customPromptPlus.isEmpty ? Mode.blitztextPlus.defaultRewritePrompt : snap.customPromptPlus
         customPromptRant = snap.customPromptRant.isEmpty ? Mode.blitztextRant.defaultRewritePrompt : snap.customPromptRant
         context = snap.context
-        properNouns = snap.properNouns
+        if let v2 = snap.properNounsV2 {
+            properNouns = v2
+        } else {
+            properNouns = (snap.properNouns ?? []).map { ProperNoun(text: $0) }
+        }
         autoInsert = snap.autoInsert
         transcriptionLanguage = snap.transcriptionLanguage
         rewriteModel = snap.rewriteModel
@@ -213,13 +222,30 @@ final class SettingsStore: ObservableObject {
         speakerMatchThreshold = snap.speakerMatchThreshold ?? 0.7
     }
 
+    /// Erhöht den Vorkommens-Zähler eines Eintrags und stempelt „zuletzt gesehen".
+    func bumpOccurrence(termID: UUID) {
+        guard let idx = properNouns.firstIndex(where: { $0.id == termID }) else { return }
+        properNouns[idx].occurrenceCount += 1
+        properNouns[idx].lastSeenAt = Date()
+    }
+
+    /// Fügt einem Eintrag einen neu entdeckten Alias hinzu (case-insensitiv dedupliziert).
+    func addAlias(_ alias: String, toTermID id: UUID) {
+        guard let idx = properNouns.firstIndex(where: { $0.id == id }) else { return }
+        let lower = alias.lowercased()
+        let known = properNouns[idx].allForms.map { $0.lowercased() }
+        guard !known.contains(lower) else { return }
+        properNouns[idx].aliases.append(alias)
+    }
+
     func save() {
         let snap = Snapshot(
             styleForPlus: styleForPlus,
             customPromptPlus: customPromptPlus,
             customPromptRant: customPromptRant,
             context: context,
-            properNouns: properNouns,
+            properNouns: nil,
+            properNounsV2: properNouns,
             autoInsert: autoInsert,
             transcriptionLanguage: transcriptionLanguage,
             rewriteModel: rewriteModel,
@@ -238,7 +264,7 @@ final class SettingsStore: ObservableObject {
         )
         do {
             let data = try JSONEncoder().encode(snap)
-            UserDefaults.standard.set(data, forKey: Self.defaultsKey)
+            defaults.set(data, forKey: Self.defaultsKey)
         } catch {
             Log.write("SettingsStore: save() fehlgeschlagen — \(error)")
         }

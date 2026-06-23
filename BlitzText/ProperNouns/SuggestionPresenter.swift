@@ -27,7 +27,7 @@ final class SuggestionPresenter: ObservableObject {
 
     func enqueue(_ words: [String]) {
         // Dedup gegen schon vorhandene + Queue + Stoppwörter
-        let existing = Set(settings.properNouns.map { $0.lowercased() })
+        let existing = Set(settings.properNounTexts.map { $0.lowercased() })
         let queued = Set(queue.map { $0.lowercased() })
         let new = words
             .filter { !existing.contains($0.lowercased()) }
@@ -50,8 +50,8 @@ final class SuggestionPresenter: ObservableObject {
     private func acceptCurrent() {
         timer?.invalidate()
         timer = nil
-        if let word = current?.word, !settings.properNouns.contains(word) {
-            settings.properNouns.append(word)
+        if let word = current?.word, !settings.properNounTexts.contains(word) {
+            settings.properNouns.append(ProperNoun(text: word))
             Log.write("Eigenname automatisch übernommen: \(word)")
         }
         current = nil
