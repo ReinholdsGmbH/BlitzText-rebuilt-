@@ -18,6 +18,7 @@ struct EigennamenAnalyzerTests {
         )
         #expect(!result.contains("Hey Clara"))
         #expect(!result.contains(where: { $0.contains(" ") }))
+        #expect(result.contains("Clara"))
     }
 
     @Test("Bekannte Wörterbuchwörter werden herausgefiltert")
