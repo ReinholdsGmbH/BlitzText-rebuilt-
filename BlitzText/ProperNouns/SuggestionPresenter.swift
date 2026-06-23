@@ -28,7 +28,7 @@ final class SuggestionPresenter: ObservableObject {
     }
 
     func enqueue(_ words: [String]) {
-        let queued = Set(queue.map { $0.lowercased() })
+        var seenThisBatch = Set(queue.map { $0.lowercased() })
         var toShow: [String] = []
 
         for word in words {
@@ -37,7 +37,7 @@ final class SuggestionPresenter: ObservableObject {
             // 1. Exakt bereits bekannt → ignorieren.
             if settings.properNounTexts.contains(where: { $0.lowercased() == lower }) { continue }
             // schon in der Queue oder aktuell sichtbar → ignorieren.
-            if queued.contains(lower) || current?.word.lowercased() == lower { continue }
+            if seenThisBatch.contains(lower) || current?.word.lowercased() == lower { continue }
 
             // 2. Fuzzy-Variante eines bestehenden Eintrags → als Alias mergen, nicht vorschlagen.
             if let term = settings.properNouns.first(where: { t in
@@ -52,6 +52,7 @@ final class SuggestionPresenter: ObservableObject {
             // 3. Brandneuer Kandidat → erst ab Schwelle (≥2×) vorschlagen.
             if ledger.record(word) {
                 toShow.append(word)
+                seenThisBatch.insert(lower)
             }
         }
 

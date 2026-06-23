@@ -46,4 +46,21 @@ struct SuggestionPresenterTests {
         #expect(presenter.current == nil)
         #expect(store.properNouns.first?.aliases == ["Wardhaman"])
     }
+
+    @Test("Duplikat innerhalb eines Batches wird dedupliziert")
+    func duplicateWithinBatchDeduplicated() {
+        let presenter = SuggestionPresenter(settings: makeStore(), ledger: makeLedger())
+        // Pre-seed ledger so "Neuheit" has count=1 (one away from threshold=2)
+        presenter.enqueue(["Neuheit"])
+        #expect(presenter.current == nil) // nicht gezeigt, erst bei 2. Vorkommen
+
+        // Jetzt enqueue mit Duplikat — beide sollten die Schwelle überschreiten,
+        // aber dedupliziert sein → nur einmal in der Queue
+        presenter.enqueue(["Neuheit", "Neuheit"])
+        #expect(presenter.current?.word == "Neuheit")
+
+        // Nach dismiss() sollte current nil sein, nicht "Neuheit" nochmal
+        presenter.dismiss()
+        #expect(presenter.current == nil)
+    }
 }
