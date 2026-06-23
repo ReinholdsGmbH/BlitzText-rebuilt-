@@ -6,10 +6,13 @@ import NaturalLanguage
 /// - Variante 2: Wörter, die zwischen Roh und Poliert in der Schreibweise differieren
 enum EigennamenAnalyzer {
 
-    static func candidates(rawTranscript: String, polished: String?) -> [String] {
+    static func candidates(
+        rawTranscript: String,
+        polished: String?,
+        checker: WordChecking = SystemSpellChecker()
+    ) -> [String] {
         var found = Set<String>()
 
-        // Variante 1: Named Entity Recognition mit NLTagger
         for word in namedEntities(in: rawTranscript) {
             found.insert(word)
         }
@@ -17,15 +20,22 @@ enum EigennamenAnalyzer {
             for word in namedEntities(in: polished) {
                 found.insert(word)
             }
-            // Variante 2: Diff Roh ↔ Poliert
             for word in correctedSpellings(raw: rawTranscript, polished: polished) {
                 found.insert(word)
             }
         }
 
-        return found
-            .filter { $0.count >= 2 }
-            .sorted()
+        // Gates: Ketten splitten, Mindestlänge 4, bekannte Wörterbuchwörter raus.
+        var result = Set<String>()
+        for entry in found {
+            for piece in entry.split(separator: " ").map(String.init) {
+                let token = piece.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard token.count >= 4 else { continue }
+                guard !checker.isKnownWord(token) else { continue }
+                result.insert(token)
+            }
+        }
+        return result.sorted()
     }
 
     // MARK: - Variante 1: Apple NLTagger NER
