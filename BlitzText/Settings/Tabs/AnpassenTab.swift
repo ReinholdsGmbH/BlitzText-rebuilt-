@@ -132,24 +132,6 @@ struct AnpassenTab: View {
 
 }
 
-// MARK: - Tag-View
-
-private struct TagView: View {
-    let text: String
-    let onRemove: () -> Void
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(text)
-            Button(action: onRemove) {
-                Image(systemName: "xmark").font(.caption2)
-            }.buttonStyle(.plain).foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(.quaternary, in: Capsule())
-    }
-}
-
 // MARK: - Eigennamen-Zeile (Übersicht)
 
 private struct ProperNounRow: View {
@@ -174,43 +156,5 @@ private struct ProperNounRow: View {
             }.buttonStyle(.plain).foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Flow Layout
-
-private struct FlowLayout: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, totalHeight: CGFloat = 0
-        for v in subviews {
-            let size = v.sizeThatFits(.unspecified)
-            if x + size.width > maxWidth {
-                x = 0
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-            totalHeight = y + rowHeight
-        }
-        return CGSize(width: maxWidth.isFinite ? maxWidth : x, height: totalHeight)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
-        for v in subviews {
-            let size = v.sizeThatFits(.unspecified)
-            if x + size.width > bounds.maxX {
-                x = bounds.minX
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-        }
     }
 }

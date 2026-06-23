@@ -40,11 +40,12 @@ final class SuggestionPresenter: ObservableObject {
             if seenThisBatch.contains(lower) || current?.word.lowercased() == lower { continue }
 
             // 2. Fuzzy-Variante eines bestehenden Eintrags → als Alias mergen, nicht vorschlagen.
+            //    Occurrence-Zählung bleibt beim VocabularyCorrector (läuft auf raw im Pipeline-Kontext);
+            //    der Presenter lernt hier nur den Alias, um Doppelzählung derselben Aufnahme zu vermeiden.
             if let term = settings.properNouns.first(where: { t in
                 t.allForms.contains(where: { StringSimilarity.isFuzzyMatch($0, word) })
             }) {
                 settings.addAlias(word, toTermID: term.id)
-                settings.bumpOccurrence(termID: term.id)
                 Log.write("Eigenname-Variante als Alias gemergt: \(word) → \(term.text)")
                 continue
             }
@@ -73,11 +74,13 @@ final class SuggestionPresenter: ObservableObject {
     private func acceptCurrent() {
         timer?.invalidate()
         timer = nil
-        if let word = current?.word,
-           !settings.properNounTexts.contains(where: { $0.lowercased() == word.lowercased() }) {
-            settings.properNouns.append(ProperNoun(text: word, occurrenceCount: 2, lastSeenAt: Date()))
+        if let word = current?.word {
+            // Ledger-Zähler immer zurücksetzen, auch wenn das Dedup-Guard die Übernahme blockiert.
             ledger.reset(word)
-            Log.write("Eigenname automatisch übernommen: \(word)")
+            if !settings.properNounTexts.contains(where: { $0.lowercased() == word.lowercased() }) {
+                settings.properNouns.append(ProperNoun(text: word, occurrenceCount: 2, lastSeenAt: Date()))
+                Log.write("Eigenname automatisch übernommen: \(word)")
+            }
         }
         current = nil
         showNext()

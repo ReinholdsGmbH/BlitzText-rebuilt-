@@ -63,4 +63,19 @@ struct SuggestionPresenterTests {
         presenter.dismiss()
         #expect(presenter.current == nil)
     }
+
+    @Test("Alias-Merge im Presenter erhöht occurrenceCount NICHT (Korrektor ist Zähl-Owner)")
+    func aliasMergeDoesNotBumpOccurrence() {
+        let store = makeStore()
+        let term = ProperNoun(text: "Vardhaman", occurrenceCount: 5)
+        store.properNouns = [term]
+        let presenter = SuggestionPresenter(settings: store, ledger: makeLedger())
+
+        presenter.enqueue(["Wardhaman"]) // Fuzzy-Variante eines bekannten Namens
+
+        // Alias wird gelernt, aber der Zähler bleibt unverändert — sonst Doppelzählung
+        // (der VocabularyCorrector zählt dieselbe Aufnahme bereits in der Pipeline).
+        #expect(store.properNouns.first?.aliases == ["Wardhaman"])
+        #expect(store.properNouns.first?.occurrenceCount == 5)
+    }
 }

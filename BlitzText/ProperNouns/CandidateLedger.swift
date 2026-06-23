@@ -36,7 +36,14 @@ final class CandidateLedger {
     // MARK: - Persistenz
 
     private func load() -> [String: Int] {
-        defaults.dictionary(forKey: Self.defaultsKey) as? [String: Int] ?? [:]
+        if let dict = defaults.dictionary(forKey: Self.defaultsKey) as? [String: Int] {
+            return dict
+        }
+        // Nur loggen, wenn tatsächlich ein Wert mit unerwartetem Typ vorliegt (nicht beim Erststart).
+        if defaults.object(forKey: Self.defaultsKey) != nil {
+            Log.write("CandidateLedger: unerwarteter Typ unter \(Self.defaultsKey) — Zähler zurückgesetzt")
+        }
+        return [:]
     }
 
     private func save(_ counts: [String: Int]) {
