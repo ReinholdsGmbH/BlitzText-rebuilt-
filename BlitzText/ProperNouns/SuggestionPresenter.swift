@@ -18,23 +18,45 @@ final class SuggestionPresenter: ObservableObject {
     let countdownDuration: Int = 5
 
     private let settings: SettingsStore
+    private let ledger: CandidateLedger
     private var queue: [String] = []
     private var timer: Timer?
 
-    init(settings: SettingsStore) {
+    init(settings: SettingsStore, ledger: CandidateLedger = CandidateLedger()) {
         self.settings = settings
+        self.ledger = ledger
     }
 
     func enqueue(_ words: [String]) {
-        // Dedup gegen schon vorhandene + Queue + Stoppwörter
-        let existing = Set(settings.properNounTexts.map { $0.lowercased() })
         let queued = Set(queue.map { $0.lowercased() })
-        let new = words
-            .filter { !existing.contains($0.lowercased()) }
-            .filter { !queued.contains($0.lowercased()) }
-            .filter { current?.word.lowercased() != $0.lowercased() }
-        guard !new.isEmpty else { return }
-        queue.append(contentsOf: new)
+        var toShow: [String] = []
+
+        for word in words {
+            let lower = word.lowercased()
+
+            // 1. Exakt bereits bekannt → ignorieren.
+            if settings.properNounTexts.contains(where: { $0.lowercased() == lower }) { continue }
+            // schon in der Queue oder aktuell sichtbar → ignorieren.
+            if queued.contains(lower) || current?.word.lowercased() == lower { continue }
+
+            // 2. Fuzzy-Variante eines bestehenden Eintrags → als Alias mergen, nicht vorschlagen.
+            if let term = settings.properNouns.first(where: { t in
+                t.allForms.contains(where: { StringSimilarity.isFuzzyMatch($0, word) })
+            }) {
+                settings.addAlias(word, toTermID: term.id)
+                settings.bumpOccurrence(termID: term.id)
+                Log.write("Eigenname-Variante als Alias gemergt: \(word) → \(term.text)")
+                continue
+            }
+
+            // 3. Brandneuer Kandidat → erst ab Schwelle (≥2×) vorschlagen.
+            if ledger.record(word) {
+                toShow.append(word)
+            }
+        }
+
+        guard !toShow.isEmpty else { return }
+        queue.append(contentsOf: toShow)
         if current == nil { showNext() }
     }
 
@@ -50,8 +72,10 @@ final class SuggestionPresenter: ObservableObject {
     private func acceptCurrent() {
         timer?.invalidate()
         timer = nil
-        if let word = current?.word, !settings.properNounTexts.contains(word) {
-            settings.properNouns.append(ProperNoun(text: word))
+        if let word = current?.word,
+           !settings.properNounTexts.contains(where: { $0.lowercased() == word.lowercased() }) {
+            settings.properNouns.append(ProperNoun(text: word, occurrenceCount: 2, lastSeenAt: Date()))
+            ledger.reset(word)
             Log.write("Eigenname automatisch übernommen: \(word)")
         }
         current = nil
