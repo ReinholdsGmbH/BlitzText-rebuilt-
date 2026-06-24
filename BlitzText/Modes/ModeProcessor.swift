@@ -202,7 +202,8 @@ final class ModeProcessor: ObservableObject {
         let polished: String?
         switch mode {
         case .blitztext:
-            output = corrected
+            // Standard-Modus hat keinen Rewrite, der Zögerlaute glättet → hier filtern.
+            output = FillerWordFilter.strip(corrected)
             polished = nil
         case .blitztextPlus, .blitztextRant:
             state = .rewriting(mode)
