@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var enrollmentViewModel: EnrollmentViewModel!
     private var menuBarController: MenuBarController!
     private var hotkeyManager: HotkeyManager!
+    private var lifecycleWatchdog: LifecycleWatchdog!
     private var modeProcessor: ModeProcessor!
     private var settingsWindow: SettingsWindowController!
     private var historyWindow: HistoryWindowController!
@@ -137,6 +138,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let processor = modeProcessor!
         hotkeyManager = HotkeyManager(settings: settingsStore) { mode, action in
             Task { @MainActor in
+                // Diagnose: Bestätigt, dass der Hotkey-Trigger den MainActor TATSÄCHLICH erreicht.
+                // Bei Main-Queue-Starvation (App-Nap-Symptom) feuert `flagsChanged` im Log, aber
+                // diese Zeile bleibt aus → eindeutiger Beleg, dass die Zustellung hängt.
+                Log.write("Hotkey-Trigger: mode=\(mode) action=\(action) state=\(processor.state)")
                 switch action {
                 case .start:  await processor.start(mode: mode)
                 case .stop:   await processor.stop()
@@ -146,6 +151,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         hotkeyManager.start()
+
+        // Lifecycle-Watchdog: App-Nap-Schutz + Sleep/Wake-Logging + doppelter Heartbeat.
+        // Adressiert das „App reagiert nach Ruhezustand nicht mehr"-Symptom (Main-Queue-Starvation).
+        lifecycleWatchdog = LifecycleWatchdog(hotkeys: hotkeyManager)
+        lifecycleWatchdog.start()
+
         cleanupTempFiles()
 
         // Lokales Modell beim App-Start vorladen — sonst würde die erste Aufnahme
@@ -176,10 +187,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Settings nur dann automatisch öffnen, wenn der User OpenAI braucht aber
         // keinen Key hinterlegt hat. Bei rein lokalem Setup (Whisper/Parakeet,
         // KI-Vorschläge aus) ist der Key irrelevant und der Auto-Open nervt.
+        // `needsOpenAIKey()` BEWUSST verzögert auswerten: Der API-Key wird beim Start
+        // asynchron aus der Keychain in den Cache geladen (nicht-blockierend). Würde man
+        // hier sofort prüfen, wäre der Cache noch leer → Settings poppte fälschlich auf.
         let forceSettings = CommandLine.arguments.contains("--settings")
-        if forceSettings || needsOpenAIKey() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                self?.settingsWindow.show()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            if forceSettings || self.needsOpenAIKey() {
+                self.settingsWindow.show()
             }
         }
     }
@@ -198,6 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             didBecomeActiveObserver = nil
         }
         settingsStore.save()
+        lifecycleWatchdog?.stop()
         hotkeyManager?.stop()
         cleanupTempFiles()
     }

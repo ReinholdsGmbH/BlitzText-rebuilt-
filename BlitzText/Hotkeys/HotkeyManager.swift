@@ -83,6 +83,36 @@ final class HotkeyManager: @unchecked Sendable {
         runLoopSource = nil
     }
 
+    /// Diagnose-Sicht für den Lifecycle-Watchdog: existiert ein Tap und ist er aktiv?
+    /// Liest nur Status (`CGEvent.tapIsEnabled`), verändert nichts. Main-Thread-only.
+    var eventTapIsActive: Bool {
+        assert(Thread.isMainThread, "eventTapIsActive muss auf dem Main-Thread laufen")
+        guard let tap = eventTap else { return false }
+        return CGEvent.tapIsEnabled(tap: tap)
+    }
+
+    /// Nach System-Aufwachen (NSWorkspace.didWake) aufrufen: prüft den Tap-Status und
+    /// stellt ihn bei Bedarf wieder her. Idempotent, promptet NIE (anders als `start()`).
+    /// Selbe Main-Thread-Invariante wie `installEventTap`.
+    func revalidateEventTap() {
+        assert(Thread.isMainThread, "revalidateEventTap muss auf dem Main-Thread laufen")
+        guard let tap = eventTap else {
+            // Tap fehlt (Permission kam spät oder ging verloren) — ohne Prompt neu versuchen.
+            if AXIsProcessTrusted() {
+                Log.write("Watchdog: kein Event-Tap vorhanden — Neuinstallation.")
+                installEventTap()
+            } else {
+                Log.write("Watchdog: kein Event-Tap und keine Accessibility — Polling neu starten.")
+                startPermissionWatcher()
+            }
+            return
+        }
+        if !CGEvent.tapIsEnabled(tap: tap) {
+            Log.write("Watchdog: Event-Tap war deaktiviert — re-enable.")
+            CGEvent.tapEnable(tap: tap, enable: true)
+        }
+    }
+
     private func installEventTap() {
         // Invariante: Tap wird auf dem Main-RunLoop installiert (start() läuft im bootstrap auf
         // dem Main-Actor, der permissionTimer feuert auf queue:.main). Damit werden ALLE

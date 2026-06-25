@@ -57,15 +57,26 @@ final class SettingsStore: ObservableObject {
     internal var _testApiKeyOverride: String?
     #endif
 
-    /// Liegt in der macOS-Keychain (Service `de.reinholds.blitztext`,
-    /// Account `openai-api-key`). Synchroner Zugriff bleibt erhalten —
-    /// Keychain.read/write sind blockierend und Sendable-safe.
+    /// In-Memory-Cache des API-Keys — die EINZIGE Quelle für Lesezugriffe.
+    ///
+    /// KRITISCH: Lesen darf NIE synchron die Keychain treffen. `SecItemCopyMatching` blockiert
+    /// per `mach_msg` auf `securityd` und kann nach Sleep/Wake/Unlock oder bei einem
+    /// Keychain-Zugriffs-Prompt (geänderte Code-Signatur) minutenlang hängen. Auf dem
+    /// Main-Thread friert das die GANZE App ein (kein Crash, RunLoop steht). Stack-Analyse
+    /// 2026-06-25: bootstrap → needsOpenAIKey → apiKey → SecItemCopyMatching → mach_msg.
+    /// Eigene `@unchecked Sendable`-Box (NSLock-geschützt): so reicht der Hintergrund-Lade-Task
+    /// NUR diese Box über die Isolationsgrenze — nicht den nicht-`Sendable` SettingsStore (`self`).
+    private let apiKeyCache = APIKeyCache()
+
+    /// API-Key (OpenAI). Lesen = nur In-Memory-Cache (nicht-blockierend). Schreiben = Cache
+    /// sofort aktualisieren + synchroner Keychain-Write (nutzerinitiiert im Settings-Fenster,
+    /// darf dort einmalig prompten). Initiales Laden läuft asynchron im Hintergrund (s. `init`).
     var apiKey: String {
         get {
             #if DEBUG
             if let override = _testApiKeyOverride { return override }
             #endif
-            return Keychain.shared.read(account: Self.apiKeyKeychainAccount) ?? ""
+            return apiKeyCache.current
         }
         set {
             #if DEBUG
@@ -75,6 +86,7 @@ final class SettingsStore: ObservableObject {
                 return
             }
             #endif
+            apiKeyCache.set(newValue)
             if newValue.isEmpty {
                 Keychain.shared.delete(account: Self.apiKeyKeychainAccount)
             } else {
@@ -96,7 +108,7 @@ final class SettingsStore: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         load()
-        migrateAPIKeyFromUserDefaultsIfNeeded()
+        loadAPIKeyFromKeychainAsync()
         objectWillChange
             .debounce(for: .milliseconds(150), scheduler: RunLoop.main)
             .sink { [weak self] _ in self?.save() }
@@ -141,22 +153,35 @@ final class SettingsStore: ObservableObject {
         save()
     }
 
-    /// Einmalige Migration: alter UserDefaults-Eintrag → Keychain.
-    /// Idempotent (kein Eintrag = No-Op). Bei Keychain-Fehler bleibt der
+    /// Lädt den API-Key EINMALIG aus der Keychain in den In-Memory-Cache — bewusst im
+    /// Hintergrund (`Task.detached`), weil Keychain-Zugriff (`SecItemCopyMatching` / `securityd`)
+    /// prompten oder nach Sleep/Wake blockieren kann; auf dem Main-Thread würde das die App
+    /// einfrieren (siehe `apiKey`-Doku). Enthält zugleich die einmalige Legacy-Migration
+    /// (UserDefaults → Keychain). Idempotent. Bei Keychain-Schreibfehler bleibt der
     /// Legacy-Eintrag erhalten, damit der User den Key nicht verliert.
-    private func migrateAPIKeyFromUserDefaultsIfNeeded() {
-        guard let legacy = defaults.string(forKey: Self.apiKeyLegacyDefaultsKey),
-              !legacy.isEmpty else { return }
-
-        if Keychain.shared.read(account: Self.apiKeyKeychainAccount) == nil {
-            if Keychain.shared.write(value: legacy, account: Self.apiKeyKeychainAccount) {
-                Log.write("SettingsStore: API-Key von UserDefaults nach Keychain migriert")
-            } else {
-                Log.write("SettingsStore: API-Key Migration fehlgeschlagen — UserDefaults-Eintrag bleibt erhalten")
-                return
+    private func loadAPIKeyFromKeychainAsync() {
+        // Nur Sendable-Werte einfangen (kein `self`, kein UserDefaults!), damit der Task nichts
+        // Nicht-Sendables über die Isolationsgrenze reicht: account/legacy sind Strings, `cache`
+        // ist @unchecked Sendable.
+        let account = Self.apiKeyKeychainAccount
+        let legacy = defaults.string(forKey: Self.apiKeyLegacyDefaultsKey)   // nicht-blockierend
+        let cache = apiKeyCache
+        Task.detached {
+            var value = Keychain.shared.read(account: account)
+            if value == nil, let legacy, !legacy.isEmpty {
+                // Einmalige Legacy-Migration (UserDefaults → Keychain). Der verwaiste
+                // UserDefaults-Eintrag bleibt liegen — harmlos, weil nach erfolgreicher
+                // Migration jeder Folge-Load die Keychain zuerst trifft (value != nil) und
+                // diesen Zweig nie wieder betritt.
+                if Keychain.shared.write(value: legacy, account: account) {
+                    value = legacy
+                    Log.write("SettingsStore: API-Key von UserDefaults nach Keychain migriert")
+                } else {
+                    Log.write("SettingsStore: API-Key Migration fehlgeschlagen — UserDefaults-Eintrag bleibt erhalten")
+                }
             }
+            cache.set(value ?? "")
         }
-        defaults.removeObject(forKey: Self.apiKeyLegacyDefaultsKey)
     }
 
     private struct Snapshot: Codable {
@@ -269,6 +294,16 @@ final class SettingsStore: ObservableObject {
             Log.write("SettingsStore: save() fehlgeschlagen — \(error)")
         }
     }
+}
+
+/// Thread-sicherer In-Memory-Halter für den API-Key. Eigene Klasse, damit sie als
+/// `@unchecked Sendable` über Isolationsgrenzen gereicht werden kann, ohne den ganzen
+/// (nicht-Sendable) SettingsStore mitzuziehen.
+private final class APIKeyCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = ""
+    var current: String { lock.withLock { value } }
+    func set(_ newValue: String) { lock.withLock { value = newValue } }
 }
 
 enum TranscriptionBackend: String, CaseIterable, Codable, Identifiable {
