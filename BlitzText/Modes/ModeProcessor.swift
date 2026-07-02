@@ -13,7 +13,13 @@ final class ModeProcessor: ObservableObject {
         case error(String)
     }
 
-    @Published private(set) var state: State = .idle
+    @Published private(set) var state: State = .idle {
+        didSet { stateLabel.set("\(state)") }
+    }
+
+    /// Thread-sicheres Status-Label für den LifecycleWatchdog-Heartbeat — zeigt im Log,
+    /// ob die App z. B. in `.recording` festhängt, wenn die Main-Queue verhungert.
+    nonisolated let stateLabel = StateLabelBox()
 
     private let settings: SettingsStore
     let history: HistoryStore

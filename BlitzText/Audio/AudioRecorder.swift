@@ -28,6 +28,16 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
     /// Mindestlänge der Aufnahme in Sekunden, sonst verworfen.
     private let minDuration: TimeInterval = 0.3
 
+    /// Drosselung der Pegel-Updates auf die Main-Queue. Der Audio-Tap feuert ~86×/s
+    /// (4096 Frames @ 48 kHz); ein `Task { @MainActor }` pro Buffer flutete die Main-Queue
+    /// (jedes Update = SwiftUI-Re-Render des HUD). Bei einer im Hintergrund gedrosselten
+    /// Menubar-App wuchs der Rückstau schneller als er abgearbeitet wurde → Main-Queue-
+    /// Starvation: Stop-Trigger, Klicks und Heartbeat kamen nicht mehr durch (App-Freeze).
+    /// Deckel: höchstens ~20 Pegel-Updates/s. Reicht für ein flüssiges Level-Meter.
+    private let levelThrottleLock = NSLock()
+    private var lastLevelEmitAt = Date.distantPast
+    private static let levelEmitInterval: TimeInterval = 0.05
+
     /// Letzte Aufnahme zu kurz oder zu leise — Pipeline soll überspringen.
     private(set) var lastRecordingWasSilence: Bool = false
 
@@ -126,14 +136,24 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
         // Floor bei -50 dB, Ceiling bei -10 dB → mappt aus realistischer Sprach-Range.
         let db = 20 * log10f(max(rms, 0.0001))
         let normalized = max(0, min(1, (db + 50) / 40))
-        let smoothed = normalized
+
+        // Drosseln: höchstens alle 50 ms ein Main-Queue-Update — NICHT pro Buffer.
+        // Verhindert die Main-Queue-Flut, die den App-Freeze während der Aufnahme auslöste.
+        let shouldEmit: Bool = levelThrottleLock.withLock {
+            let now = Date()
+            guard now.timeIntervalSince(lastLevelEmitAt) >= Self.levelEmitInterval else { return false }
+            lastLevelEmitAt = now
+            return true
+        }
+        guard shouldEmit else { return }
+
         Task { @MainActor [weak self] in
             guard let self else { return }
             // Schneller Anstieg, langsames Abklingen
-            if smoothed > self.currentLevel {
-                self.currentLevel = smoothed
+            if normalized > self.currentLevel {
+                self.currentLevel = normalized
             } else {
-                self.currentLevel = self.currentLevel * 0.85 + smoothed * 0.15
+                self.currentLevel = self.currentLevel * 0.85 + normalized * 0.15
             }
         }
     }

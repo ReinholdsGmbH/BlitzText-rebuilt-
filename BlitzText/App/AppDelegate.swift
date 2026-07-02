@@ -31,6 +31,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // fragilen `swift_task_isCurrentExecutor`-Check triggern (Swift 6.3), der hier als
     // EXC_BAD_ACCESS crasht. Als `@MainActor`-Methoden der `@MainActor`-Klasse entfällt der Check.
     func applicationWillFinishLaunching(_ notification: Notification) {
+        // App Nap hart deaktivieren: als LSUIElement-Menubar-App muss BlitzText jederzeit
+        // sofort auf den Hotkey reagieren. `beginActivity` allein hat die Drosselung der
+        // Main-Queue im Hintergrund NICHT verhindert (Freeze-Analyse 2026-07-02) —
+        // `NSAppSleepDisabled` ist der dokumentierte, harte Opt-out. Muss vor dem ersten
+        // AppKit-Nap-Assessment gesetzt sein, daher hier im frühesten Delegate-Hook.
+        UserDefaults.standard.register(defaults: ["NSAppSleepDisabled": true])
         enforceSingleInstance()
     }
 
@@ -154,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Lifecycle-Watchdog: App-Nap-Schutz + Sleep/Wake-Logging + doppelter Heartbeat.
         // Adressiert das „App reagiert nach Ruhezustand nicht mehr"-Symptom (Main-Queue-Starvation).
-        lifecycleWatchdog = LifecycleWatchdog(hotkeys: hotkeyManager)
+        lifecycleWatchdog = LifecycleWatchdog(hotkeys: hotkeyManager, stateLabel: modeProcessor.stateLabel)
         lifecycleWatchdog.start()
 
         cleanupTempFiles()

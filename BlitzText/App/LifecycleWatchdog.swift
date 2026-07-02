@@ -26,6 +26,17 @@ import Foundation
 /// dort als EXC_BAD_ACCESS (siehe AppDelegate/MenuBarController).
 ///
 /// DSGVO: loggt ausschließlich Status/Zähler — niemals Transkripte oder Klarnamen.
+/// Thread-sicherer Halter für ein kurzes Status-Label (z. B. ModeProcessor.state).
+/// @unchecked Sendable, damit der Watchdog es lesen kann, ohne den @MainActor-ModeProcessor
+/// über eine Isolationsgrenze zu reichen. Schreiben passiert auf dem MainActor, Lesen im
+/// Heartbeat-Callback — der NSLock serialisiert beides.
+final class StateLabelBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = "idle"
+    var current: String { lock.withLock { value } }
+    func set(_ newValue: String) { lock.withLock { value = newValue } }
+}
+
 final class LifecycleWatchdog: @unchecked Sendable {
 
     /// Heartbeat-Intervall. 30 s ist fein genug, um den Sleep/Wake-Übergang einzugrenzen,
@@ -33,6 +44,7 @@ final class LifecycleWatchdog: @unchecked Sendable {
     private static let heartbeatInterval: TimeInterval = 30
 
     private unowned let hotkeys: HotkeyManager
+    private let stateLabel: StateLabelBox
 
     private var activityToken: (any NSObjectProtocol)?
     private var runLoopHeartbeat: Timer?
@@ -42,8 +54,9 @@ final class LifecycleWatchdog: @unchecked Sendable {
     private var runLoopTick = 0
     private var mainQueueTick = 0
 
-    init(hotkeys: HotkeyManager) {
+    init(hotkeys: HotkeyManager, stateLabel: StateLabelBox) {
         self.hotkeys = hotkeys
+        self.stateLabel = stateLabel
     }
 
     func start() {
@@ -119,7 +132,7 @@ final class LifecycleWatchdog: @unchecked Sendable {
             guard let self else { return }
             self.runLoopTick += 1
             let wakeAge = self.lastWakeAt.map { Int(Date().timeIntervalSince($0)) }
-            Log.write("❤️ runloop #\(self.runLoopTick) tapAktiv=\(self.hotkeys.eventTapIsActive) wakeAge=\(wakeAge.map { "\($0)s" } ?? "–")")
+            Log.write("❤️ runloop #\(self.runLoopTick) tapAktiv=\(self.hotkeys.eventTapIsActive) state=\(self.stateLabel.current) wakeAge=\(wakeAge.map { "\($0)s" } ?? "–")")
         }
         RunLoop.main.add(timer, forMode: .common)
         runLoopHeartbeat = timer
