@@ -103,6 +103,19 @@ final class MenuBarController: NSObject {
         if popover.isShown { popover.performClose(nil) }
 
         let menu = NSMenu()
+
+        // Versions-/Release-Info: nicht klickbare Kopfzeile (zeigt die laufende Version) +
+        // Link zu den Release-Notes auf GitHub.
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        let versionItem = NSMenuItem(title: "BlitzText \(version) (Build \(build))", action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+        let releaseItem = NSMenuItem(title: "Release-Notes öffnen…", action: #selector(openReleasePage), keyEquivalent: "")
+        releaseItem.target = self
+        menu.addItem(releaseItem)
+        menu.addItem(.separator())
+
         let settingsItem = NSMenuItem(title: "Einstellungen…", action: #selector(openSettingsFromMenu), keyEquivalent: "")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -122,6 +135,15 @@ final class MenuBarController: NSObject {
     }
     @objc nonisolated private func quitFromMenu() {
         DispatchQueue.main.async { NSApp.terminate(nil) }
+    }
+
+    /// Öffnet die GitHub-Releases-Seite (Index — robust auch für noch nicht veröffentlichte
+    /// Versionen; die aktuellste Release steht dort oben).
+    @objc nonisolated private func openReleasePage() {
+        DispatchQueue.main.async {
+            guard let url = URL(string: "https://github.com/ReinholdsGmbH/BlitzText/releases") else { return }
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private func togglePopover() {
