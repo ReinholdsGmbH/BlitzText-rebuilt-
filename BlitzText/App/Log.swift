@@ -38,11 +38,10 @@ enum Log {
                 try? data.write(to: url)
             }
         }
-        #if DEBUG
-        // Nur im Debug-Build in Console.app spiegeln — sonst wäre der Inhalt im
-        // systemweiten Unified Log für andere Prozesse sichtbar.
-        NSLog("[BlitzText] %@", msg)
-        #endif
+        // BEWUSST kein NSLog-Spiegel mehr: NSLog → os_log → libtrace lief bei JEDER Logzeile,
+        // synchron auf dem aufrufenden (oft Main-)Thread. In Kombination mit hochfrequentem
+        // Logging war das eine libtrace-Fire-Hose; im Freeze-Sample hing genau ein libtrace-
+        // Thread per dispatch_sync an der Main-Queue. Das Datei-Log (im queue.async oben) genügt.
     }
 
     /// Rotiert die Logdatei, wenn sie `maxBytes` überschreitet (überschreibt die vorige `.old`).

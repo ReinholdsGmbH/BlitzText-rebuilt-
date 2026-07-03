@@ -196,7 +196,11 @@ final class HotkeyManager: @unchecked Sendable {
             option: flags.contains(.maskAlternate),
             command: flags.contains(.maskCommand)
         )
-        Log.write("flagsChanged raw=0x\(String(flags.rawValue, radix: 16)) fn=\(input.fn) shift=\(input.shift) ctrl=\(input.control) opt=\(input.option) cmd=\(input.command)")
+        // BEWUSST kein Log pro flagsChanged: Diese Methode läuft im CGEvent-Tap-Callback auf dem
+        // MAIN-Thread und feuert bei JEDEM Modifier-Tastendruck. Das frühere Log.write hier war
+        // eine os_log/libtrace-Fire-Hose (tausende Zeilen) — mutmaßlich (mit)verantwortlich für den
+        // Main-Queue-Stall (blockierter Thread im sample: com.apple.libtrace). Zudem ist das
+        // Protokollieren gedrückter Modifier ein Datenschutz-Thema. Tap-Health zeigt der Heartbeat.
 
         // Wenn ein Key-Binding aktiv ist: prüfen ob die Modifier noch stimmen.
         if let active = activeKeyMode {
