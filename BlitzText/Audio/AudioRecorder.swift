@@ -15,7 +15,9 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
     /// Aktueller Pegel (0…1, RMS-basiert mit weichem Decay) — für Live-Visualisierung im Recording-HUD.
     @MainActor @Published private(set) var currentLevel: Float = 0
 
-    private let engine = AVAudioEngine()
+    /// `var`, nicht `let`: wird pro Aufnahme neu erstellt (siehe `start()`), weil eine
+    /// langlebige AVAudioEngine nach Sleep/Wake bzw. Audio-Gerätewechsel „stale" wird.
+    private var engine = AVAudioEngine()
     private var file: AVAudioFile?
     private var fileURL: URL?
     private var converter: AVAudioConverter?
@@ -44,12 +46,30 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
     func start() throws -> URL {
         try ensureMicrophonePermissionSync()
 
+        // Frische AVAudioEngine pro Aufnahme. Eine langlebige Engine wird nach Sleep/Wake oder
+        // Audio-Gerätewechsel „stale": ihr gecachtes Hardware-Format weicht vom echten ab, und
+        // engine.start()/installTap wirft dann eine ObjC-Exception ("required condition is
+        // false: format.sampleRate == hwFormat.sampleRate"). Da start() aus dem Hotkey-Event-
+        // Dispatch heraus läuft, verschluckt AppKit/HIServices diese Exception (sample-Beleg:
+        // "…SWALLOWED_AT_LEAST_ONE_EXCEPTION") und hinterlässt die Main-Queue in einem toten
+        // Zustand → App-Freeze beim Aufnahme-Start. Eine frische Engine liest das aktuelle
+        // Hardware-Format neu → kein Mismatch, keine Exception.
+        engine = AVAudioEngine()
+
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("blitztext-\(UUID().uuidString).wav")
         self.fileURL = url
 
         let input = engine.inputNode
         let inFormat = input.outputFormat(forBus: 0)
+
+        // Direkt nach Sleep/Wake bzw. Gerätewechsel liefert der InputNode kurzzeitig ein
+        // degeneriertes Format (Sample-Rate/Kanäle == 0). installTap/engine.start() würden damit
+        // die ObjC-Exception werfen. Hier als sauberen Swift-Fehler abfangen → kein Freeze,
+        // stattdessen sichtbarer Fehlerzustand; der nächste Versuch hat i. d. R. ein gültiges Format.
+        guard inFormat.sampleRate > 0, inFormat.channelCount > 0 else {
+            throw RecorderError.audioUnavailable
+        }
 
         guard let target = AVAudioFormat(
             commonFormat: .pcmFormatInt16,
@@ -198,7 +218,7 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
         }
     }
 
-    enum RecorderError: Error { case micDenied }
+    enum RecorderError: Error { case micDenied, audioUnavailable }
 }
 
 /// Konformanz-Deklaration: `AudioRecorder.start()` und `AudioRecorder.stop()` erfuellen

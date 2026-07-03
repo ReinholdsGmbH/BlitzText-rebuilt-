@@ -331,6 +331,7 @@ final class ModeProcessor: ObservableObject {
         if let e = error as? AudioRecorder.RecorderError {
             switch e {
             case .micDenied: return "Mikrofon-Zugriff verweigert. Bitte in Systemeinstellungen → Datenschutz → Mikrofon erlauben."
+            case .audioUnavailable: return "Audio-Eingang gerade nicht verfügbar (z. B. direkt nach dem Aufwachen). Bitte kurz warten und erneut versuchen."
             }
         }
         return error.localizedDescription
