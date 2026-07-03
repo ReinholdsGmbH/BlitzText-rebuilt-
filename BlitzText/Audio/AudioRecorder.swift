@@ -15,9 +15,12 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
     /// Aktueller Pegel (0…1, RMS-basiert mit weichem Decay) — für Live-Visualisierung im Recording-HUD.
     @MainActor @Published private(set) var currentLevel: Float = 0
 
-    /// `var`, nicht `let`: wird pro Aufnahme neu erstellt (siehe `start()`), weil eine
-    /// langlebige AVAudioEngine nach Sleep/Wake bzw. Audio-Gerätewechsel „stale" wird.
-    private var engine = AVAudioEngine()
+    /// Langlebige Engine — bewusst NICHT pro Aufnahme neu erzeugen: rasches Neu-Erzeugen einer
+    /// AVAudioEngine verwirrt die CoreAudio-HAL, sodass die zweite und alle folgenden Aufnahmen
+    /// nur noch Stille (peak=0) liefern. Den Sleep/Wake-/Gerätewechsel-Fall (stale Format →
+    /// ObjC-Exception → Freeze) behandelt stattdessen der ConfigurationChange-Observer (init()).
+    private let engine = AVAudioEngine()
+    private var configChangeToken: NSObjectProtocol?
     private var file: AVAudioFile?
     private var fileURL: URL?
     private var converter: AVAudioConverter?
@@ -43,18 +46,41 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
     /// Letzte Aufnahme zu kurz oder zu leise — Pipeline soll überspringen.
     private(set) var lastRecordingWasSilence: Bool = false
 
+    init() {
+        // Sleep/Wake bzw. Audio-Gerätewechsel lösen einen AVAudioEngineConfigurationChange aus;
+        // die Engine stoppt sich dann selbst und ihr Graph/Format wird ungültig. Unbehandelt
+        // wirft der nächste engine.start()/installTap eine ObjC-Exception (stale Format), die
+        // aus dem Hotkey-Event-Dispatch heraus verschluckt wird und die Main-Queue tötet
+        // (App-Freeze beim Aufnahme-Start, sample-Beleg "…SWALLOWED_AT_LEAST_ONE_EXCEPTION").
+        // Reset hier → der nächste start() baut mit dem AKTUELLEN Hardware-Format sauber neu auf,
+        // ohne das HAL-Chaos einer pro-Aufnahme neu erzeugten Engine.
+        configChangeToken = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Log.write("AVAudioEngine: Konfigurationswechsel (Sleep/Wake/Gerät) — Reset.")
+            self.engine.inputNode.removeTap(onBus: 0)
+            self.engine.stop()
+            self.engine.reset()
+        }
+    }
+
+    deinit {
+        if let token = configChangeToken {
+            NotificationCenter.default.removeObserver(token)
+        }
+    }
+
     func start() throws -> URL {
         try ensureMicrophonePermissionSync()
 
-        // Frische AVAudioEngine pro Aufnahme. Eine langlebige Engine wird nach Sleep/Wake oder
-        // Audio-Gerätewechsel „stale": ihr gecachtes Hardware-Format weicht vom echten ab, und
-        // engine.start()/installTap wirft dann eine ObjC-Exception ("required condition is
-        // false: format.sampleRate == hwFormat.sampleRate"). Da start() aus dem Hotkey-Event-
-        // Dispatch heraus läuft, verschluckt AppKit/HIServices diese Exception (sample-Beleg:
-        // "…SWALLOWED_AT_LEAST_ONE_EXCEPTION") und hinterlässt die Main-Queue in einem toten
-        // Zustand → App-Freeze beim Aufnahme-Start. Eine frische Engine liest das aktuelle
-        // Hardware-Format neu → kein Mismatch, keine Exception.
-        engine = AVAudioEngine()
+        // Defensiv sauberer Ausgangszustand: falls die Engine noch läuft oder ein Tap vom letzten
+        // Mal hängt (abgebrochene Aufnahme / Konfigwechsel), zurücksetzen, bevor neu konfiguriert
+        // wird. removeTap ohne Tap und stop() ohne Lauf sind No-Ops.
+        if engine.isRunning { engine.stop() }
+        engine.inputNode.removeTap(onBus: 0)
 
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("blitztext-\(UUID().uuidString).wav")
