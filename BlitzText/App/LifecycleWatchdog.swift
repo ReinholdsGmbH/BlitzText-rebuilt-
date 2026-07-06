@@ -54,6 +54,17 @@ final class LifecycleWatchdog: @unchecked Sendable {
     private var runLoopTick = 0
     private var mainQueueTick = 0
 
+    // MARK: - Freeze-Erkennung / Auto-Recovery
+    /// Zeitpunkt des letzten Main-Queue-Herzschlags. Wird im (auch bei Freeze weiterlaufenden)
+    /// RunLoop-Herzschlag gegen jetzt geprüft: liegt er zu weit zurück, ist die Main-Queue tot
+    /// (App eingefroren, RunLoop lebt) → automatischer Neustart.
+    private var lastMainQueueBeatAt = Date()
+    /// Nur EIN Auto-Neustart pro Prozess — verhindert Neustart-Schleifen.
+    private var didTriggerRecovery = false
+    /// So lange darf ein Main-Queue-Schlag ausbleiben, bevor Freeze angenommen wird. Deutlich
+    /// über dem normalen Hintergrund-Coalescing (~1,5 s auf 30 s Intervall) → keine Fehlalarme.
+    private static let freezeThreshold: TimeInterval = 90
+
     init(hotkeys: HotkeyManager, stateLabel: StateLabelBox) {
         self.hotkeys = hotkeys
         self.stateLabel = stateLabel
@@ -133,6 +144,11 @@ final class LifecycleWatchdog: @unchecked Sendable {
             self.runLoopTick += 1
             let wakeAge = self.lastWakeAt.map { Int(Date().timeIntervalSince($0)) }
             Log.write("❤️ runloop #\(self.runLoopTick) tapAktiv=\(self.hotkeys.eventTapIsActive) state=\(self.stateLabel.current) wakeAge=\(wakeAge.map { "\($0)s" } ?? "–")")
+            // Freeze-Erkennung: Wir laufen hier (RunLoop lebt), aber der Main-Queue-Schlag bleibt
+            // aus → Main-Queue tot → Auto-Neustart.
+            if Date().timeIntervalSince(self.lastMainQueueBeatAt) > Self.freezeThreshold {
+                self.triggerRecovery()
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         runLoopHeartbeat = timer
@@ -150,9 +166,30 @@ final class LifecycleWatchdog: @unchecked Sendable {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.heartbeatInterval) { [weak self] in
             guard let self, self.mainQueueHeartbeatActive else { return }
             self.mainQueueTick += 1
+            self.lastMainQueueBeatAt = Date()
             let lateMs = Int(Date().timeIntervalSince(target) * 1000)
             Log.write("❤️ mainqueue #\(self.mainQueueTick) late=\(lateMs)ms")
             self.scheduleMainQueueTick(scheduledFor: Date().addingTimeInterval(Self.heartbeatInterval))
         }
+    }
+
+    // MARK: - Auto-Recovery
+
+    /// Startet die App neu, wenn die Main-Queue tot ist (App eingefroren). Wird aus dem
+    /// RunLoop-Herzschlag heraus aufgerufen — der läuft auch bei totem Main-Thread-Dispatch.
+    /// Nur einmal pro Prozess (Schleifenschutz).
+    private func triggerRecovery() {
+        guard !didTriggerRecovery else { return }
+        didTriggerRecovery = true
+        let path = Bundle.main.bundlePath
+        Log.write("Watchdog: Main-Queue seit >\(Int(Self.freezeThreshold))s tot (App eingefroren) — automatischer Neustart.")
+        // Helfer wartet, bis dieser (eingefrorene) Prozess weg ist, und öffnet die App dann neu.
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "sleep 1; /usr/bin/open \"\(path)\""]
+        try? task.run()
+        // Harter Exit: die Main-GCD-Queue ist tot, `NSApp.terminate` liefe über sie und käme
+        // nicht durch. `exit` beendet den Prozess sofort; der Helfer startet danach neu.
+        exit(0)
     }
 }
