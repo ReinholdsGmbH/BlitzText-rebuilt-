@@ -45,6 +45,7 @@
 		6D702CA6F2BA82D28D9A2CC7 /* HotkeysTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E8ED86566952301A2ACD27 /* HotkeysTab.swift */; };
 		720818EBAD79180314A385B5 /* AppleFoundationAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C1DE7CD38785B8D18F565D7 /* AppleFoundationAvailabilityTests.swift */; };
 		7247E57DE4F67076B6B572DD /* ModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09914BB3AE6444A4726A9668 /* ModelDownloader.swift */; };
+		7473419D75E6F23F1F385B3A /* ExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = C9FF4284D97A714A1B4997AA /* ExceptionCatcher.m */; };
 		761E68F3D51E16599E6E3565 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0937B28A6469023CD8E2C2EC /* HotkeyManager.swift */; };
 		765CBB3A1387C9A5CC5BF557 /* EigennamenAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA8F09F46A93CA9F978560F /* EigennamenAnalyzerTests.swift */; };
 		778EE0BE58FD95AB96185AE8 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0EB52F9EF137B413D0DDA5A /* SettingsWindowController.swift */; };
@@ -119,6 +120,7 @@
 		0B1BC8E40FD8A939B8377AB8 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		0BF0B5AE7B6146CDBA633A7E /* SpeakerProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerProfileStoreTests.swift; sourceTree = "<group>"; };
 		0C7122A8A416D11E0DB7060B /* SuggestionPresenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionPresenterTests.swift; sourceTree = "<group>"; };
+		12CA4C98FD05E4B280B7AD2A /* ExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExceptionCatcher.h; sourceTree = "<group>"; };
 		14AA9F6AE8FB74F949CA546F /* BlitzTextApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlitzTextApp.swift; sourceTree = "<group>"; };
 		14E135D23E0C380D99FC696C /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 		185C0CF95D8E301D374D5477 /* SuggestionPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionPresenter.swift; sourceTree = "<group>"; };
@@ -126,6 +128,7 @@
 		1C1BF5DED6C2580B9EBF3676 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		1E3971DF354EE39973683B80 /* StringSimilarityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarityTests.swift; sourceTree = "<group>"; };
 		1F0BB71C84F0A212A2C2074E /* ZugangTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZugangTab.swift; sourceTree = "<group>"; };
+		218948D25CE5540C8E2937B3 /* BlitzText-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "BlitzText-Bridging-Header.h"; sourceTree = "<group>"; };
 		2ED20D298E2E13975A8DE892 /* WhisperAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperAPIClient.swift; sourceTree = "<group>"; };
 		2F8B10DDAB686DCB1AC75415 /* RewriteBackendDispatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteBackendDispatchTests.swift; sourceTree = "<group>"; };
 		348D2A9B82C4E47649588269 /* AppleFoundationError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleFoundationError.swift; sourceTree = "<group>"; };
@@ -178,6 +181,7 @@
 		C589D197AE60A09DFA3F8A4D /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		C8456D5051CB4C5BB99AFAF7 /* FillerWordFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordFilterTests.swift; sourceTree = "<group>"; };
 		C9F7A7D1D4EE930488C7F580 /* OpenAIChatClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIChatClient.swift; sourceTree = "<group>"; };
+		C9FF4284D97A714A1B4997AA /* ExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ExceptionCatcher.m; sourceTree = "<group>"; };
 		CBA55D0F435F044261A21822 /* LokalTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LokalTab.swift; sourceTree = "<group>"; };
 		D26354C0ECC99145FCBC2B97 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		D3C28960EDC99F7D288E8084 /* SuggestionToastController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionToastController.swift; sourceTree = "<group>"; };
@@ -242,6 +246,7 @@
 		0B0E5D63EF2F685524717914 /* BlitzText */ = {
 			isa = PBXGroup;
 			children = (
+				218948D25CE5540C8E2937B3 /* BlitzText-Bridging-Header.h */,
 				566E58E1F0C6C348AAB4007A /* App */,
 				A4D31751AB918FB585FF947E /* Audio */,
 				9BB6E8CB060538ACEC6E5172 /* Enrollment */,
@@ -254,6 +259,7 @@
 				1A638C108EBC8D54DD4A23A5 /* Resources */,
 				D0CF498755B8B574CD48C3DC /* Rewrite */,
 				95C41783B942B34FC9341A77 /* Settings */,
+				C78E736BF2D9F5F2CACB8593 /* Support */,
 				2AA46DA44C8CC9EC49EE56D3 /* Transcription */,
 				53C3D2179A7083F2FCBE141B /* UI */,
 			);
@@ -453,6 +459,15 @@
 				48C13BC8FEDE1C3912CDE458 /* AudioRecorder.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		C78E736BF2D9F5F2CACB8593 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				12CA4C98FD05E4B280B7AD2A /* ExceptionCatcher.h */,
+				C9FF4284D97A714A1B4997AA /* ExceptionCatcher.m */,
+			);
+			path = Support;
 			sourceTree = "<group>";
 		};
 		D0CF498755B8B574CD48C3DC /* Rewrite */ = {
@@ -672,6 +687,7 @@
 				83CB9CC4E6AFF69C80A73269 /* EigennamenAnalyzer.swift in Sources */,
 				0CB39B0E255C228E965296C7 /* EnrollmentSheet.swift in Sources */,
 				5F5ED9CACF17BB6A4F1AA69D /* EnrollmentViewModel.swift in Sources */,
+				7473419D75E6F23F1F385B3A /* ExceptionCatcher.m in Sources */,
 				9B06E4955BE75BC3E0E07133 /* FillerWordFilter.swift in Sources */,
 				97411EAC9E461B3308862230 /* FoundationAvailabilityBanner.swift in Sources */,
 				C430E3F7AF00371C98A7FE1A /* FoundationAvailabilityProvider.swift in Sources */,
@@ -742,6 +758,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "BlitzText/BlitzText-Bridging-Header.h";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 			};
 			name = Release;
@@ -760,6 +777,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "BlitzText/BlitzText-Bridging-Header.h";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 			};
 			name = Debug;

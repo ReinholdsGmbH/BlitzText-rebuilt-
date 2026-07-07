@@ -94,12 +94,29 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
                                     commonFormat: .pcmFormatInt16, interleaved: true)
         self.converter = AVAudioConverter(from: inFormat, to: target)
 
-        input.installTap(onBus: 0, bufferSize: 4096, format: inFormat) { [weak self] buffer, _ in
-            self?.measurePeak(buffer: buffer)
-            self?.write(buffer: buffer)
+        // installTap/engine.start() können bei stale Hardware-Format eine ObjC-NSException werfen
+        // ("required condition is false…"). Ungefangen wird sie aus dem Hotkey-Event-Dispatch
+        // verschluckt und tötet die Main-Queue → App-Freeze. In ObjC-@try/@catch kapseln, damit
+        // daraus ein sauberer Swift-Fehler wird (RecorderError.audioUnavailable) statt eines Freezes.
+        var startError: Error?
+        let caught = ExceptionCatcher.run {
+            input.installTap(onBus: 0, bufferSize: 4096, format: inFormat) { [weak self] buffer, _ in
+                self?.measurePeak(buffer: buffer)
+                self?.write(buffer: buffer)
+            }
+            self.engine.prepare()
+            do { try self.engine.start() } catch { startError = error }
         }
-        engine.prepare()
-        try engine.start()
+        if let caught {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+            Log.write("AudioRecorder: AVAudioEngine-Exception gefangen — \(caught.localizedDescription)")
+            throw RecorderError.audioUnavailable
+        }
+        if let startError {
+            engine.inputNode.removeTap(onBus: 0)
+            throw startError
+        }
         self.startedAt = Date()
         self.peakAmplitude = 0
         self.lastRecordingWasSilence = false
