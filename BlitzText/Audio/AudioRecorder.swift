@@ -15,12 +15,12 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
     /// Aktueller Pegel (0…1, RMS-basiert mit weichem Decay) — für Live-Visualisierung im Recording-HUD.
     @MainActor @Published private(set) var currentLevel: Float = 0
 
-    /// Langlebige Engine — bewusst NICHT pro Aufnahme neu erzeugen (rasches Neu-Erzeugen verwirrt
-    /// die CoreAudio-HAL → 2. und folgende Aufnahmen liefern Stille).
-    /// Hinweis: KEIN AVAudioEngineConfigurationChange-Observer — der feuert auch beim NORMALEN
-    /// Aufnahme-Start und ein Reset darin killt die laufende Aufnahme (Stille) und den Folgestart
-    /// (Freeze). Der Sleep/Wake-Freeze ist separat zu lösen (siehe RISKS/Notiz), nicht so.
-    private let engine = AVAudioEngine()
+    /// Im Normalbetrieb langlebig — NICHT pro Aufnahme neu erzeugen (rasches Neu-Erzeugen verwirrt
+    /// die CoreAudio-HAL → Folgeaufnahmen liefern Stille). NUR wenn der Eingang „stale" ist
+    /// (degeneriertes Format / ObjC-Exception, typisch nach Sleep/Wake) wird sie EINMAL neu
+    /// erzeugt und der Start wiederholt (siehe `start()`). Kein ConfigurationChange-Observer —
+    /// der feuert auch beim normalen Start und würde die laufende Aufnahme killen.
+    private var engine = AVAudioEngine()
     private var file: AVAudioFile?
     private var fileURL: URL?
     private var converter: AVAudioConverter?
@@ -49,15 +49,35 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
     func start() throws -> URL {
         try ensureMicrophonePermissionSync()
 
-        // Defensiv sauberer Ausgangszustand: falls die Engine noch läuft oder ein Tap vom letzten
-        // Mal hängt (abgebrochene Aufnahme / Konfigwechsel), zurücksetzen, bevor neu konfiguriert
-        // wird. removeTap ohne Tap und stop() ohne Lauf sind No-Ops.
-        if engine.isRunning { engine.stop() }
-        engine.inputNode.removeTap(onBus: 0)
-
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("blitztext-\(UUID().uuidString).wav")
         self.fileURL = url
+
+        do {
+            try configureAndStart(url: url)
+        } catch RecorderError.audioUnavailable {
+            // Stale/degenerierter Eingang (typisch nach Sleep/Wake): die langlebige Engine hat ein
+            // ungültiges Hardware-Format und erholt sich nicht von selbst. Genau HIER — und nur
+            // hier, nicht bei jeder Aufnahme — die Engine EINMAL neu erzeugen und erneut versuchen.
+            // Der frisch erzeugte Engine bleibt auch bei erneutem Fehlschlag erhalten, sodass der
+            // nächste Aufnahmeversuch ihn nutzt und sich heilt, sobald die Hardware bereit ist.
+            Log.write("AudioRecorder: Audio-Eingang stale — Engine neu erzeugen, zweiter Versuch.")
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+            engine = AVAudioEngine()
+            try configureAndStart(url: url)
+        }
+        return url
+    }
+
+    /// Konfiguriert Tap/Format/Datei auf der aktuellen `engine` und startet sie. Wirft
+    /// `RecorderError.audioUnavailable`, wenn der Eingang „stale"/ungültig ist (degeneriertes
+    /// Format oder ObjC-Exception) — der Aufrufer erzeugt die Engine dann neu und wiederholt.
+    private func configureAndStart(url: URL) throws {
+        // Defensiv sauberer Ausgangszustand: falls die Engine noch läuft oder ein Tap hängt,
+        // zurücksetzen. removeTap ohne Tap und stop() ohne Lauf sind No-Ops.
+        if engine.isRunning { engine.stop() }
+        engine.inputNode.removeTap(onBus: 0)
 
         let input = engine.inputNode
         let inFormat = input.outputFormat(forBus: 0)
@@ -121,7 +141,6 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
         self.peakAmplitude = 0
         self.lastRecordingWasSilence = false
         Task { @MainActor in self.currentLevel = 0 }
-        return url
     }
 
     @discardableResult
