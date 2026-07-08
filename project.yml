@@ -44,8 +44,8 @@ targets:
         CFBundleDevelopmentRegion: de
         CFBundleName: BlitzText
         CFBundleDisplayName: BlitzText
-        CFBundleShortVersionString: "0.5.10"
-        CFBundleVersion: "15"
+        CFBundleShortVersionString: "0.5.11"
+        CFBundleVersion: "16"
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
         LSMinimumSystemVersion: "26.0"
