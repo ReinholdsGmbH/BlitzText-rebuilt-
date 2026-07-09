@@ -18,6 +18,8 @@ final class SettingsStore: ObservableObject {
     /// Alle kanonischen Texte der Eigennamen (für Prompt-Builder und Duplikatprüfung).
     var properNounTexts: [String] { properNouns.map(\.text) }
     @Published var autoInsert: Bool = false
+    /// Standard-Modus (`.blitztext`): ausgeschriebene Zahlen in Ziffern umwandeln (`fünf` → `5`).
+    @Published var convertNumbersToDigits: Bool = true
     @Published var transcriptionLanguage: String = "de"
     @Published var rewriteModel: String = "gpt-4o-mini"
     @Published var transcriptionModel: String = "whisper-1"
@@ -192,6 +194,7 @@ final class SettingsStore: ObservableObject {
         var properNouns: [String]?          // Legacy (vor V2) — nur noch zum Migrieren gelesen
         var properNounsV2: [ProperNoun]?    // Aktuelles Modell
         var autoInsert: Bool
+        var convertNumbersToDigits: Bool?   // additives Optional — alte Snapshots laden ohne Crash
         var transcriptionLanguage: String
         var rewriteModel: String
         var transcriptionModel: String
@@ -231,6 +234,7 @@ final class SettingsStore: ObservableObject {
             properNouns = (snap.properNouns ?? []).map { ProperNoun(text: $0) }
         }
         autoInsert = snap.autoInsert
+        convertNumbersToDigits = snap.convertNumbersToDigits ?? true
         transcriptionLanguage = snap.transcriptionLanguage
         rewriteModel = snap.rewriteModel
         transcriptionModel = snap.transcriptionModel
@@ -272,6 +276,7 @@ final class SettingsStore: ObservableObject {
             properNouns: nil,
             properNounsV2: properNouns,
             autoInsert: autoInsert,
+            convertNumbersToDigits: convertNumbersToDigits,
             transcriptionLanguage: transcriptionLanguage,
             rewriteModel: rewriteModel,
             transcriptionModel: transcriptionModel,

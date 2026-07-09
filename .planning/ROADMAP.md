@@ -23,6 +23,7 @@
 - [ ] **Phase 14: Experimental — Bulk Import** — JSON/CSV-Import ins Custom Vocabulary über NSOpenPanel
 - [ ] **Phase 15: System-Polish & QoL** — Launch-at-Login, Show-in-Dock, Dictation-/Notification-Sounds, Mute-Music-while-Dictating
 - [ ] **Phase 16: Sprecher-Sample-Wiedergabe** — Audio-Fragmente pro Sprecher aus dem letzten Transkript abspielen, damit unbekannte Stimmen nachträglich benannt werden können
+- [x] **Phase 17: Zahlwort → Ziffer (Normalmodus)** — On-Device `NumberWordConverter` im `.blitztext`-Pfad: Grundzahlen, Ordinal, Dezimal, Uhrzeit (Doppelpunkt); Setting `convertNumbersToDigits` (Default an) im Anpassen-Tab (completed 2026-07-09)
 
 ## Phase Details
 

@@ -14,6 +14,12 @@ struct AnpassenTab: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            section("BLITZTEXT") {
+                Toggle("Zahlen als Ziffern schreiben", isOn: $settings.convertNumbersToDigits)
+                Text("Wandelt im Normalmodus ausgesprochene Zahlen in Ziffern um (fünf → 5, dritte → 3., acht Uhr dreißig → 8:30). Gilt nur für Blitztext, nicht für Plus/$%&!.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             section("BLITZTEXT+") {
                 Text("Schreibstil").font(.subheadline)
                 Picker("", selection: $settings.styleForPlus) {

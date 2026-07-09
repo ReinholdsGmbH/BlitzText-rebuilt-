@@ -209,7 +209,12 @@ final class ModeProcessor: ObservableObject {
         switch mode {
         case .blitztext:
             // Standard-Modus hat keinen Rewrite, der Zögerlaute glättet → hier filtern.
-            output = FillerWordFilter.strip(corrected)
+            var text = FillerWordFilter.strip(corrected)
+            // Ausgeschriebene Zahlen → Ziffern (optional, nur im Standard-Modus).
+            if settings.convertNumbersToDigits {
+                text = NumberWordConverter.convert(text)
+            }
+            output = text
             polished = nil
         case .blitztextPlus, .blitztextRant:
             state = .rewriting(mode)

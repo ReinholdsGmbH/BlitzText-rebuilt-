@@ -12,6 +12,7 @@
 		07383E5ABBA5D989EB43DF31 /* LocalWhisperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D48C58EC4522B0B55F71E50 /* LocalWhisperClient.swift */; };
 		074508627366A3CF92A5FF13 /* CandidateLedgerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB40514857F34E20FEE7041D /* CandidateLedgerTests.swift */; };
 		0CB39B0E255C228E965296C7 /* EnrollmentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37829CA0AA550B316C3815B4 /* EnrollmentSheet.swift */; };
+		12BFEBFAA944AE998767FE9E /* NumberWordConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB85FA13E496B64239B33221 /* NumberWordConverter.swift */; };
 		15FD98B4114E1CB5D3004BE6 /* WhisperAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ED20D298E2E13975A8DE892 /* WhisperAPIClient.swift */; };
 		1B9A855234C102F569BDC21A /* FillerWordFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8456D5051CB4C5BB99AFAF7 /* FillerWordFilterTests.swift */; };
 		200E59A0B3E57384B6956D5F /* LocalModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A92E7667465F9F3D734C1FBA /* LocalModelManager.swift */; };
@@ -34,6 +35,7 @@
 		48745E2A18111B1C1825D794 /* OllamaRewriteClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A25B8911B446B60B911BA4A /* OllamaRewriteClient.swift */; };
 		494485E2925F0CB379B53C2C /* SpeakerProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E533CB80125A47E8FB6EF758 /* SpeakerProfileViewModel.swift */; };
 		4B78B7D1A25719FEEA3B181B /* LokalTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBA55D0F435F044261A21822 /* LokalTab.swift */; };
+		4E9759616FAB0DF4A1BD3A75 /* NumberWordConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B5BE483A561C031C6B73CF /* NumberWordConverterTests.swift */; };
 		54291188A3089EC6A6BB9740 /* DiarizerModelManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5979B1D34E929ACE08145C36 /* DiarizerModelManagerTests.swift */; };
 		54FAE1CDD2AB3582303A648C /* VocabularyCorrector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94F48E0DDEC66E8C58B2423C /* VocabularyCorrector.swift */; };
 		5686138DCFFFE5C917B0FE4D /* SpeakerMatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF6046C8A4A89F1A0897798 /* SpeakerMatchingTests.swift */; };
@@ -134,6 +136,7 @@
 		348D2A9B82C4E47649588269 /* AppleFoundationError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleFoundationError.swift; sourceTree = "<group>"; };
 		356F8219BA6FA6EC7C8AAF2F /* TextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserter.swift; sourceTree = "<group>"; };
 		3687E141D728DFA80406F204 /* EnrollmentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentViewModel.swift; sourceTree = "<group>"; };
+		36B5BE483A561C031C6B73CF /* NumberWordConverterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberWordConverterTests.swift; sourceTree = "<group>"; };
 		37829CA0AA550B316C3815B4 /* EnrollmentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentSheet.swift; sourceTree = "<group>"; };
 		38A9386794DEAB135CD98A78 /* LanguageModelInferring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageModelInferring.swift; sourceTree = "<group>"; };
 		3925FA0463AF1B23B45E07CB /* DiarizerLoaderProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiarizerLoaderProtocol.swift; sourceTree = "<group>"; };
@@ -182,6 +185,7 @@
 		C8456D5051CB4C5BB99AFAF7 /* FillerWordFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordFilterTests.swift; sourceTree = "<group>"; };
 		C9F7A7D1D4EE930488C7F580 /* OpenAIChatClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIChatClient.swift; sourceTree = "<group>"; };
 		C9FF4284D97A714A1B4997AA /* ExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ExceptionCatcher.m; sourceTree = "<group>"; };
+		CB85FA13E496B64239B33221 /* NumberWordConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberWordConverter.swift; sourceTree = "<group>"; };
 		CBA55D0F435F044261A21822 /* LokalTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LokalTab.swift; sourceTree = "<group>"; };
 		D26354C0ECC99145FCBC2B97 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		D3C28960EDC99F7D288E8084 /* SuggestionToastController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionToastController.swift; sourceTree = "<group>"; };
@@ -398,6 +402,7 @@
 			isa = PBXGroup;
 			children = (
 				C8456D5051CB4C5BB99AFAF7 /* FillerWordFilterTests.swift */,
+				36B5BE483A561C031C6B73CF /* NumberWordConverterTests.swift */,
 			);
 			path = Modes;
 			sourceTree = "<group>";
@@ -426,6 +431,7 @@
 				9107A43A5278B92B09571EB7 /* FillerWordFilter.swift */,
 				8B2D3A0A4629965089470A00 /* Mode.swift */,
 				C35E5D8D952B9F0B86094205 /* ModeProcessor.swift */,
+				CB85FA13E496B64239B33221 /* NumberWordConverter.swift */,
 			);
 			path = Modes;
 			sourceTree = "<group>";
@@ -654,6 +660,7 @@
 				ADF29B8DC8EA98913FC9B237 /* FakeTranscriptionService.swift in Sources */,
 				1B9A855234C102F569BDC21A /* FillerWordFilterTests.swift in Sources */,
 				CC55DE096741A4FAE7D58188 /* HotkeyStateMachineTests.swift in Sources */,
+				4E9759616FAB0DF4A1BD3A75 /* NumberWordConverterTests.swift in Sources */,
 				3835AE5005D99B7F4BF71978 /* PipelineErrorPathTests.swift in Sources */,
 				2028BA54C769B43F03B4005C /* ProperNounMigrationTests.swift in Sources */,
 				9B99E101EDCD2C1B2362D4BA /* RewriteBackendDispatchTests.swift in Sources */,
@@ -708,6 +715,7 @@
 				A5E4C93FFA621E33DC18CB2B /* Mode.swift in Sources */,
 				01CEDC617A5EA474A5559B0C /* ModeProcessor.swift in Sources */,
 				7247E57DE4F67076B6B572DD /* ModelDownloader.swift in Sources */,
+				12BFEBFAA944AE998767FE9E /* NumberWordConverter.swift in Sources */,
 				48745E2A18111B1C1825D794 /* OllamaRewriteClient.swift in Sources */,
 				2511C7912BF2E92943C7C79D /* OpenAIChatClient.swift in Sources */,
 				DF9F650D5925101EF76B2C0E /* ParakeetClient.swift in Sources */,
