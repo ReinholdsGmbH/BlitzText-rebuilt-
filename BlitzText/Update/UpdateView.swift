@@ -1,26 +1,27 @@
 import SwiftUI
 
-/// Release-Notes-Screen: zeigt alle Neuerungen seit der installierten Version und bietet
-/// unten rechts den Download-/Install-Button.
+/// Release-Notes-Screen. Zwei Modi:
+///  - **Update-Modus** (`availableUpdate != nil`): zeigt die Neuerungen seit der installierten
+///    Version und bietet unten rechts den Download-/Install-Button.
+///  - **Browse-Modus** (kein Update): zeigt die bisherigen Release-Notes zum Nachlesen, ohne
+///    Download-Button. So auch über Rechtsklick → „Release-Notes…" erreichbar.
 struct UpdateView: View {
     @EnvironmentObject var service: UpdateService
     let onDismiss: () -> Void
+
+    private var isUpdate: Bool { service.availableUpdate != nil }
+    private var releasesToShow: [ReleaseInfo] {
+        if let plan = service.availableUpdate { return plan.newerReleases }
+        return service.allReleases
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            if let plan = service.availableUpdate {
-                notes(for: plan)
-                Divider()
-                footer(for: plan)
-            } else {
-                // Wird nur sichtbar, wenn das Fenster ohne verfügbares Update geöffnet wird.
-                ContentUnavailableView("BlitzText ist aktuell",
-                                       systemImage: "checkmark.seal",
-                                       description: Text("Du hast bereits die neueste Version \(service.currentVersion.description)."))
-                    .frame(maxHeight: .infinity)
-            }
+            content
+            Divider()
+            footer
         }
         .frame(minWidth: 480, minHeight: 480)
     }
@@ -29,11 +30,11 @@ struct UpdateView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "arrow.down.circle.fill")
+            Image(systemName: isUpdate ? "arrow.down.circle.fill" : "sparkles")
                 .font(.system(size: 34))
                 .foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Update verfügbar").font(.title2).bold()
+                Text(isUpdate ? "Update verfügbar" : "Release-Notes").font(.title2).bold()
                 if let plan = service.availableUpdate {
                     HStack(spacing: 6) {
                         Text(service.currentVersion.description).foregroundStyle(.secondary)
@@ -41,6 +42,9 @@ struct UpdateView: View {
                         Text(plan.latest.version.description).bold().foregroundStyle(.tint)
                     }
                     .font(.subheadline)
+                } else {
+                    Text("Installierte Version \(service.currentVersion.description)")
+                        .font(.subheadline).foregroundStyle(.secondary)
                 }
             }
             Spacer()
@@ -48,12 +52,44 @@ struct UpdateView: View {
         .padding(20)
     }
 
-    // MARK: - Notes
+    // MARK: - Content
 
-    private func notes(for plan: UpdatePlan) -> some View {
+    @ViewBuilder
+    private var content: some View {
+        if !releasesToShow.isEmpty {
+            notesList
+        } else {
+            switch service.checkState {
+            case .checking:
+                VStack(spacing: 10) {
+                    ProgressView()
+                    Text("Lade Release-Notes …").font(.callout).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .failed(let message):
+                ContentUnavailableView {
+                    Label("Release-Notes nicht ladbar", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text(message)
+                } actions: {
+                    Button("Erneut versuchen") {
+                        Task { await service.checkForUpdates(userInitiated: true) }
+                    }
+                }
+                .frame(maxHeight: .infinity)
+            default:
+                ContentUnavailableView("Keine Release-Notes",
+                                       systemImage: "doc.text",
+                                       description: Text("Für BlitzText liegen noch keine Release-Notes vor."))
+                    .frame(maxHeight: .infinity)
+            }
+        }
+    }
+
+    private var notesList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                ForEach(plan.newerReleases) { release in
+                ForEach(releasesToShow) { release in
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             Text(release.tag)
@@ -61,6 +97,13 @@ struct UpdateView: View {
                                 .padding(.horizontal, 8).padding(.vertical, 2)
                                 .background(.tint.opacity(0.15), in: Capsule())
                                 .foregroundStyle(.tint)
+                            if release.version == service.currentVersion {
+                                Text("installiert")
+                                    .font(.caption2).bold()
+                                    .padding(.horizontal, 6).padding(.vertical, 1)
+                                    .background(.green.opacity(0.18), in: Capsule())
+                                    .foregroundStyle(.green)
+                            }
                             if let date = release.publishedAt {
                                 Text(date.formatted(date: .abbreviated, time: .omitted))
                                     .font(.caption).foregroundStyle(.secondary)
@@ -81,21 +124,20 @@ struct UpdateView: View {
 
     // MARK: - Footer
 
-    @ViewBuilder
-    private func footer(for plan: UpdatePlan) -> some View {
+    private var footer: some View {
         VStack(alignment: .leading, spacing: 12) {
-            phaseIndicator
+            if isUpdate { phaseIndicator }
 
             HStack {
-                Button("Später") { onDismiss() }
+                Button(isUpdate ? "Später" : "Schließen") { onDismiss() }
                 Spacer()
-                if plan.isDownloadable {
+                if let plan = service.availableUpdate, plan.isDownloadable {
                     primaryButton
                 } else {
                     Button("Auf GitHub öffnen") {
-                        NSWorkspace.shared.open(GitHubRepo.releasePageURL(tag: plan.latest.tag))
+                        NSWorkspace.shared.open(GitHubRepo.releasesPageURL)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                 }
             }
         }

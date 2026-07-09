@@ -24,6 +24,9 @@ final class UpdateService: NSObject, ObservableObject {
 
     /// Verfügbares Update (neuestes Release + aggregierte Notes). `nil` = alles aktuell.
     @Published private(set) var availableUpdate: UpdatePlan?
+    /// Alle verwendbaren Releases (neueste zuerst) aus der letzten Prüfung — auch wenn kein
+    /// Update ansteht. Speist den „Release-Notes"-Browse-Modus des Fensters.
+    @Published private(set) var allReleases: [ReleaseInfo] = []
     /// Ergebnis der letzten (auch manuellen) Prüfung.
     @Published private(set) var checkState: UpdateCheckState = .idle
     /// Läuft eine Installation, ist hier ihre Phase — sonst `nil`.
@@ -119,6 +122,7 @@ final class UpdateService: NSObject, ObservableObject {
         checkState = .checking
         do {
             let dtos = try await client.fetchReleases()   // off-main
+            allReleases = UpdatePlanner.usableReleases(from: dtos)
             let plan = UpdatePlanner.plan(current: currentVersion, from: dtos)
             availableUpdate = plan
 
@@ -141,6 +145,16 @@ final class UpdateService: NSObject, ObservableObject {
             Log.write("Update-Prüfung fehlgeschlagen: \(error)")
         } catch {
             checkState = .failed("Prüfung fehlgeschlagen: \(error.localizedDescription)")
+        }
+    }
+
+    /// Öffnet das Release-Notes-Fenster — auch ohne verfügbares Update (Menü „Release-Notes…").
+    /// Zeigt die zwischengespeicherten Releases; sind noch keine geladen, wird im Hintergrund
+    /// nachgeladen (das Fenster zeigt solange einen Ladeindikator).
+    func showReleaseNotes() {
+        presentWindow?()
+        if allReleases.isEmpty, checkState != .checking {
+            Task { await checkForUpdates(userInitiated: false) }
         }
     }
 

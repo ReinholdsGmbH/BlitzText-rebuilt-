@@ -116,7 +116,7 @@ final class MenuBarController: NSObject {
         let updateItem = NSMenuItem(title: "Nach Updates suchen…", action: #selector(checkForUpdatesFromMenu), keyEquivalent: "")
         updateItem.target = self
         menu.addItem(updateItem)
-        let releaseItem = NSMenuItem(title: "Release-Notes öffnen…", action: #selector(openReleasePage), keyEquivalent: "")
+        let releaseItem = NSMenuItem(title: "Release-Notes…", action: #selector(showReleaseNotesFromMenu), keyEquivalent: "")
         releaseItem.target = self
         menu.addItem(releaseItem)
         menu.addItem(.separator())
@@ -142,11 +142,11 @@ final class MenuBarController: NSObject {
         DispatchQueue.main.async { NSApp.terminate(nil) }
     }
 
-    /// Öffnet die GitHub-Releases-Seite (Index — robust auch für noch nicht veröffentlichte
-    /// Versionen; die aktuellste Release steht dort oben). Repo-Pfad zentral aus `GitHubRepo`.
-    @objc nonisolated private func openReleasePage() {
-        DispatchQueue.main.async {
-            NSWorkspace.shared.open(GitHubRepo.releasesPageURL)
+    /// Öffnet das In-App-Release-Notes-Fenster — auch wenn kein Update ansteht. Der Link zur
+    /// GitHub-Releases-Seite (zentral aus `GitHubRepo`) sitzt als Button im Fenster.
+    @objc nonisolated private func showReleaseNotesFromMenu() {
+        Task { @MainActor [weak self] in
+            self?.updateService.showReleaseNotes()
         }
     }
 
