@@ -6,7 +6,7 @@ struct SettingsView: View {
     @State private var selectedTab: Tab = .anpassen
 
     enum Tab: String, CaseIterable, Identifiable {
-        case anpassen, zugang, lokal, sprecher, hotkeys
+        case anpassen, zugang, lokal, sprecher, hotkeys, ueber
         var id: String { rawValue }
         var label: String {
             switch self {
@@ -15,6 +15,7 @@ struct SettingsView: View {
             case .lokal:     return "Lokales Modell"
             case .sprecher:  return "Sprecher"
             case .hotkeys:   return "Hotkeys"
+            case .ueber:     return "Über"
             }
         }
     }
@@ -38,6 +39,7 @@ struct SettingsView: View {
                     case .lokal:     LokalTab()
                     case .sprecher:  SprecherTab()
                     case .hotkeys:   HotkeysTab()
+                    case .ueber:     UeberTab()
                     }
                 }
                 .padding(20)

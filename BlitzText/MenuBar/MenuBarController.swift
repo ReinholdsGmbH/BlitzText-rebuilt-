@@ -12,13 +12,15 @@ final class MenuBarController: NSObject {
     private let settings: SettingsStore
     private let settingsWindow: SettingsWindowController
     private let historyWindow: HistoryWindowController
+    private let updateService: UpdateService
     private var cancellables = Set<AnyCancellable>()
 
-    init(settings: SettingsStore, processor: ModeProcessor, settingsWindow: SettingsWindowController, historyWindow: HistoryWindowController) {
+    init(settings: SettingsStore, processor: ModeProcessor, settingsWindow: SettingsWindowController, historyWindow: HistoryWindowController, updateService: UpdateService) {
         self.settings = settings
         self.processor = processor
         self.settingsWindow = settingsWindow
         self.historyWindow = historyWindow
+        self.updateService = updateService
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.popover = NSPopover()
         super.init()
@@ -111,6 +113,9 @@ final class MenuBarController: NSObject {
         let versionItem = NSMenuItem(title: "BlitzText \(version) (Build \(build))", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
         menu.addItem(versionItem)
+        let updateItem = NSMenuItem(title: "Nach Updates suchen…", action: #selector(checkForUpdatesFromMenu), keyEquivalent: "")
+        updateItem.target = self
+        menu.addItem(updateItem)
         let releaseItem = NSMenuItem(title: "Release-Notes öffnen…", action: #selector(openReleasePage), keyEquivalent: "")
         releaseItem.target = self
         menu.addItem(releaseItem)
@@ -138,11 +143,17 @@ final class MenuBarController: NSObject {
     }
 
     /// Öffnet die GitHub-Releases-Seite (Index — robust auch für noch nicht veröffentlichte
-    /// Versionen; die aktuellste Release steht dort oben).
+    /// Versionen; die aktuellste Release steht dort oben). Repo-Pfad zentral aus `GitHubRepo`.
     @objc nonisolated private func openReleasePage() {
         DispatchQueue.main.async {
-            guard let url = URL(string: "https://github.com/ReinholdsGmbH/BlitzText/releases") else { return }
-            NSWorkspace.shared.open(url)
+            NSWorkspace.shared.open(GitHubRepo.releasesPageURL)
+        }
+    }
+
+    /// Manuelle Update-Prüfung aus dem Menü — zeigt bei Erfolg das Release-Notes-Fenster.
+    @objc nonisolated private func checkForUpdatesFromMenu() {
+        Task { @MainActor [weak self] in
+            await self?.updateService.checkForUpdates(userInitiated: true)
         }
     }
 

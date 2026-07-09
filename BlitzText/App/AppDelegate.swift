@@ -16,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var modeProcessor: ModeProcessor!
     private var settingsWindow: SettingsWindowController!
     private var historyWindow: HistoryWindowController!
+    private var updateService: UpdateService!
+    private var updateWindow: UpdateWindowController!
     private var recordingHUD: RecordingHUDController!
     private var suggestionToast: SuggestionToastController!
     private var didBecomeActiveObserver: NSObjectProtocol?
@@ -124,12 +126,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             parakeetClient: modeProcessor.parakeetClient,
             speakerVM: speakerProfileViewModel
         )
+        // In-App-Updater: prüft GitHub-Releases, benachrichtigt und öffnet den Notes-Screen.
+        updateService = UpdateService(settings: settingsStore)
+        updateWindow = UpdateWindowController(service: updateService)
+        updateService.presentWindow = { [weak updateWindow] in updateWindow?.show() }
+
         settingsWindow = SettingsWindowController(
             settings: settingsStore,
             modelManager: modelManager,
             diarizerManager: diarizerManager,
             speakerViewModel: speakerProfileViewModel,
-            enrollmentViewModel: enrollmentViewModel
+            enrollmentViewModel: enrollmentViewModel,
+            updateService: updateService
         )
         historyWindow = HistoryWindowController(history: historyStore)
         recordingHUD = RecordingHUDController(recorder: modeProcessor.recorder, processor: modeProcessor, settings: settingsStore)
@@ -138,7 +146,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings: settingsStore,
             processor: modeProcessor,
             settingsWindow: settingsWindow,
-            historyWindow: historyWindow
+            historyWindow: historyWindow,
+            updateService: updateService
         )
 
         let processor = modeProcessor!
@@ -162,6 +171,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Adressiert das „App reagiert nach Ruhezustand nicht mehr"-Symptom (Main-Queue-Starvation).
         lifecycleWatchdog = LifecycleWatchdog(hotkeys: hotkeyManager, stateLabel: modeProcessor.stateLabel)
         lifecycleWatchdog.start()
+
+        // Update-Prüfung starten (verzögerte erste Prüfung + 2h-Takt; Opt-out beachtet).
+        updateService.start()
 
         cleanupTempFiles()
 
@@ -221,6 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsStore.save()
         lifecycleWatchdog?.stop()
         hotkeyManager?.stop()
+        updateService?.stop()
         cleanupTempFiles()
     }
 

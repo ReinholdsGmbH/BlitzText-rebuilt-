@@ -32,6 +32,10 @@ final class SettingsStore: ObservableObject {
     /// Schwellenwert für Sprecher-Matching (0.5 = aggressiv zusammenführen, 0.9 = strikt trennen).
     /// Wird an SpeakerManager.speakerThreshold übergeben — kleiner Wert = mehr Treffer, größer = mehr neue Profile.
     @Published var speakerMatchThreshold: Double = 0.7
+    /// Automatisch bei Start + im 2-Stunden-Takt nach neuen BlitzText-Versionen suchen (Opt-out).
+    /// Der Download/Install ist immer nutzerinitiiert (Button) — hier geht es nur um die Prüfung
+    /// und die Benachrichtigung.
+    @Published var autoUpdateCheckEnabled: Bool = true
     /// Bei Parakeet-Backend: Sprecher-Diarization aktivieren.
     /// Side-Effect (D-01): `false → true` triggert sofortigen Manager-Download.
     /// Snapshot-Save läuft separat über das debounced `objectWillChange`-Sink.
@@ -212,6 +216,8 @@ final class SettingsStore: ObservableObject {
         var ollamaBaseURL: String?
         // Sprecher-Matching-Threshold: additives Optional — alte Snapshots laden ohne Crash.
         var speakerMatchThreshold: Double?
+        // Auto-Update-Prüfung: additives Optional — alte Snapshots laden ohne Crash.
+        var autoUpdateCheckEnabled: Bool?
     }
 
     private func load() {
@@ -249,6 +255,7 @@ final class SettingsStore: ObservableObject {
         ollamaModel = snap.ollamaModel ?? "phi4-mini"
         ollamaBaseURL = snap.ollamaBaseURL ?? "http://localhost:11434"
         speakerMatchThreshold = snap.speakerMatchThreshold ?? 0.7
+        autoUpdateCheckEnabled = snap.autoUpdateCheckEnabled ?? true
     }
 
     /// Erhöht den Vorkommens-Zähler eines Eintrags und stempelt „zuletzt gesehen".
@@ -290,7 +297,8 @@ final class SettingsStore: ObservableObject {
             hotkeyForBlitztextRant: hotkeyForBlitztextRant,
             ollamaModel: ollamaModel,
             ollamaBaseURL: ollamaBaseURL,
-            speakerMatchThreshold: speakerMatchThreshold
+            speakerMatchThreshold: speakerMatchThreshold,
+            autoUpdateCheckEnabled: autoUpdateCheckEnabled
         )
         do {
             let data = try JSONEncoder().encode(snap)

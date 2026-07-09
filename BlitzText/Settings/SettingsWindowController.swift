@@ -10,14 +10,16 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let diarizerManager: DiarizerModelManager
     private let speakerViewModel: SpeakerProfileViewModel
     private let enrollmentViewModel: EnrollmentViewModel
+    private let updateService: UpdateService
     private var window: NSWindow?
 
-    init(settings: SettingsStore, modelManager: LocalModelManager, diarizerManager: DiarizerModelManager, speakerViewModel: SpeakerProfileViewModel, enrollmentViewModel: EnrollmentViewModel) {
+    init(settings: SettingsStore, modelManager: LocalModelManager, diarizerManager: DiarizerModelManager, speakerViewModel: SpeakerProfileViewModel, enrollmentViewModel: EnrollmentViewModel, updateService: UpdateService) {
         self.settings = settings
         self.modelManager = modelManager
         self.diarizerManager = diarizerManager
         self.speakerViewModel = speakerViewModel
         self.enrollmentViewModel = enrollmentViewModel
+        self.updateService = updateService
         super.init()
     }
 
@@ -38,6 +40,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
                 .environmentObject(diarizerManager)
                 .environmentObject(speakerViewModel)
                 .environmentObject(enrollmentViewModel)
+                .environmentObject(updateService)
         )
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 700),
