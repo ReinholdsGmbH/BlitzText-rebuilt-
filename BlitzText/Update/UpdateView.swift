@@ -72,7 +72,11 @@ struct UpdateView: View {
                 }
             }
             .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // Notes-Fläche füllt bewusst den Platz zwischen Header und Footer — verhindert, dass
+        // die ScrollView in einem VStack(spacing:0) auf Höhe 0 kollabiert.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Footer
