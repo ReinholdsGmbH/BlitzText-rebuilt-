@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 /// Fortschritts-Phasen der Installation — vom Service in `@Published`-State gespiegelt.
 enum InstallPhase: Sendable, Equatable {
@@ -66,10 +67,17 @@ final class UpdateInstaller: @unchecked Sendable {
             try FileManager.default.copyItem(at: sourceApp, to: stagedApp)
             Log.write("Update: App aus DMG kopiert → \(stagedApp.path)")
 
-            // 3) Quarantäne von der Staging-Kopie entfernen (Gatekeeper-freundlicher Start).
+            // 3) Code-Signatur prüfen, BEVOR wir das laufende Bundle ersetzen. Der Download
+            //    muss dieselbe Designated Requirement erfüllen wie die laufende App (pinnt den
+            //    Leaf-Cert-Hash). Schützt gegen einen kompromittierten Verteilungskanal —
+            //    HTTPS deckt nur den Transport ab, nicht die Echtheit des Signierers.
+            try verifySignature(of: stagedApp)
+            Log.write("Update: Signatur des Downloads verifiziert (gleicher Signierer).")
+
+            // 4) Quarantäne von der Staging-Kopie entfernen (Gatekeeper-freundlicher Start).
             stripQuarantine(stagedApp)
 
-            // 4) Übergabe an den Helfer + Selbstbeendigung.
+            // 5) Übergabe an den Helfer + Selbstbeendigung.
             phase(.relaunching)
             Log.write("Update: übergebe an Relaunch-Helfer, ersetze \(target.path)")
             launchReplaceHelper(staged: stagedApp, target: target, dmg: dmgFile, workDir: workDir)
@@ -130,6 +138,47 @@ final class UpdateInstaller: @unchecked Sendable {
         _ = runProcess("/usr/bin/xattr", ["-dr", "com.apple.quarantine", app.path])
     }
 
+    // MARK: - Signaturprüfung
+
+    /// Verifiziert, dass `stagedApp` (a) eine intakte Code-Signatur hat und (b) dieselbe
+    /// Designated Requirement erfüllt wie die LAUFENDE App. Die Requirement einer self-signed
+    /// App pinnt den Leaf-Cert-Hash („certificate leaf = H\"…\""), den ein Angreifer ohne den
+    /// privaten Schlüssel nicht reproduzieren kann. So wird nur ein Update akzeptiert, das vom
+    /// selben Signierer stammt wie die aktuelle Installation — auch wenn das GitHub-Release
+    /// kompromittiert wäre. Wirft bei Fehlschlag (der Aufrufer bietet dann den manuellen
+    /// GitHub-Download als Fallback an).
+    private func verifySignature(of stagedApp: URL) throws {
+        var runningCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(Bundle.main.bundleURL as CFURL, [], &runningCode) == errSecSuccess,
+              let runningCode else {
+            throw InstallProcessError.signatureInvalid("Signatur der laufenden App ist nicht lesbar.")
+        }
+
+        var requirement: SecRequirement?
+        guard SecCodeCopyDesignatedRequirement(runningCode, [], &requirement) == errSecSuccess,
+              let requirement else {
+            throw InstallProcessError.signatureInvalid("Signatur-Anforderung der laufenden App ist nicht ableitbar.")
+        }
+
+        var stagedCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(stagedApp as CFURL, [], &stagedCode) == errSecSuccess,
+              let stagedCode else {
+            throw InstallProcessError.signatureInvalid("Der Download hat keine lesbare Code-Signatur.")
+        }
+
+        // (a) Signatur intakt? (kein Requirement → reine Integritätsprüfung)
+        let integrity = SecStaticCodeCheckValidity(stagedCode, [], nil)
+        guard integrity == errSecSuccess else {
+            throw InstallProcessError.signatureInvalid("Die Signatur des Downloads ist ungültig oder beschädigt (Status \(integrity)).")
+        }
+
+        // (b) Gleicher Signierer wie die laufende App?
+        let match = SecStaticCodeCheckValidity(stagedCode, [], requirement)
+        guard match == errSecSuccess else {
+            throw InstallProcessError.signatureInvalid("Der Download ist nicht vom selben Entwickler signiert wie die installierte Version (Status \(match)). Bitte manuell von GitHub laden.")
+        }
+    }
+
     // MARK: - Relaunch-Helfer
 
     /// Detachter sh-Helfer: wartet, bis DIESER Prozess weg ist, ersetzt das Bundle und öffnet neu.
@@ -177,7 +226,16 @@ final class UpdateInstaller: @unchecked Sendable {
     }
 }
 
-private enum InstallProcessError: Error {
+private enum InstallProcessError: Error, LocalizedError {
     case mountFailed(String)
     case appNotFound
+    case signatureInvalid(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .mountFailed(let detail): return "DMG konnte nicht geöffnet werden: \(detail)"
+        case .appNotFound:             return "Im DMG wurde keine BlitzText.app gefunden."
+        case .signatureInvalid(let detail): return detail
+        }
+    }
 }
