@@ -9,6 +9,46 @@ protocol RecorderProtocol: AnyObject {
     func stop() -> URL?
 }
 
+/// Ergebnis-Handoff zwischen der Hintergrund-Queue (führt `configureAndStart` aus) und dem
+/// wartenden Aufrufer in `configureAndStartWithTimeout`. Ein Lock statt nackter Semaphore-Logik,
+/// weil bei Timeout geklärt werden muss, ob die Hintergrundseite ihr (dann verspätetes) Ergebnis
+/// noch committen darf oder selbst wieder abbauen muss — siehe `reportBackground`.
+private final class ConfigureHandoff: @unchecked Sendable {
+    private let lock = NSLock()
+    private let semaphore = DispatchSemaphore(value: 0)
+    private var result: Result<Void, Error>?
+    private var timedOut = false
+
+    /// Hintergrund-Seite. `true` = rechtzeitig, der Aufrufer wertet `result` aus.
+    /// `false` = ein Timeout wurde bereits gemeldet; der Aufrufer muss sein Ergebnis
+    /// (Tap/Engine) selbst wieder abbauen statt es dem Recorder-State aufzudrücken.
+    @discardableResult
+    func reportBackground(_ value: Result<Void, Error>) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !timedOut else { return false }
+        result = value
+        semaphore.signal()
+        return true
+    }
+
+    /// Vordergrund-Seite: wartet bis `timeout`. Läuft die Zeit ab, wird das endgültig als
+    /// Timeout markiert (spätere `reportBackground`-Aufrufe schlagen dann fehl) — außer das
+    /// Ergebnis kam im selben Moment doch noch durch, während wir den Lock genommen haben.
+    func waitForResult(timeout: TimeInterval) -> Result<Void, Error>? {
+        if semaphore.wait(timeout: .now() + timeout) == .timedOut {
+            lock.lock()
+            defer { lock.unlock() }
+            if let result { return result }
+            timedOut = true
+            return nil
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        return result
+    }
+}
+
 /// Nimmt Mikrofon nach `start()` auf, schreibt eine 16 kHz mono 16-bit WAV. Stoppt mit `stop()` und liefert die URL.
 final class AudioRecorder: ObservableObject, @unchecked Sendable {
 
@@ -43,6 +83,14 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
     private var lastLevelEmitAt = Date.distantPast
     private static let levelEmitInterval: TimeInterval = 0.05
 
+    /// Dedizierte Hintergrund-Queue für den CoreAudio-HAL-Zugriff in `configureAndStart` — NICHT
+    /// der Swift-Concurrency-Pool, damit ein CoreAudio-Hang (siehe `configureAndStartWithTimeout`)
+    /// nur diesen einen Thread blockiert statt den App-weiten Cooperative-Pool bzw. den
+    /// MainActor-Executor zu verhungern.
+    private static let halQueue = DispatchQueue(label: "de.reinholds.blitztext.audiorecorder.hal", qos: .userInitiated)
+    /// Maximale Wartezeit auf `configureAndStart`, bevor der Versuch als gescheitert gilt.
+    private static let configureTimeout: TimeInterval = 5
+
     /// Letzte Aufnahme zu kurz oder zu leise — Pipeline soll überspringen.
     private(set) var lastRecordingWasSilence: Bool = false
 
@@ -54,26 +102,71 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
         self.fileURL = url
 
         do {
-            try configureAndStart(url: url)
+            try configureAndStartWithTimeout(url: url)
         } catch RecorderError.audioUnavailable {
-            // Stale/degenerierter Eingang (typisch nach Sleep/Wake): die langlebige Engine hat ein
-            // ungültiges Hardware-Format und erholt sich nicht von selbst. Genau HIER — und nur
-            // hier, nicht bei jeder Aufnahme — die Engine EINMAL neu erzeugen und erneut versuchen.
-            // Der frisch erzeugte Engine bleibt auch bei erneutem Fehlschlag erhalten, sodass der
-            // nächste Aufnahmeversuch ihn nutzt und sich heilt, sobald die Hardware bereit ist.
+            // Stale/degenerierter Eingang (typisch nach Sleep/Wake, oder CoreAudio-HAL-Timeout
+            // nach einem Gerätewechsel): die langlebige Engine hat ein ungültiges Hardware-Format
+            // und erholt sich nicht von selbst. Genau HIER — und nur hier, nicht bei jeder
+            // Aufnahme — die Engine EINMAL neu erzeugen und erneut versuchen. Der frisch erzeugte
+            // Engine bleibt auch bei erneutem Fehlschlag erhalten, sodass der nächste
+            // Aufnahmeversuch ihn nutzt und sich heilt, sobald die Hardware bereit ist.
             Log.write("AudioRecorder: Audio-Eingang stale — Engine neu erzeugen, zweiter Versuch.")
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
             engine = AVAudioEngine()
-            try configureAndStart(url: url)
+            try configureAndStartWithTimeout(url: url)
         }
         return url
+    }
+
+    /// Führt `configureAndStart` auf einer dedizierten Hintergrund-Queue aus und bricht nach
+    /// `configureTimeout` mit `RecorderError.audioUnavailable` ab, statt unbegrenzt zu warten.
+    ///
+    /// Hintergrund: `engine.inputNode` (CoreAudio-HAL-Enumeration über mach IPC) kann nach einem
+    /// fehlgeschlagenen Audiogeräte-Wechsel beobachtbar für immer hängen bleiben — ohne Exception,
+    /// ohne Timeout. Da `ModeProcessor.start(mode:)` (MainActor) diesen Aufruf synchron auslöst,
+    /// friert ohne dieses Limit die GESAMTE App ein: das Menüleisten-Icon bleibt sichtbar, aber
+    /// Hotkeys/Klicks/Heartbeat laufen nie wieder, weil der MainActor-Executor nie mehr frei wird.
+    /// Läuft die Hintergrund-Arbeit nach einem gemeldeten Timeout doch noch durch, baut sie ihr
+    /// Ergebnis selbst wieder ab (siehe `ConfigureHandoff.reportBackground`), statt es dem
+    /// Recorder-State eines inzwischen neuen Versuchs aufzudrücken.
+    private func configureAndStartWithTimeout(url: URL) throws {
+        let handoff = ConfigureHandoff()
+        Self.halQueue.async { [weak self] in
+            guard let self else { handoff.reportBackground(.failure(RecorderError.audioUnavailable)); return }
+            let result: Result<Void, Error>
+            do {
+                try self.configureAndStart(url: url)
+                result = .success(())
+            } catch {
+                result = .failure(error)
+            }
+            if !handoff.reportBackground(result), case .success = result {
+                // Timeout wurde bereits gemeldet — dieser (verspätete) Erfolg würde sonst auf
+                // einer inzwischen ggf. neu erzeugten Engine landen. Wieder abbauen.
+                self.engine.inputNode.removeTap(onBus: 0)
+                self.engine.stop()
+            }
+        }
+
+        guard let result = handoff.waitForResult(timeout: Self.configureTimeout) else {
+            Log.write("AudioRecorder: configureAndStart-Timeout nach \(Self.configureTimeout)s — CoreAudio-HAL hängt vermutlich (Gerätewechsel). Aufnahme abgebrochen, App bleibt reaktionsfähig.")
+            throw RecorderError.audioUnavailable
+        }
+        try result.get()
     }
 
     /// Konfiguriert Tap/Format/Datei auf der aktuellen `engine` und startet sie. Wirft
     /// `RecorderError.audioUnavailable`, wenn der Eingang „stale"/ungültig ist (degeneriertes
     /// Format oder ObjC-Exception) — der Aufrufer erzeugt die Engine dann neu und wiederholt.
+    ///
+    /// Läuft auf `Self.halQueue` (siehe `configureAndStartWithTimeout`), nicht auf dem Aufrufer-
+    /// Thread. `engine` wird deshalb hier EINMAL als lokale Konstante eingefroren: greift diese
+    /// Funktion nach einem Timeout noch auf `self.engine` zu, könnte ein paralleler Retry die
+    /// Property inzwischen durch eine neue Engine ersetzt haben.
     private func configureAndStart(url: URL) throws {
+        let engine = self.engine
+
         // Defensiv sauberer Ausgangszustand: falls die Engine noch läuft oder ein Tap hängt,
         // zurücksetzen. removeTap ohne Tap und stop() ohne Lauf sind No-Ops.
         if engine.isRunning { engine.stop() }
@@ -124,8 +217,8 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
                 self?.measurePeak(buffer: buffer)
                 self?.write(buffer: buffer)
             }
-            self.engine.prepare()
-            do { try self.engine.start() } catch { startError = error }
+            engine.prepare()
+            do { try engine.start() } catch { startError = error }
         }
         if let caught {
             engine.inputNode.removeTap(onBus: 0)
