@@ -33,7 +33,7 @@ final class AppleFoundationRewriteClient: RewriteService, @unchecked Sendable {
             throw AppleFoundationError.from(availability)
         }
         do {
-            let raw = try await inferring.respond(input: input, instructions: systemPrompt)
+            let raw = try await inferring.respond(input: wrapTranscriptForPrompt(input), instructions: systemPrompt)
             return raw.trimmingCharacters(in: .whitespacesAndNewlines)
         } catch let err as LanguageModelSession.GenerationError {
             throw mapGenerationError(err)
@@ -55,7 +55,7 @@ final class AppleFoundationRewriteClient: RewriteService, @unchecked Sendable {
         }
         do {
             let result = try await inferring.respondGuided(
-                input: input,
+                input: wrapTranscriptForPrompt(input),
                 instructions: systemPrompt,
                 type: DeescalatedOutput.self
             )

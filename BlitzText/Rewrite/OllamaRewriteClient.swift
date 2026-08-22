@@ -35,9 +35,9 @@ final class OllamaRewriteClient: RewriteService, @unchecked Sendable {
             model: settings.ollamaModel,
             messages: [
                 Message(role: "system", content: systemPrompt),
-                Message(role: "user", content: input)
+                Message(role: "user", content: wrapTranscriptForPrompt(input))
             ],
-            temperature: 0.3,
+            temperature: 0.0,
             stream: false
         ))
 

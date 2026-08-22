@@ -31,9 +31,9 @@ final class OpenAIChatClient: RewriteService, @unchecked Sendable {
             model: model,
             messages: [
                 Message(role: "system", content: systemPrompt),
-                Message(role: "user", content: input)
+                Message(role: "user", content: wrapTranscriptForPrompt(input))
             ],
-            temperature: 0.3
+            temperature: 0.0
         )
         req.httpBody = try JSONEncoder().encode(body)
 
