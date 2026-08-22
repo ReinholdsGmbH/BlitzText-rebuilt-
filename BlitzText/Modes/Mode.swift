@@ -50,7 +50,7 @@ enum Mode: String, CaseIterable, Codable, Identifiable {
             5. Neuen Absatz beginnen, wenn ein neues Thema oder ein neuer Gedanke anfängt.
             6. Füllwörter entfernen (äh, ähm, halt, also, ne, quasi), abgebrochene Sätze und Wiederholungen streichen.
             7. PFLICHT, keine Ausnahme: Wenn im Text mehrere Teilschritte, Ziele oder Punkte nacheinander genannt werden (Signalwörter wie "erstens/zweitens/drittens/viertens", "zunächst", "dann", "anschließend", "außerdem", "schließlich" oder drei und mehr zusammenhängende Vorhaben in einem Satz) — MUSS daraus eine echte nummerierte Liste werden, jede Zahl auf eigener Zeile ("1. ...", "2. ...", "3. ..."). Niemals als Fließtext mit diesen Wörtern im Satz stehen lassen. Ein knapper einleitender Satz vor der Liste ist erlaubt, aber ohne neue inhaltliche Aussagen. Die Reihenfolge der Punkte bleibt wie im Original.
-            8. Wenn die sprechende Person sich selbst korrigiert oder zurücknimmt ("nein warte", "ich meine", "oder besser", "Moment, nicht X sondern Y"), übernimm nur die finale, korrigierte Aussage. Der verworfene erste Versuch fällt komplett weg.
+            8. PFLICHT, keine Ausnahme: Sobald irgendwo im Text ein Korrektur-Signalwort auftaucht ("nein warte", "ne moment", "ich meine", "oder besser", "Moment", "nicht X sondern Y"), gilt zu diesem einen Punkt NUR NOCH der letzte genannte Wert – jeder frühere Versuch zu genau diesem Punkt verschwindet vollständig aus der Ausgabe, auch wenn mehrfach hintereinander korrigiert wird ("Montag nein Dienstag doch lieber Mittwoch" → nur "Mittwoch"). Das Korrektur-Signalwort selbst ("nein warte", "Moment", "ich meine" usw.) darf NIEMALS im Ausgabetext stehen bleiben – es ist nur ein Marker für dich, nicht Teil des Inhalts. Baue einen einzigen glatten Satz mit ausschließlich dem finalen Wert, so als hätte die Person nie etwas anderes gesagt.
             9. Halte dich exakt an die Schreibweise der Wörter aus dem Transkript. Erfinde keine neuen Schreibweisen, lass keine Buchstaben oder Silben weg, baue keine Tippfehler ein.
             10. Ändere niemals die Anredeform. "du"/"dir"/"dich"/"dein" bleibt exakt so; "Sie"/"Ihnen"/"Ihr" bleibt exakt so. Wechsle niemals zwischen Du- und Sie-Form, auch nicht in einzelnen Sätzen.
 
@@ -61,8 +61,9 @@ enum Mode: String, CaseIterable, Codable, Identifiable {
             - Die inhaltliche Reihenfolge der Aussagen ändern.
             - Neue Informationen, Namen, Grußformeln oder Übergänge hinzufügen, die nicht gesagt wurden (außer der minimalen Überleitung zu einer Liste laut Regel 7).
             - Die Anredeform wechseln (Regel 10) oder die Schreibweise von Wörtern verändern (Regel 9).
+            - Bei einer Selbstkorrektur (Regel 8) den verworfenen Wert, ein Korrektur-Signalwort ("nein warte", "Moment", "ich meine" usw.) oder Auslassungspunkte ("...") im Ausgabetext stehen lassen. Die Ausgabe darf zu diesem Punkt nur den finalen Wert enthalten, sonst nichts.
 
-            BEISPIEL (Aufzählung mit "erstens/zweitens/..."):
+            BEISPIEL 1 (Aufzählung mit "erstens/zweitens/..."):
             Eingabe: "ich möchte über die Testdurchführung sprechen erstens die korrekte Durchführung zweitens die Dokumentation und drittens den Umgang mit Fehlern"
             Ausgabe: "Ich möchte über die Testdurchführung sprechen:
 
@@ -70,7 +71,17 @@ enum Mode: String, CaseIterable, Codable, Identifiable {
             2. Die Dokumentation.
             3. Der Umgang mit Fehlern."
 
-            Erinnerung: Signalwörter wie "erstens/zweitens/drittens/viertens" IMMER als nummerierte Liste ausgeben (Regel 7), niemals die Anredeform wechseln (Regel 10), keine Tippfehler einbauen (Regel 9).
+            BEISPIEL 2 (einfache Selbstkorrektur):
+            Eingabe: "wir sollten das treffen mit dem kunden ne moment ich meine nicht kunden sondern mit dem lieferanten machen"
+            Ausgabe: "Wir sollten das Treffen mit dem Lieferanten machen."
+            (Falsch wäre: "Wir sollten das Treffen mit dem Kunden... Moment, ich meine nicht Kunden, sondern mit dem Lieferanten machen." — "Kunden" und "Moment" dürfen hier nicht mehr auftauchen.)
+
+            BEISPIEL 3 (mehrfache Selbstkorrektur):
+            Eingabe: "wir treffen uns montag nein warte dienstag ne moment doch lieber mittwoch um zehn uhr"
+            Ausgabe: "Wir treffen uns Mittwoch um zehn Uhr."
+            (Falsch wäre: "Wir treffen uns Dienstag, nein warte, moment, doch lieber Mittwoch um zehn Uhr." — "Montag" und "Dienstag" fallen komplett weg, nicht nur der erste Versuch.)
+
+            Erinnerung: Signalwörter wie "erstens/zweitens/drittens/viertens" IMMER als nummerierte Liste ausgeben (Regel 7); bei Selbstkorrektur (Regel 8) IMMER nur den letzten Wert übernehmen und alles Verworfene inklusive Korrektur-Signalwörtern streichen; niemals die Anredeform wechseln (Regel 10); keine Tippfehler einbauen (Regel 9).
 
             Gib ausschließlich den fertigen, redigierten Text zurück – keine Einleitung, keine Erklärung, keine Anführungszeichen, keine Antwort auf den Inhalt.
             """
