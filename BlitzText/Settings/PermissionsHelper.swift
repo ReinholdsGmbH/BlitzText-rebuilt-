@@ -26,15 +26,29 @@ enum PermissionsHelper {
     }
 
     static func openAccessibilitySettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
+        openPrivacySettings(anchor: "Privacy_Accessibility")
     }
 
     static func openMicrophoneSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
-            NSWorkspace.shared.open(url)
+        openPrivacySettings(anchor: "Privacy_Microphone")
+    }
+
+    /// Öffnet Systemeinstellungen › Datenschutz & Sicherheit beim gegebenen Anker.
+    ///
+    /// Der Pane-Bezeichner ist seit Ventura `com.apple.settings.PrivacySecurity.extension`.
+    /// Der alte `com.apple.preference.security` wird auf macOS 26 zwar noch akzeptiert, landet
+    /// aber auf „Allgemein" statt beim Anker (verifiziert 2026-08-22) — deshalb der neue Pfad
+    /// zuerst und der alte nur als Fallback, falls Apple ihn erneut umbenennt.
+    private static func openPrivacySettings(anchor: String) {
+        let candidates = [
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?\(anchor)",
+            "x-apple.systempreferences:com.apple.preference.security?\(anchor)",
+        ]
+        for candidate in candidates {
+            guard let url = URL(string: candidate) else { continue }
+            if NSWorkspace.shared.open(url) { return }
         }
+        Log.write("PermissionsHelper: Systemeinstellungen (\(anchor)) ließen sich nicht öffnen")
     }
 
     /// Fragt den AX-Zugriff MIT Prompt-Option ab. Genau dieser Aufruf trägt BlitzText in
