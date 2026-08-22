@@ -52,6 +52,15 @@ Drei Modi entscheiden, was nach Whisper passiert:
 | Accessibility (TCC)          | nur für Auto-Paste              | wird zur Laufzeit geprüft, kein Eintrag in Info.plist (TCC-Prompt) |
 | Network Outgoing             | OpenAI-API                      | App Sandbox (falls Sandbox aktiv) |
 | Apple Events                 | Falls `osascript`-Fallback nötig| `NSAppleEventsUsageDescription` (nicht im MVP) |
+| Anmeldeobjekt (Auto-Start)   | BlitzText beim Anmelden starten | `SMAppService.mainApp` (ServiceManagement), kein Info.plist-Eintrag |
+
+`Settings/PermissionsHelper` (Accessibility/Mikrofon) und `Settings/LoginItemHelper`
+(Anmeldeobjekt) legen jeweils nur den Systemeintrag an — `AXIsProcessTrustedWithOptions` mit
+Prompt-Option bzw. `SMAppService.mainApp.register()`. Das Aktivieren passiert
+passwortgeschützt in den Systemeinstellungen und ist damit außerhalb der App. Weil macOS
+dafür keine Notification liefert, pollt `Settings/StatusPoller` nach jeder solchen Aktion
+~60 s im Sekundentakt (`@Published tick` als Invalidierungs-Trigger für die Views).
+Quelle der Wahrheit bleibt in beiden Fällen das System — kein gespiegelter Toggle-State.
 
 App startet **ohne Sandbox** im MVP — das vereinfacht Hotkey + Accessibility erheblich. Mit Sandbox später nachziehbar (Hotkey funktioniert, Accessibility bleibt out-of-sandbox).
 

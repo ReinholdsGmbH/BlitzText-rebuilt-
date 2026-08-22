@@ -37,9 +37,16 @@ enum PermissionsHelper {
         }
     }
 
-    /// Triggert den AX-Prompt — wirkt nur, wenn macOS ihn überhaupt noch zeigt.
+    /// Fragt den AX-Zugriff MIT Prompt-Option ab. Genau dieser Aufruf trägt BlitzText in
+    /// Systemeinstellungen › Datenschutz & Sicherheit › Bedienungshilfen ein (Schalter zunächst
+    /// aus) — das Umlegen des Schalters bleibt die passwortgeschützte Aktion des Nutzers.
+    ///
+    /// War der Zugriff schon erteilt, passiert nichts: kein zweiter Prompt, kein Nebeneffekt.
     @discardableResult
     static func requestAccessibilityPrompt() -> Bool {
+        guard accessibilityStatus() != .granted else { return true }
+        // Literal statt `kAXTrustedCheckOptionPrompt`: die globale CFString-Konstante ist
+        // ein `var` und damit unter Swift-6-Concurrency nicht nutzbar.
         let opts: NSDictionary = ["AXTrustedCheckOptionPrompt": true]
         return AXIsProcessTrustedWithOptions(opts)
     }

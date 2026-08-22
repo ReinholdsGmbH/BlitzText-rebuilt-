@@ -41,9 +41,10 @@ Der Build legt das `.xcodeproj` neu an (aus `project.yml`) und signiert ad-hoc, 
 
 1. App starten — sie läuft als Menu-Bar-Icon (⚡).
 2. Beim ersten Aufnahmeversuch fragt macOS nach **Mikrofon**-Permission → erlauben.
-3. Beim ersten Hotkey-Druck fragt macOS nach **Bedienungshilfen** (für die Hotkey-Erkennung) → erlauben. **Wichtig**: nach Aktivierung Permission die App **einmal beenden und neu starten**.
-4. Im Menubar-Icon klicken → Zahnrad → Tab "Zugang" → API-Key einfügen.
-5. Tab "Anpassen": Schreibstil, eigene Anweisung, Kontext, Eigennamen-Glossar setzen.
+3. Zahnrad → Tab "Zugang" → **Bedienungshilfen: „Erlauben"** (nötig für Hotkey-Erkennung + Auto-Insert). Der Klick trägt BlitzText in die Liste in den Systemeinstellungen ein — den **Schalter dort legst du selbst um** (Passwort/Touch ID). Die Anzeige im Tab springt danach von allein um; ein App-Neustart ist nicht nötig.
+4. Optional im selben Tab: **Automatischer Start** → „Aktivieren" legt den Eintrag unter Systemeinstellungen › Allgemein › Anmeldeobjekte an. Auch hier gilt: eintragen macht die App, einschalten der Nutzer. Braucht BlitzText in `/Applications` (`./Scripts/install.sh`).
+5. Tab "Zugang" → API-Key einfügen.
+6. Tab "Anpassen": Schreibstil, eigene Anweisung, Kontext, Eigennamen-Glossar setzen.
 
 ---
 
@@ -106,6 +107,12 @@ besser passt).
 | Netzwerk (out)                   | OpenAI-API                                   |
 
 App läuft **ohne Sandbox** im MVP — vereinfacht TCC-Handling.
+
+Bedienungshilfen und der Anmeldeobjekt-Eintrag werden im Tab "Zugang" angestoßen
+(`AXIsProcessTrustedWithOptions` bzw. `SMAppService.mainApp.register()`). Beides legt nur den
+Eintrag an; das Aktivieren bleibt eine Nutzeraktion in den Systemeinstellungen. Danach fragt
+der `StatusPoller` den Status ~1 Minute im Sekundentakt nach, damit die Badges ohne
+Fenster-Neustart umspringen.
 
 ---
 
