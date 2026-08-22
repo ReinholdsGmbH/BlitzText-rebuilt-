@@ -52,7 +52,7 @@ struct AnpassenTab: View {
                     TextField("Modell", text: $settings.ollamaModel)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 280)
-                    Text("Ollama muss installiert und gestartet sein (ollama serve). Modell vorher laden: ollama pull phi4-mini")
+                    Text("Ollama muss installiert und gestartet sein (ollama serve). Modell vorher laden: ollama pull gemma4:e4b")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
             }
@@ -79,7 +79,7 @@ struct AnpassenTab: View {
                     TextField("Modell", text: $settings.ollamaModel)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 280)
-                    Text("Ollama muss installiert und gestartet sein (ollama serve). Modell vorher laden: ollama pull phi4-mini")
+                    Text("Ollama muss installiert und gestartet sein (ollama serve). Modell vorher laden: ollama pull gemma4:e4b")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
             }

@@ -27,7 +27,7 @@ final class SettingsStore: ObservableObject {
     @Published var aiSuggestProperNouns: Bool = true
     @Published var rewriteBackendForPlus: RewriteBackend = .openAI
     @Published var rewriteBackendForRant: RewriteBackend = .openAI
-    @Published var ollamaModel: String = "phi4-mini"
+    @Published var ollamaModel: String = "gemma4:e4b"
     @Published var ollamaBaseURL: String = "http://localhost:11434"
     /// Schwellenwert für Sprecher-Matching (0.5 = aggressiv zusammenführen, 0.9 = strikt trennen).
     /// Wird an SpeakerManager.speakerThreshold übergeben — kleiner Wert = mehr Treffer, größer = mehr neue Profile.
@@ -252,7 +252,7 @@ final class SettingsStore: ObservableObject {
         hotkeyForBlitztext = snap.hotkeyForBlitztext ?? .defaultBlitztext
         hotkeyForBlitztextPlus = snap.hotkeyForBlitztextPlus ?? .defaultBlitztextPlus
         hotkeyForBlitztextRant = snap.hotkeyForBlitztextRant ?? .defaultBlitztextRant
-        ollamaModel = snap.ollamaModel ?? "phi4-mini"
+        ollamaModel = snap.ollamaModel ?? "gemma4:e4b"
         ollamaBaseURL = snap.ollamaBaseURL ?? "http://localhost:11434"
         speakerMatchThreshold = snap.speakerMatchThreshold ?? 0.7
         autoUpdateCheckEnabled = snap.autoUpdateCheckEnabled ?? true
