@@ -91,3 +91,23 @@ struct MeetingLiveTests {
         return url
     }
 }
+
+@MainActor
+struct LiveTranscriberRealTests {
+    @Test("Live-Transkript mit echtem Parakeet aus dem Puffer", .enabled(if: MeetingLiveTests.liveDir != nil), .timeLimit(.minutes(5)))
+    func realLive() async throws {
+        let dir = URL(fileURLWithPath: try #require(MeetingLiveTests.liveDir))
+        let file = try AVAudioFile(forReading: dir.appendingPathComponent("me.wav"))
+        let pcm = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)))
+        try file.read(into: pcm)
+        let buffer = LiveAudioBuffer()
+        buffer.append(pcm)
+        let settings = SettingsStore(defaults: UserDefaults(suiteName: "blitztext-livet-\(UUID())")!)
+        let live = LiveTranscriber()
+        live.start(tracks: [(buffer, .me)], transcriber: PlainParakeetTranscriber(client: ParakeetClient(settings: settings, diarizerManager: DiarizerModelManager())))
+        for _ in 0..<120 where live.lines.isEmpty { try await Task.sleep(for: .milliseconds(500)) }
+        live.stop()
+        print("LIVE-VORSCHAU: \(live.lines.map(\.text))")
+        #expect(live.lines.first?.text.lowercased().contains("donnerstag") == true)
+    }
+}

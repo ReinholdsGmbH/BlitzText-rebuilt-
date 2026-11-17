@@ -83,6 +83,8 @@ final class SystemAudioTap: SystemAudioCapturing, @unchecked Sendable {
     private var fileURL: URL?
     private var converter: AVAudioConverter?
     private var targetFormat: AVAudioFormat?
+    /// Optionaler Abzweig der 16-kHz-Daten für das Live-Transkript im Meeting.
+    var liveSink: LiveAudioBuffer?
     private var startedAt: Date?
     private var peakAmplitude: Float = 0
 
@@ -315,6 +317,7 @@ final class SystemAudioTap: SystemAudioCapturing, @unchecked Sendable {
             return buffer
         }
         guard status != .error, error == nil, outBuffer.frameLength > 0 else { return }
+        liveSink?.append(outBuffer)
 
         do { try file.write(from: outBuffer) } catch {
             Log.write("SystemAudioTap: Schreibfehler — \(error.localizedDescription)")

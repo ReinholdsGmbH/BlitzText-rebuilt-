@@ -77,6 +77,24 @@ final class MeetingRecorder: ObservableObject {
         detectedSources = detector.detectSources()
     }
 
+    /// Hängt Live-Puffer an Mikrofon und Systemton, solange aufgenommen wird. Nur echte
+    /// Recorder haben einen Abzweig; Fakes in Tests liefern leere Liste.
+    func attachLiveBuffers() -> [(LiveAudioBuffer, TranscriptLine.Speaker)] {
+        var result: [(LiveAudioBuffer, TranscriptLine.Speaker)] = []
+        if let mic = microphone as? AudioRecorder {
+            let buffer = LiveAudioBuffer(); mic.liveSink = buffer; result.append((buffer, .me))
+        }
+        if let tap = systemAudio as? SystemAudioTap {
+            let buffer = LiveAudioBuffer(); tap.liveSink = buffer; result.append((buffer, .others))
+        }
+        return result
+    }
+
+    func detachLiveBuffers() {
+        (microphone as? AudioRecorder)?.liveSink = nil
+        (systemAudio as? SystemAudioTap)?.liveSink = nil
+    }
+
     /// Mikrofonpegel 0…1 für die Pegelbalken der Pille.
     var microphoneLevel: Float { (microphone as? AudioRecorder)?.currentLevel ?? 0 }
 

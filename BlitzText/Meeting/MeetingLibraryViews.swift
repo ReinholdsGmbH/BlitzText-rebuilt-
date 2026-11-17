@@ -910,10 +910,13 @@ struct NotesEditor: View {
     }
 }
 
-/// Rechte Seite während einer Aufnahme: Laufzeit und Notizen zum laufenden Meeting.
-/// Hier kommt später auch das Live-Transkript hin.
+/// Rechte Seite während einer Aufnahme: Laufzeit, Live-Transkript und eigene Notizen,
+/// mit Reitern wie beim fertigen Meeting.
 struct LiveMeetingView: View {
     @ObservedObject var controller: MeetingController
+    @State private var tab: Tab = .transcript
+
+    enum Tab: Hashable { case transcript, notes }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -921,33 +924,77 @@ struct LiveMeetingView: View {
                 TimelineView(.periodic(from: startedAt, by: 1)) { context in
                     HStack(spacing: 10) {
                         Circle().fill(Color.red).frame(width: 9, height: 9)
-                        Text("Aufnahme läuft").font(.system(size: 22, weight: .semibold))
+                        Text("Aufnahme läuft").font(.system(size: 22, weight: .semibold)).lineLimit(1)
                         Text(MeetingMarkdown.clock(context.date.timeIntervalSince(startedAt), alwaysHours: false))
                             .font(.system(size: 15, weight: .medium).monospacedDigit())
                             .foregroundStyle(MeetingTheme.foregroundTertiary)
-                        Spacer()
-                        Button("Aufnahme beenden") { controller.stop() }
+                        Spacer(minLength: 4)
+                        Button("Beenden") { controller.stop() }
                             .buttonStyle(LavenderButtonStyle())
                     }
                 }
             }
-            Text("Meine Notizen").font(.system(size: 15, weight: .semibold))
-            // Direkt an die Live-Notizen gebunden, ohne Kopie: Früher schrieb das Feld beim
-            // Verschwinden (Stopp) seinen alten Text zurück, nachdem die Notizen schon ins
-            // Meeting übernommen und geleert waren. Die nächste Aufnahme fand sie dann wieder vor.
-            TextEditor(text: $controller.liveNotes)
-                .font(.system(size: 13.5))
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 320)
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 12).fill(MeetingTheme.backgroundTertiary))
-            Text("Werden beim Stopp ins Meeting übernommen und fließen in die Zusammenfassung ein.")
-                .font(.caption).foregroundStyle(MeetingTheme.foregroundTertiary)
-            Spacer()
+            CapsuleToggle(options: [(Tab.transcript, "Live-Transkript"), (Tab.notes, "Meine Notizen")], selection: $tab)
+            switch tab {
+            case .transcript: LiveTranscriptPanel(live: controller.live)
+            case .notes:
+                // Direkt an die Live-Notizen gebunden, ohne Kopie: Früher schrieb das Feld beim
+                // Verschwinden (Stopp) seinen alten Text zurück, nachdem die Notizen schon ins
+                // Meeting übernommen und geleert waren.
+                TextEditor(text: $controller.liveNotes)
+                    .font(.system(size: 13.5))
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 320)
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(MeetingTheme.backgroundTertiary))
+                Text("Werden beim Stopp ins Meeting übernommen und fließen in die Zusammenfassung ein.")
+                    .font(.caption).foregroundStyle(MeetingTheme.foregroundTertiary)
+            }
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 32)
         .padding(.top, 26)
         .padding(.bottom, 24)
         .frame(maxWidth: 760, alignment: .leading)
+    }
+}
+
+/// Laufendes Transkript als Sprechblasen, scrollt automatisch mit.
+private struct LiveTranscriptPanel: View {
+    @ObservedObject var live: LiveTranscriber
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    if live.lines.isEmpty {
+                        Text(live.isRunning
+                             ? "Alle \(Int(LiveTranscriber.interval)) Sekunden erscheint hier, was gesagt wurde. Vorschau ohne Sprechernamen; das endgültige Transkript entsteht nach dem Stopp."
+                             : "Live-Transkript nicht verfügbar.")
+                            .font(.system(size: 12.5)).foregroundStyle(MeetingTheme.foregroundTertiary)
+                    }
+                    ForEach(Array(live.lines.enumerated()), id: \.offset) { index, line in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text(line.speaker.rawValue).font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(line.speaker == .me ? MeetingTheme.foreground : MeetingTheme.evergreen)
+                                Text(MeetingMarkdown.clock(line.start, alwaysHours: false))
+                                    .font(.system(size: 10).monospacedDigit()).foregroundStyle(MeetingTheme.foregroundTertiary)
+                            }
+                            Text(line.text).font(.system(size: 13)).textSelection(.enabled)
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                .background(RoundedRectangle(cornerRadius: 12).fill(MeetingTheme.card))
+                        }
+                        .id(index)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(RoundedRectangle(cornerRadius: 18).fill(MeetingTheme.panel))
+            .onChange(of: live.lines.count) { _, count in
+                withAnimation { proxy.scrollTo(count - 1, anchor: .bottom) }
+            }
+        }
     }
 }

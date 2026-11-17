@@ -65,6 +65,8 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
     private var fileURL: URL?
     private var converter: AVAudioConverter?
     private var targetFormat: AVAudioFormat?
+    /// Optionaler Abzweig der 16-kHz-Daten für das Live-Transkript im Meeting.
+    var liveSink: LiveAudioBuffer?
     private var startedAt: Date?
     private var peakAmplitude: Float = 0
 
@@ -327,6 +329,7 @@ final class AudioRecorder: ObservableObject, @unchecked Sendable {
         }
         if status == .error || error != nil { return }
         guard outBuffer.frameLength > 0 else { return }
+        liveSink?.append(outBuffer)
         do { try file.write(from: outBuffer) } catch {
             NSLog("[BlitzText] AudioFile write failed: \(error)")
         }

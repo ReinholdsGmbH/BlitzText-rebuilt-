@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 @testable import BlitzText
@@ -242,5 +243,22 @@ struct MeetingChatTests {
         await chat.ask("Wann ist der Cutover?", scope: .all, entries: entries())
         #expect(chat.messages.map(\.role) == [.user, .assistant])
         #expect(chat.messages.last?.sources.map(\.path) == ["/tmp/a"])
+    }
+}
+
+struct LiveAudioBufferTests {
+    @Test("Puffer gibt neue Samples mit Startposition ab und behält nichts doppelt")
+    func takeAdvances() throws {
+        let buffer = LiveAudioBuffer()
+        let format = try #require(AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false))
+        let pcm = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 100))
+        pcm.frameLength = 100
+        buffer.append(pcm)
+        let first = buffer.take()
+        #expect(first.start == 0 && first.samples.count == 100)
+        buffer.append(pcm)
+        let second = buffer.take()
+        #expect(second.start == 100 && second.samples.count == 100)
+        #expect(buffer.take().samples.isEmpty)
     }
 }

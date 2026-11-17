@@ -35,6 +35,8 @@ final class MeetingController: ObservableObject {
     @Published private(set) var lastFolder: URL?
     /// Notizen zur laufenden Aufnahme; wandern beim Stopp ins Meeting.
     @Published var liveNotes = ""
+    /// Vorschau-Transkript während der Aufnahme.
+    let live = LiveTranscriber()
     /// Mitschnitt mit kaum Sprache, wohl versehentlich gestartet. Die Pille fragt dann wie
     /// Wispr Flow: „Versehentlich gestartet? Verwerfen / Behalten“.
     @Published private(set) var accidentalFolder: URL?
@@ -146,6 +148,8 @@ final class MeetingController: ObservableObject {
             if case .recording(let startedAt) = recorder.state {
                 phase = .recording(startedAt: startedAt)
                 speakerPoller.start(pids: recorder.activeSources.map(\.pid), startedAt: startedAt)
+                let buffers = recorder.attachLiveBuffers()
+                if !buffers.isEmpty { live.start(tracks: buffers, transcriber: makeTranscriber()) }
             }
             noticeDismissed = true
         } catch {
@@ -156,6 +160,8 @@ final class MeetingController: ObservableObject {
     func stop() {
         guard isRecording else { return }
         let hints = speakerPoller.stop()
+        live.stop()
+        recorder.detachLiveBuffers()
         guard let recording = recorder.stop() else { return }
         process(recording, hints: hints)
     }
