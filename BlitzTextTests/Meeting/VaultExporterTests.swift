@@ -276,3 +276,28 @@ struct MwRouteRulesTests {
         #expect(Set(rules.areas.map(\.key)).isSuperset(of: ["pag", "wk", "tm", "intern", "eingang"]))
     }
 }
+
+struct LogDigestTests {
+    @Test("Entscheidungen und Aufgaben aus den Notizen, „Keine“ entfällt")
+    func items() {
+        let summary = "### Zusammenfassung\n- A\n\n### Entscheidungen\n- Release am Donnerstag\n\n### Aufgaben\n- [ ] Ich: Testfälle bis Mittwoch\n\n### Offene Fragen\nKeine"
+        #expect(VaultExporter.items(under: "Entscheidungen", in: summary) == ["Release am Donnerstag"])
+        #expect(VaultExporter.items(under: "Aufgaben", in: summary) == ["Ich: Testfälle bis Mittwoch"])
+        #expect(VaultExporter.items(under: "Entscheidungen", in: "### Entscheidungen\n- Keine").isEmpty)
+    }
+
+    @Test("Die log.md bekommt Entscheidungen und Aufgaben als Unterpunkte")
+    func logContainsDigest() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-vault-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try VaultExporter(root: root).export(MeetingDocument(
+            startedAt: Date(), duration: 5, sourceNames: [],
+            lines: [TranscriptLine(speaker: .me, start: 0, end: 1, text: "Kursbar")],
+            summary: "### Zusammenfassung\n- Kursbar geplant\n### Entscheidungen\n- Start im Januar\n### Aufgaben\n- [ ] Ich: Angebot schreiben",
+            notes: []))
+        let log = try String(contentsOf: root.appendingPathComponent("raba-it/kursbar/log.md"), encoding: .utf8)
+        #expect(log.contains("  - Entscheidung: Start im Januar"))
+        #expect(log.contains("  - Aufgabe: Ich: Angebot schreiben"))
+    }
+}

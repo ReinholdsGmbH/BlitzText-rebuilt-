@@ -150,6 +150,25 @@ struct VaultExporter {
         }
     }
 
+    /// Stichpunkte unter einer Überschrift der Notizen („### Aufgaben“), ohne „Keine“.
+    static func items(under heading: String, in summary: String) -> [String] {
+        var inside = false
+        var result: [String] = []
+        for raw in summary.components(separatedBy: "\n") {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("#") {
+                inside = line.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces).lowercased() == heading.lowercased()
+                continue
+            }
+            guard inside, line.hasPrefix("- ") || line.hasPrefix("* ") else { continue }
+            var item = String(line.dropFirst(2))
+            if item.hasPrefix("[ ] ") || item.hasPrefix("[x] ") { item = String(item.dropFirst(4)) }
+            item = item.trimmingCharacters(in: .whitespaces)
+            if !item.isEmpty, item.lowercased().trimmingCharacters(in: .punctuationCharacters) != "keine" { result.append(item) }
+        }
+        return result
+    }
+
     static func markdown(for document: MeetingDocument, area: String) -> String {
         let iso = DateFormatter()
         iso.locale = Locale(identifier: "de_DE")
@@ -189,6 +208,13 @@ struct VaultExporter {
         var entry = "- Meeting [\(MeetingMarkdown.title(for: document))](<\(link)>)"
         if !firstPoint.isEmpty { entry += ": \(firstPoint)" }
         entry += "\n"
+        // Entscheidungen und Aufgaben gleich mitnehmen, damit sie im Bereich stehen, sobald
+        // das Meeting fertig ist. STAND.md bleibt bewusst unangetastet (wird überschrieben).
+        for (heading, label) in [("Entscheidungen", "Entscheidung"), ("Aufgaben", "Aufgabe")] {
+            for item in Self.items(under: heading, in: document.summary ?? "") {
+                entry += "  - \(label): \(item)\n"
+            }
+        }
 
         if let handle = try? FileHandle(forWritingTo: log) {
             defer { try? handle.close() }
