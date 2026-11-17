@@ -27,6 +27,8 @@ struct FakeSummarizer: MeetingSummarizing {
     var titleResult: Result<String, Error> = .success("Neuer Titel")
     func summarize(transcript: String) async throws -> String { try result.get() }
     func title(for transcript: String) async throws -> String { try titleResult.get() }
+    var askResult: Result<String, Error> = .success("Antwort")
+    func ask(system: String, user: String) async throws -> String { try askResult.get() }
 }
 
 enum TestAudio {

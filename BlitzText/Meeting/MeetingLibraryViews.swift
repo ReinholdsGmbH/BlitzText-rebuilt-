@@ -56,7 +56,7 @@ struct MeetingListColumn: View {
 
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(MeetingTheme.foregroundTertiary)
-                TextField("Meetings durchsuchen", text: $search).textFieldStyle(.plain).font(.system(size: 13))
+                TextField("Meetings und Transkripte durchsuchen", text: $search).textFieldStyle(.plain).font(.system(size: 13))
             }
             .padding(.horizontal, 10)
             .frame(height: 30)
@@ -85,7 +85,7 @@ struct MeetingListColumn: View {
                                 .padding(.top, 14)
                                 .padding(.bottom, 4)
                             ForEach(group.entries) { entry in
-                                MeetingRow(entry: entry, library: library,
+                                MeetingRow(entry: entry, library: library, search: search,
                                            selected: MeetingLibrary.key(entry.folder) == library.selection.map(MeetingLibrary.key)) {
                                     library.selection = entry.folder
                                 }
@@ -93,7 +93,7 @@ struct MeetingListColumn: View {
                         }
                     }
                     .padding(.horizontal, 8)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 90)
                 }
             }
         }
@@ -112,6 +112,7 @@ struct MeetingListColumn: View {
 private struct MeetingRow: View {
     let entry: MeetingLibrary.Entry
     @ObservedObject var library: MeetingLibrary
+    var search: String = ""
     let selected: Bool
     let action: () -> Void
     @State private var hovering = false
@@ -136,8 +137,13 @@ private struct MeetingRow: View {
                                 .help("Sprecher zuordnen")
                         }
                     }
-                    Text(entry.document.startedAt, format: .dateTime.hour().minute())
-                        .font(.system(size: 12)).foregroundStyle(MeetingTheme.foregroundTertiary)
+                    if let hit = MeetingSearch.snippet(in: entry.document, for: search) {
+                        // Fundstelle im Transkript, wie Wispr Flows „Search past transcripts“.
+                        Text(hit).font(.system(size: 11.5)).foregroundStyle(MeetingTheme.foregroundTertiary).lineLimit(2)
+                    } else {
+                        Text(entry.document.startedAt, format: .dateTime.hour().minute())
+                            .font(.system(size: 12)).foregroundStyle(MeetingTheme.foregroundTertiary)
+                    }
                 }
                 Spacer(minLength: 4)
                 if hovering || selected {
@@ -302,7 +308,7 @@ struct MeetingDetailView: View {
             }
             .padding(.horizontal, 32)
             .padding(.top, 26)
-            .padding(.bottom, 32)
+            .padding(.bottom, 110)
             .frame(maxWidth: 760, alignment: .leading)
         }
         .onDisappear { player.stop() }

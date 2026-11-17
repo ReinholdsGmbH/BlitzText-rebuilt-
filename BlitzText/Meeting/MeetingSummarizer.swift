@@ -5,6 +5,8 @@ protocol MeetingSummarizing: Sendable {
     func summarize(transcript: String) async throws -> String
     /// Nur einen kurzen Titel, etwa für ältere Meetings ohne KI-Titel.
     func title(for transcript: String) async throws -> String
+    /// Freie Frage mit Kontext, für den Chat zu Meetings.
+    func ask(system: String, user: String) async throws -> String
 }
 
 /// Ein Chat-Aufruf: Systemprompt plus Nutzerinhalt, Antworttext zurück.
@@ -162,6 +164,10 @@ struct MeetingSummarizer: MeetingSummarizing {
         lines.removeSubrange(0...index)
         let notes = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         return (title.isEmpty ? nil : String(title.prefix(80)), notes)
+    }
+
+    func ask(system: String, user: String) async throws -> String {
+        try await chat.complete(system: system, user: user)
     }
 
     static let titlePrompt = """

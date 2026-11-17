@@ -211,3 +211,36 @@ struct SelfSpeakerTests {
         #expect(doc.lines.map { doc.label(for: $0) } == ["Ich", "Anna"])
     }
 }
+
+@MainActor
+struct MeetingChatTests {
+    private func entries() -> [MeetingLibrary.Entry] {
+        func doc(_ title: String, _ text: String, _ speaker: String) -> MeetingDocument {
+            var d = MeetingDocument(startedAt: Date(), duration: 60, sourceNames: ["Teams"],
+                lines: [TranscriptLine(speaker: .others, start: 0, end: 5, text: text, speakerID: "1")],
+                summary: nil, notes: [], speakerNames: ["1": speaker])
+            d.aiTitle = title
+            return d
+        }
+        return [
+            .init(folder: URL(fileURLWithPath: "/tmp/a"), document: doc("Cutover-Planung", "Der Cutover ist am Freitag", "Anna")),
+            .init(folder: URL(fileURLWithPath: "/tmp/b"), document: doc("Kursbar", "Anmeldungen laufen gut", "Vera"))
+        ]
+    }
+
+    @Test("Suche findet das passende Meeting vorn, auch über den Sprechernamen")
+    func ranking() {
+        let hits = MeetingSearch.rank("Was hat Anna zum Cutover gesagt?", in: entries())
+        #expect(hits.first?.entry.folder.path == "/tmp/a")
+        #expect(hits.count == 1)
+        #expect(MeetingSearch.snippet(in: entries()[0].document, for: "freitag") == "Anna: Der Cutover ist am Freitag")
+    }
+
+    @Test("Chat über alle Meetings nennt die Quellen")
+    func askAll() async {
+        let chat = MeetingChat(makeSummarizer: { FakeSummarizer(result: .success(""), askResult: .success("Am Freitag.")) })
+        await chat.ask("Wann ist der Cutover?", scope: .all, entries: entries())
+        #expect(chat.messages.map(\.role) == [.user, .assistant])
+        #expect(chat.messages.last?.sources.map(\.path) == ["/tmp/a"])
+    }
+}

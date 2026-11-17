@@ -57,6 +57,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
     private let model: AppWindowModel
     private let library: MeetingLibrary
     private let controller: MeetingController
+    private let chat: MeetingChat
     private let environment: AppEnvironment
 
     /// Alles, was die Einstellungsseiten als EnvironmentObject brauchen.
@@ -70,7 +71,8 @@ final class AppWindowController: NSObject, NSWindowDelegate {
         let history: HistoryStore
     }
 
-    init(library: MeetingLibrary, controller: MeetingController, environment: AppEnvironment) {
+    init(library: MeetingLibrary, controller: MeetingController, chat: MeetingChat, environment: AppEnvironment) {
+        self.chat = chat
         self.library = library
         self.controller = controller
         self.environment = environment
@@ -127,7 +129,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
             window.minSize = NSSize(width: 860, height: 560)
             let env = environment
             window.contentViewController = NSHostingController(
-                rootView: AppRootView(model: model, library: library, controller: controller)
+                rootView: AppRootView(model: model, library: library, controller: controller, chat: chat)
                     .environmentObject(env.settings)
                     .environmentObject(env.modelManager)
                     .environmentObject(env.diarizerManager)
@@ -156,6 +158,7 @@ struct AppRootView: View {
     @ObservedObject var model: AppWindowModel
     @ObservedObject var library: MeetingLibrary
     @ObservedObject var controller: MeetingController
+    @ObservedObject var chat: MeetingChat
     @State private var search = ""
 
     var body: some View {
@@ -182,6 +185,9 @@ struct AppRootView: View {
                         }
                         .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
+                    }
+                    .overlay(alignment: .bottom) {
+                        if !controller.isRecording { ChatDock(chat: chat, library: library) }
                     }
                 } else if model.section == .history {
                     HistoryView()

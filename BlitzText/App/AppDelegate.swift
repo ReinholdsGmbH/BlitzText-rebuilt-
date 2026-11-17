@@ -167,6 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingWindow = AppWindowController(
             library: meetingLibrary,
             controller: meetingController,
+            chat: MeetingChat(makeSummarizer: { settings.makeMeetingSummarizer() }),
             environment: .init(
                 settings: settingsStore,
                 modelManager: modelManager,
