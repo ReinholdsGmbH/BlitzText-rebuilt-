@@ -149,7 +149,11 @@ final class MeetingController: ObservableObject {
                 phase = .recording(startedAt: startedAt)
                 speakerPoller.start(pids: recorder.activeSources.map(\.pid), startedAt: startedAt)
                 let buffers = recorder.attachLiveBuffers()
-                if !buffers.isEmpty { live.start(tracks: buffers, transcriber: makeTranscriber()) }
+                if !buffers.isEmpty {
+                    let poller = speakerPoller
+                    live.start(tracks: buffers, transcriber: makeTranscriber(),
+                               nameForOthers: { poller.recentName() })
+                }
             }
             noticeDismissed = true
         } catch {

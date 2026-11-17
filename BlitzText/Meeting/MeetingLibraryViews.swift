@@ -967,16 +967,18 @@ private struct LiveTranscriptPanel: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    if live.lines.isEmpty {
+                    if live.lines.isEmpty && live.volatile.isEmpty {
                         Text(live.isRunning
-                             ? "Alle \(Int(LiveTranscriber.interval)) Sekunden erscheint hier, was gesagt wurde. Vorschau ohne Sprechernamen; das endgültige Transkript entsteht nach dem Stopp."
+                             ? (live.isStreaming
+                                ? "Hört zu … Text erscheint, während gesprochen wird."
+                                : "Lädt das Live-Modell … Danach erscheint der Text fortlaufend.")
                              : "Live-Transkript nicht verfügbar.")
                             .font(.system(size: 12.5)).foregroundStyle(MeetingTheme.foregroundTertiary)
                     }
                     ForEach(Array(live.lines.enumerated()), id: \.offset) { index, line in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 6) {
-                                Text(line.speaker.rawValue).font(.system(size: 11, weight: .semibold))
+                                Text(line.label).font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(line.speaker == .me ? MeetingTheme.foreground : MeetingTheme.evergreen)
                                 Text(MeetingMarkdown.clock(line.start, alwaysHours: false))
                                     .font(.system(size: 10).monospacedDigit()).foregroundStyle(MeetingTheme.foregroundTertiary)
@@ -987,6 +989,20 @@ private struct LiveTranscriptPanel: View {
                         }
                         .id(index)
                     }
+                    // Vorläufige Hypothesen, grau: ändern sich noch.
+                    ForEach([TranscriptLine.Speaker.me, .others], id: \.self) { speaker in
+                        if let text = live.volatile[speaker], !text.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(speaker.rawValue).font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(MeetingTheme.foregroundTertiary)
+                                Text(text).font(.system(size: 13)).italic()
+                                    .foregroundStyle(MeetingTheme.foregroundTertiary)
+                                    .padding(.horizontal, 12).padding(.vertical, 8)
+                                    .background(RoundedRectangle(cornerRadius: 12).fill(MeetingTheme.card.opacity(0.6)))
+                            }
+                            .id("volatile-\(speaker.rawValue)")
+                        }
+                    }
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -994,6 +1010,9 @@ private struct LiveTranscriptPanel: View {
             .background(RoundedRectangle(cornerRadius: 18).fill(MeetingTheme.panel))
             .onChange(of: live.lines.count) { _, count in
                 withAnimation { proxy.scrollTo(count - 1, anchor: .bottom) }
+            }
+            .onChange(of: live.volatile) { _, _ in
+                if let speaker = live.volatile.keys.first { proxy.scrollTo("volatile-\(speaker.rawValue)", anchor: .bottom) }
             }
         }
     }

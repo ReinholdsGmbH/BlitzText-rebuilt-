@@ -101,13 +101,22 @@ struct LiveTranscriberRealTests {
         let pcm = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)))
         try file.read(into: pcm)
         let buffer = LiveAudioBuffer()
-        buffer.append(pcm)
         let settings = SettingsStore(defaults: UserDefaults(suiteName: "blitztext-livet-\(UUID())")!)
         let live = LiveTranscriber()
         live.start(tracks: [(buffer, .me)], transcriber: PlainParakeetTranscriber(client: ParakeetClient(settings: settings, diarizerManager: DiarizerModelManager())))
-        for _ in 0..<120 where live.lines.isEmpty { try await Task.sleep(for: .milliseconds(500)) }
+        // Streaming: Puffer nach dem Start einspeisen, wie es die Aufnahme tut.
+        for _ in 0..<60 where !live.isStreaming { try await Task.sleep(for: .milliseconds(500)) }
+        buffer.append(pcm)
+        let silence = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 16_000))
+        silence.frameLength = 16_000
+        for _ in 0..<15 { buffer.append(silence) }
+        var firstVolatile: String?
+        for _ in 0..<80 where live.lines.isEmpty {
+            if firstVolatile == nil, let v = live.volatile[.me], !v.isEmpty { firstVolatile = v }
+            try await Task.sleep(for: .milliseconds(250))
+        }
         live.stop()
-        print("LIVE-VORSCHAU: \(live.lines.map(\.text))")
-        #expect(live.lines.first?.text.lowercased().contains("donnerstag") == true)
+        print("LIVE-STREAM: streaming=\(live.isStreaming) erste Hypothese=\(firstVolatile ?? "-") bestätigt=\(live.lines.map(\.text))")
+        #expect((live.lines.map(\.text).joined() + (firstVolatile ?? "")).lowercased().contains("donnerstag"))
     }
 }

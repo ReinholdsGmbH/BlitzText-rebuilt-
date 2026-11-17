@@ -45,6 +45,15 @@ final class ActiveSpeakerPoller {
         self.timer = timer
     }
 
+    /// Wer laut Meeting-App in den letzten Sekunden am meisten gesprochen hat. Für die
+    /// Namen im Live-Transkript.
+    func recentName(window: TimeInterval = 6) -> String? {
+        let now = Date().timeIntervalSince(startedAt)
+        let recent = hints.filter { $0.time >= now - window }
+        let counts = Dictionary(grouping: recent, by: \.name).mapValues(\.count)
+        return counts.max { $0.value < $1.value }?.key
+    }
+
     @discardableResult
     func stop() -> [SpeakerHint] {
         timer?.invalidate()
