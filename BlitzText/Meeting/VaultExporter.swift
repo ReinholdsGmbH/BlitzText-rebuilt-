@@ -20,7 +20,7 @@ struct VaultExporter {
     // MARK: Regeln aus mw-route (Stand 17.11.2026)
 
     /// Bereichsschlüssel → Ordner relativ zum Wissensordner.
-    static let areas: [(key: String, label: String, folder: String)] = [
+    static let builtInAreas: [(key: String, label: String, folder: String)] = [
         ("pag", "PAG", "arbeit/pag"),
         ("wk", "WK", "arbeit/wk"),
         ("tm", "TenderMatchAI", "arbeit/tendermatchai"),
@@ -36,7 +36,7 @@ struct VaultExporter {
 
     /// Stichwörter je Bereich, in der Prüfreihenfolge von mw-route: Spezifisches zuerst, PAG
     /// zuletzt, weil dort breite Begriffe wie „test“ stehen.
-    static let keywords: [(key: String, pattern: String)] = [
+    static let builtInKeywords: [(key: String, pattern: String)] = [
         ("kursbar", "kursbar"),
         ("auftragslauf", "auftragslauf"),
         ("rabaconsulting", "raba.consulting"),
@@ -46,7 +46,14 @@ struct VaultExporter {
         ("pag", "testplanung|testmanagement|xray|migrationstest|UAT|go.live|go-live|golive|testf(a|ä)ll|teststatus|testvorbereitung|testphase|cutover|abnahmeprozess|kickoff.*test|projektstatus.*test|defect|SAP.*test|mig.*test")
     ]
     /// Interne Dauertermine, die alle Projekte streifen, gehen immer nach „intern“.
-    static let internTitles = "thomas.daily|reinholds.daily|reinholds.teamabstimmung|quarterly.review"
+    static let builtInInternTitles = "thomas.daily|reinholds.daily|reinholds.teamabstimmung|quarterly.review"
+
+    /// Regeln aus mw-route selbst, damit beide nicht auseinanderlaufen. Fällt auf die
+    /// eingebauten zurück, wenn das Skript fehlt oder sich nicht lesen lässt.
+    static let rules = MwRouteRules.load()
+    static var areas: [(key: String, label: String, folder: String)] { rules.areas }
+    static var keywords: [(key: String, pattern: String)] { rules.keywords }
+    static var internTitles: String { rules.internTitles }
 
     static func folder(for key: String) -> String {
         areas.first { $0.key == key }?.folder ?? "_eingang"

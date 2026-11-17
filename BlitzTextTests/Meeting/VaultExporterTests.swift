@@ -241,3 +241,38 @@ struct VaultRemovalTests {
         #expect(log.contains("verworfen"))
     }
 }
+
+struct MwRouteRulesTests {
+    @Test("Regeln aus mw-route lesen, config.sh überschreibt, Reihenfolge bleibt")
+    func parses() {
+        let script = """
+        PROJECT_VAULT_DIRS=(
+          [pag]="arbeit/pag"
+          [neu]="arbeit/neu"
+          [eingang]="_eingang"
+        )
+        PROJECT_KEYWORDS=(
+          [pag]="cutover|uat"
+          [neu]="neuprojekt"
+        )
+        INTERN_TITLES="team.daily"
+        """
+        let config = """
+        PROJECT_KEYWORDS=(
+          [pag]="cutover|uat|golive"
+        )
+        """
+        let rules = MwRouteRules.parse([script, config])
+        #expect(rules.keywords.map(\.key) == ["pag", "neu"])
+        #expect(rules.keywords.first?.pattern == "cutover|uat|golive")
+        #expect(rules.areas.last?.key == "eingang")
+        #expect(rules.areas.contains { $0.key == "neu" && $0.folder == "arbeit/neu" })
+        #expect(rules.internTitles == "team.daily")
+    }
+
+    @Test("Echtes mw-route-Skript ergibt dieselben Bereiche wie eingebaut")
+    func realScriptMatches() {
+        let rules = MwRouteRules.load()
+        #expect(Set(rules.areas.map(\.key)).isSuperset(of: ["pag", "wk", "tm", "intern", "eingang"]))
+    }
+}

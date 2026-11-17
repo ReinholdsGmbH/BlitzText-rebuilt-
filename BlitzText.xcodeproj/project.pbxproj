@@ -139,6 +139,7 @@
 		DB5EFC7A6640CFFB3880D466 /* RecordingHUDController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F7B3C57134FCC4C8115A5CC /* RecordingHUDController.swift */; };
 		DF9F650D5925101EF76B2C0E /* ParakeetClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B487F4C357DBB6D3574BD71C /* ParakeetClient.swift */; };
 		E0E2AF130C996FE8DC761BBA /* SuggestionToastController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3C28960EDC99F7D288E8084 /* SuggestionToastController.swift */; };
+		E1BA570BD10FF76D2115D7F6 /* MwRouteRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8DE9D29B87246CF31734175 /* MwRouteRules.swift */; };
 		E60A82039563D0431A1165FA /* CandidateLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EBC7EC51EEB004BC1A37E0C /* CandidateLedger.swift */; };
 		E8339E8E6FEC9708580640C4 /* VaultSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1762D197F6B19CE5571B3C1 /* VaultSection.swift */; };
 		EBD44500FFB25155B249C8ED /* ActiveSpeakerPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E71B9824085C0D447169C3B /* ActiveSpeakerPoller.swift */; };
@@ -306,6 +307,7 @@
 		F68276D88B94B0B26B36A7F3 /* MeetingRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingRecorder.swift; sourceTree = "<group>"; };
 		F7C5C428611F999F95AA7627 /* GitHubRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubRelease.swift; sourceTree = "<group>"; };
 		F7E8ED86566952301A2ACD27 /* HotkeysTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeysTab.swift; sourceTree = "<group>"; };
+		F8DE9D29B87246CF31734175 /* MwRouteRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MwRouteRules.swift; sourceTree = "<group>"; };
 		F9592C8DC40369A825B03C42 /* VaultExporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultExporterTests.swift; sourceTree = "<group>"; };
 		FAB93AE4AD0A783AB5C77E03 /* FakeTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeTranscriptionService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -569,6 +571,7 @@
 				9AF0F5D383DE8FA51CB148B7 /* MeetingSummarizer.swift */,
 				4D1755FC78A78F1393A04398 /* MeetingTheme.swift */,
 				9D95C4DEC918A49D44A9196A /* MeetingTranscriber.swift */,
+				F8DE9D29B87246CF31734175 /* MwRouteRules.swift */,
 				30A0565BAF50334232E2DB73 /* ProviderKeyStore.swift */,
 				929B191F7280FA561EE7AC52 /* SnippetPlayer.swift */,
 				DB55A4CE0ADAD33790FE0A66 /* SpeakerNaming.swift */,
@@ -945,6 +948,7 @@
 				A5E4C93FFA621E33DC18CB2B /* Mode.swift in Sources */,
 				01CEDC617A5EA474A5559B0C /* ModeProcessor.swift in Sources */,
 				7247E57DE4F67076B6B572DD /* ModelDownloader.swift in Sources */,
+				E1BA570BD10FF76D2115D7F6 /* MwRouteRules.swift in Sources */,
 				12BFEBFAA944AE998767FE9E /* NumberWordConverter.swift in Sources */,
 				48745E2A18111B1C1825D794 /* OllamaRewriteClient.swift in Sources */,
 				2511C7912BF2E92943C7C79D /* OpenAIChatClient.swift in Sources */,
