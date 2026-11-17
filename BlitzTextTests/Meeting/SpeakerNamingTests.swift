@@ -197,3 +197,17 @@ struct LibraryReassignTests {
         #expect(doc.lines.map { doc.label(for: $0) } == ["Anna", "Anna"])
     }
 }
+
+@Suite(.serialized)
+struct SelfSpeakerTests {
+    @Test("Eigenes Profil erscheint als „Ich“, andere unverändert")
+    func selfLabel() {
+        SpeakerNaming.selfName = "Thomas Raba"
+        defer { SpeakerNaming.selfName = nil }
+        let doc = MeetingDocument(startedAt: Date(), duration: 1, sourceNames: ["Import"],
+            lines: [TranscriptLine(speaker: .others, start: 0, end: 1, text: "a", speakerID: "1"),
+                    TranscriptLine(speaker: .others, start: 2, end: 3, text: "b", speakerID: "2")],
+            summary: nil, notes: [], speakerNames: ["1": "thomas raba", "2": "Anna"])
+        #expect(doc.lines.map { doc.label(for: $0) } == ["Ich", "Anna"])
+    }
+}

@@ -8,6 +8,15 @@ import Foundation
 /// im Meeting und im Profilspeicher.
 enum SpeakerNaming {
 
+    /// Name des eigenen Stimmprofils (Einstellungen › Sprecher). Eine Stimme mit diesem Namen
+    /// erscheint überall als „Ich“, auch in importierten Mischspuren ohne eigene Mikrofonspur.
+    nonisolated(unsafe) static var selfName: String?
+
+    static func isSelf(_ name: String?) -> Bool {
+        guard let name, let me = selfName, !me.isEmpty else { return false }
+        return key(name) == key(me)
+    }
+
     /// Vergleichsform: ohne Groß-/Kleinschreibung, Akzente, Umlaut-Schreibweisen und
     /// doppelte Leerzeichen. „Müller“ und „Mueller“ gelten als gleich.
     static func key(_ name: String) -> String {

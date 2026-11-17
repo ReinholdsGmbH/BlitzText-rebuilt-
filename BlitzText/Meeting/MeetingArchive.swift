@@ -82,7 +82,9 @@ struct MeetingDocument: Codable, Equatable {
     }
 
     func label(forSpeaker id: String) -> String {
-        if let name = speakerNames[id], !name.isEmpty { return name }
+        if let name = speakerNames[id], !name.isEmpty {
+            return SpeakerNaming.isSelf(name) ? TranscriptLine.Speaker.me.rawValue : name
+        }
         let unnamed = speakerIDs.filter { (speakerNames[$0] ?? "").isEmpty }
         let number = (unnamed.firstIndex(of: id) ?? unnamed.count) + 1
         return "Sprecher \(number)"

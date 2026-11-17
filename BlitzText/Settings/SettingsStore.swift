@@ -45,6 +45,10 @@ final class SettingsStore: ObservableObject {
     @Published var vaultRootPath: String = VaultExporter.defaultRoot.path
     /// Wann BlitzText im Dock erscheint. Standard: solange das App-Fenster offen ist.
     @Published var dockIconMode: DockIconMode = .whileWindowOpen
+    /// Welches Stimmprofil man selbst ist; erscheint in Meetings als „Ich“.
+    @Published var selfSpeakerName: String = "" {
+        didSet { SpeakerNaming.selfName = selfSpeakerName.isEmpty ? nil : selfSpeakerName }
+    }
     /// Schlüssel für OpenRouter/Requesty — Keychain, nie UserDefaults.
     let providerKeys = ProviderKeyStore(keychain: RuntimeEnvironment.isRunningTests ? nil : .shared)
     /// Bei Parakeet-Backend: Sprecher-Diarization aktivieren.
@@ -237,6 +241,7 @@ final class SettingsStore: ObservableObject {
         var vaultExportEnabled: Bool?
         var vaultRootPath: String?
         var dockIconMode: DockIconMode?
+        var selfSpeakerName: String?
     }
 
     private func load() {
@@ -281,6 +286,7 @@ final class SettingsStore: ObservableObject {
         vaultExportEnabled = snap.vaultExportEnabled ?? true
         vaultRootPath = snap.vaultRootPath ?? VaultExporter.defaultRoot.path
         dockIconMode = snap.dockIconMode ?? .whileWindowOpen
+        selfSpeakerName = snap.selfSpeakerName ?? ""
     }
 
     /// Exporter für den Wissensordner, oder `nil`, wenn ausgeschaltet.
@@ -367,7 +373,8 @@ final class SettingsStore: ObservableObject {
             requestyModel: requestyModel,
             vaultExportEnabled: vaultExportEnabled,
             vaultRootPath: vaultRootPath,
-            dockIconMode: dockIconMode
+            dockIconMode: dockIconMode,
+            selfSpeakerName: selfSpeakerName
         )
         do {
             let data = try JSONEncoder().encode(snap)

@@ -351,6 +351,7 @@ private struct SettingsPage: View {
             SettingsCard("Eigennamen", footnote: "Die Liste korrigiert jede Transkription automatisch, auch in Meetings.") { DictionarySection() }
             SettingsCard("Kontext") { ContextSection() }
         case .speakers:
+            SettingsCard("Ich") { SelfSpeakerSection() }
             SettingsCard(nil) { SprecherTab() }
         case .models:
             SettingsCard("Transkription") { LokalTab() }

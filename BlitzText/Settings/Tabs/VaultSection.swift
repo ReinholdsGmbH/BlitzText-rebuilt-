@@ -60,3 +60,31 @@ struct AppearanceSection: View {
         }
     }
 }
+
+/// Welches Stimmprofil man selbst ist.
+struct SelfSpeakerSection: View {
+    @EnvironmentObject var settings: SettingsStore
+    @State private var names: [String] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LabeledContent("Das bin ich") {
+                Picker("", selection: $settings.selfSpeakerName) {
+                    Text("Kein Profil").tag("")
+                    ForEach(names, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .frame(maxWidth: 260)
+            }
+            Text("Diese Stimme erscheint in Meetings, Notizen und im Wissensordner als „Ich“, auch in importierten Mischspuren ohne eigene Mikrofonspur. Fehlt dein Profil, gib in einem Meeting deiner Stimme deinen Namen.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .onAppear {
+            names = SpeakerProfileStore().loadSpeakers().filter(\.isPermanent).map(\.name).sorted()
+            if !settings.selfSpeakerName.isEmpty, !names.contains(settings.selfSpeakerName) {
+                names.append(settings.selfSpeakerName)
+            }
+        }
+    }
+}
