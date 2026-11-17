@@ -223,3 +223,21 @@ struct LiveNotesTests {
         #expect(c.liveNotes.isEmpty, "Notizen: \(c.liveNotes) / Phase: \(c.phase)")
     }
 }
+
+struct VaultRemovalTests {
+    @Test("Verwerfen nimmt die Datei aus dem Wissensordner und vermerkt es in der log.md")
+    func removes() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-vault-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let exporter = VaultExporter(root: root)
+        let doc = try exporter.export(MeetingDocument(startedAt: Date(), duration: 5, sourceNames: [],
+            lines: [TranscriptLine(speaker: .me, start: 0, end: 1, text: "Kursbar Termin")], summary: nil, notes: []))
+        let file = root.appendingPathComponent(try #require(doc.vaultFile))
+        #expect(FileManager.default.fileExists(atPath: file.path))
+        exporter.remove(doc)
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+        let log = try String(contentsOf: root.appendingPathComponent("raba-it/kursbar/log.md"), encoding: .utf8)
+        #expect(log.contains("verworfen"))
+    }
+}

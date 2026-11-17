@@ -126,6 +126,23 @@ struct VaultExporter {
         return document
     }
 
+    /// Nimmt ein verworfenes oder gelöschtes Meeting wieder aus dem Wissensordner: Datei in den
+    /// Papierkorb, in der log.md eine Korrekturzeile (sie ist ein reines Anhänge-Protokoll,
+    /// deshalb wird die alte Zeile nicht gelöscht).
+    func remove(_ document: MeetingDocument) {
+        guard let file = document.vaultFile else { return }
+        let url = root.appendingPathComponent(file)
+        try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
+        let area = file.components(separatedBy: "/transkripte/").first ?? "_eingang"
+        let log = root.appendingPathComponent("\(area)/log.md")
+        let line = "- Meeting \(MeetingMarkdown.title(for: document)) wurde verworfen, die Datei liegt im Papierkorb.\n"
+        if let handle = try? FileHandle(forWritingTo: log) {
+            defer { try? handle.close() }
+            handle.seekToEndOfFile()
+            handle.write(Data(line.utf8))
+        }
+    }
+
     static func markdown(for document: MeetingDocument, area: String) -> String {
         let iso = DateFormatter()
         iso.locale = Locale(identifier: "de_DE")

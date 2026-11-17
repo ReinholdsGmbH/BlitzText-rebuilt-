@@ -208,6 +208,7 @@ final class MeetingLibrary: ObservableObject {
 
     /// Verschiebt das Meeting in den Papierkorb, nicht endgültig gelöscht.
     func delete(_ entry: Entry) {
+        makeExporter()?.remove(entry.document)
         do {
             try FileManager.default.trashItem(at: entry.folder, resultingItemURL: nil)
             if let selection, MeetingLibrary.key(selection) == MeetingLibrary.key(entry.folder) { self.selection = nil }

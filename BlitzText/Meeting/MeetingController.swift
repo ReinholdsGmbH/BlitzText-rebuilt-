@@ -372,6 +372,7 @@ final class MeetingController: ObservableObject {
         guard let folder = accidentalFolder else { return }
         accidentalFolder = nil
         if !keep {
+            if let document = archive.load(folder: folder) { makeExporter()?.remove(document) }
             try? FileManager.default.trashItem(at: folder, resultingItemURL: nil)
             Log.write("MeetingController: versehentlichen Mitschnitt verworfen")
             onMeetingSaved?(folder)
