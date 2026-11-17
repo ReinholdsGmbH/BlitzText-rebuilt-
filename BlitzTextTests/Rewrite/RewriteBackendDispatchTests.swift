@@ -98,4 +98,38 @@ final class RewriteBackendDispatchTests: XCTestCase {
         XCTAssertEqual(ollama.callCount, 1)
         XCTAssertEqual(openAI.callCount, 0)
     }
+
+    /// OpenRouter/Requesty laufen über den Anbieter-Rewriter, nicht über OpenAI oder Ollama.
+    func test_blitztextRant_requesty_dispatchesToProviderRewriter() async throws {
+        let settings = SettingsStore(defaults: UserDefaults(suiteName: "blitztext-dispatch-\(UUID())")!)
+        settings._testApiKeyOverride = "sk-test-123"
+        settings.setRewriteBackend(.requesty, for: .blitztextRant)
+        settings.backend = .openAI
+        let openAI = FakeRewriter(.success("OPENAI_OUT"))
+        let ollama = FakeRewriter(.success("OLLAMA_OUT"))
+        let provider = FakeRewriter(.success("PROVIDER_OUT"))
+        let mp = ModeProcessor(
+            settings: settings,
+            history: HistoryStore(),
+            modelManager: LocalModelManager(),
+            diarizerManager: DiarizerModelManager(loader: FakeDiarizerLoader()),
+            openAITranscriber: FakeTranscriptionService(.success("hallo")),
+            rewriter: openAI,
+            ollamaRewriter: ollama,
+            providerRewriter: provider,
+            recorder: FakeAudioRecorder(fixtureURL: try makeFixtureURL())
+        )
+        await mp.start(mode: .blitztextRant)
+        await mp.stop()
+        XCTAssertEqual(provider.callCount, 1)
+        XCTAssertEqual(openAI.callCount, 0)
+        XCTAssertEqual(ollama.callCount, 0)
+    }
+
+    func test_providerBackends_mapToSummaryProviders() {
+        XCTAssertEqual(RewriteBackend.openRouter.provider, .openRouter)
+        XCTAssertEqual(RewriteBackend.requesty.provider, .requesty)
+        XCTAssertNil(RewriteBackend.openAI.provider)
+        XCTAssertNil(RewriteBackend.ollama.provider)
+    }
 }

@@ -43,6 +43,13 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
     }
 
     func transcribe(audioURL: URL, language: String?, prompt: String?) async throws -> String {
+        try await transcribe(audioURL: audioURL, diarize: settings.parakeetDiarization)
+    }
+
+    /// Transkription mit expliziter Wahl der Sprechertrennung. Der Meeting-Pfad ruft das
+    /// mit `diarize: false` auf: Er zerlegt die Spuren selbst in kurze Abschnitte, und die
+    /// Zuordnung „ich" gegen „andere" kommt aus der Spur, nicht aus der Diarisierung.
+    func transcribe(audioURL: URL, diarize: Bool) async throws -> String {
         let needsLoad: Bool
         if asrManager == nil {
             needsLoad = true
@@ -64,7 +71,7 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
         let result = try await asrManager.transcribe(samples, decoderState: &decoderState)
         Log.write("Parakeet: ASR fertig (\(String(format: "%.1f", Date().timeIntervalSince(t0)))s) — \(result.text.count) Zeichen")
 
-        guard settings.parakeetDiarization, let diarizer else {
+        guard diarize, let diarizer else {
             return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
@@ -314,5 +321,14 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
         }()
         await task.value
         loadLock.withLock { loadingTask = nil }
+    }
+}
+
+/// Parakeet ohne Sprechertrennung, unabhängig von der Einstellung im Lokal-Tab.
+struct PlainParakeetTranscriber: TranscriptionService {
+    let client: ParakeetClient
+
+    func transcribe(audioURL: URL, language: String?, prompt: String?) async throws -> String {
+        try await client.transcribe(audioURL: audioURL, diarize: false)
     }
 }

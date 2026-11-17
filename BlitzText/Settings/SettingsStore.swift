@@ -36,6 +36,17 @@ final class SettingsStore: ObservableObject {
     /// Der Download/Install ist immer nutzerinitiiert (Button) — hier geht es nur um die Prüfung
     /// und die Benachrichtigung.
     @Published var autoUpdateCheckEnabled: Bool = true
+    /// Wer die Meeting-Zusammenfassung schreibt. Standard lokal; Cloud nur bewusst gewählt.
+    @Published var meetingSummaryProvider: SummaryProvider = .ollama
+    @Published var openRouterModel: String = SummaryProvider.openRouter.defaultModel
+    @Published var requestyModel: String = SummaryProvider.requesty.defaultModel
+    /// Meetings sofort in den Wissensordner (Baalda-Vault) spiegeln, nach mw-route-Regeln.
+    @Published var vaultExportEnabled: Bool = true
+    @Published var vaultRootPath: String = VaultExporter.defaultRoot.path
+    /// Wann BlitzText im Dock erscheint. Standard: solange das App-Fenster offen ist.
+    @Published var dockIconMode: DockIconMode = .whileWindowOpen
+    /// Schlüssel für OpenRouter/Requesty — Keychain, nie UserDefaults.
+    let providerKeys = ProviderKeyStore(keychain: RuntimeEnvironment.isRunningTests ? nil : .shared)
     /// Bei Parakeet-Backend: Sprecher-Diarization aktivieren.
     /// Side-Effect (D-01): `false → true` triggert sofortigen Manager-Download.
     /// Snapshot-Save läuft separat über das debounced `objectWillChange`-Sink.
@@ -166,6 +177,7 @@ final class SettingsStore: ObservableObject {
     /// (UserDefaults → Keychain). Idempotent. Bei Keychain-Schreibfehler bleibt der
     /// Legacy-Eintrag erhalten, damit der User den Key nicht verliert.
     private func loadAPIKeyFromKeychainAsync() {
+        guard !RuntimeEnvironment.isRunningTests else { return }
         // Nur Sendable-Werte einfangen (kein `self`, kein UserDefaults!), damit der Task nichts
         // Nicht-Sendables über die Isolationsgrenze reicht: account/legacy sind Strings, `cache`
         // ist @unchecked Sendable.
@@ -218,6 +230,13 @@ final class SettingsStore: ObservableObject {
         var speakerMatchThreshold: Double?
         // Auto-Update-Prüfung: additives Optional — alte Snapshots laden ohne Crash.
         var autoUpdateCheckEnabled: Bool?
+        // Meeting-Zusammenfassung: additive Optionals — alte Snapshots laden ohne Crash.
+        var meetingSummaryProvider: SummaryProvider?
+        var openRouterModel: String?
+        var requestyModel: String?
+        var vaultExportEnabled: Bool?
+        var vaultRootPath: String?
+        var dockIconMode: DockIconMode?
     }
 
     private func load() {
@@ -256,6 +275,50 @@ final class SettingsStore: ObservableObject {
         ollamaBaseURL = snap.ollamaBaseURL ?? "http://localhost:11434"
         speakerMatchThreshold = snap.speakerMatchThreshold ?? 0.7
         autoUpdateCheckEnabled = snap.autoUpdateCheckEnabled ?? true
+        meetingSummaryProvider = snap.meetingSummaryProvider ?? .ollama
+        openRouterModel = snap.openRouterModel ?? SummaryProvider.openRouter.defaultModel
+        requestyModel = snap.requestyModel ?? SummaryProvider.requesty.defaultModel
+        vaultExportEnabled = snap.vaultExportEnabled ?? true
+        vaultRootPath = snap.vaultRootPath ?? VaultExporter.defaultRoot.path
+        dockIconMode = snap.dockIconMode ?? .whileWindowOpen
+    }
+
+    /// Exporter für den Wissensordner, oder `nil`, wenn ausgeschaltet.
+    func makeVaultExporter() -> VaultExporter? {
+        guard vaultExportEnabled, !vaultRootPath.isEmpty else { return nil }
+        return VaultExporter(root: URL(fileURLWithPath: (vaultRootPath as NSString).expandingTildeInPath, isDirectory: true))
+    }
+
+    /// Modell des aktuell gewählten Zusammenfassungs-Anbieters.
+    func meetingSummaryModel(for provider: SummaryProvider) -> String {
+        switch provider {
+        case .ollama:     return ollamaModel
+        case .openRouter: return openRouterModel
+        case .requesty:   return requestyModel
+        }
+    }
+
+    func setMeetingSummaryModel(_ model: String, for provider: SummaryProvider) {
+        switch provider {
+        case .ollama:     ollamaModel = model
+        case .openRouter: openRouterModel = model
+        case .requesty:   requestyModel = model
+        }
+    }
+
+    /// Baut den Zusammenfasser für den aktuell gewählten Anbieter. Wird pro Meeting neu
+    /// gerufen, damit eine Umstellung in den Einstellungen sofort greift.
+    func makeMeetingSummarizer() -> MeetingSummarizing {
+        let provider = meetingSummaryProvider
+        let model = meetingSummaryModel(for: provider)
+        if provider.isLocal {
+            return MeetingSummarizer(chat: OllamaNativeChat(baseURL: ollamaBaseURL, model: model))
+        }
+        return MeetingSummarizer(chat: OpenAICompatibleChat(
+            provider: provider,
+            apiKey: providerKeys.key(for: provider),
+            model: model
+        ))
     }
 
     /// Erhöht den Vorkommens-Zähler eines Eintrags und stempelt „zuletzt gesehen".
@@ -298,7 +361,13 @@ final class SettingsStore: ObservableObject {
             ollamaModel: ollamaModel,
             ollamaBaseURL: ollamaBaseURL,
             speakerMatchThreshold: speakerMatchThreshold,
-            autoUpdateCheckEnabled: autoUpdateCheckEnabled
+            autoUpdateCheckEnabled: autoUpdateCheckEnabled,
+            meetingSummaryProvider: meetingSummaryProvider,
+            openRouterModel: openRouterModel,
+            requestyModel: requestyModel,
+            vaultExportEnabled: vaultExportEnabled,
+            vaultRootPath: vaultRootPath,
+            dockIconMode: dockIconMode
         )
         do {
             let data = try JSONEncoder().encode(snap)
@@ -342,16 +411,61 @@ enum TranscriptionBackend: String, CaseIterable, Codable, Identifiable {
 enum RewriteBackend: String, CaseIterable, Codable, Identifiable {
     case openAI
     case ollama
+    case openRouter
+    case requesty
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .openAI:  return "OpenAI gpt-4o-mini (Cloud)"
-        case .ollama:  return "Ollama (lokal)"
+        case .openAI:     return "OpenAI (Cloud)"
+        case .ollama:     return "Ollama (lokal)"
+        case .openRouter: return "OpenRouter (Cloud)"
+        case .requesty:   return "Requesty (Cloud)"
+        }
+    }
+    /// Cloud-Anbieter im OpenAI-Format; Schlüssel und Modell teilen sie mit der
+    /// Meeting-Zusammenfassung.
+    var provider: SummaryProvider? {
+        switch self {
+        case .openRouter: return .openRouter
+        case .requesty:   return .requesty
+        case .openAI, .ollama: return nil
         }
     }
     // Migration: alte "appleFoundation"-Werte in UserDefaults → .openAI
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
         self = RewriteBackend(rawValue: raw) ?? .openAI
+    }
+}
+
+/// Sichtbarkeit im Dock. BlitzText ist eine Menüleisten-App; mit offenem Fenster soll es sich
+/// aber wie eine normale App verhalten (Dock-Symbol, ⌘-Tab, App-Menü).
+enum DockIconMode: String, CaseIterable, Codable, Identifiable {
+    case whileWindowOpen
+    case always
+    case never
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .whileWindowOpen: return "Wenn das Fenster offen ist"
+        case .always:          return "Immer"
+        case .never:           return "Nie"
+        }
+    }
+
+    /// Ob das Dock-Symbol bei diesem Fensterzustand zu sehen sein soll.
+    func showsIcon(windowOpen: Bool) -> Bool {
+        switch self {
+        case .whileWindowOpen: return windowOpen
+        case .always:          return true
+        case .never:           return false
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = DockIconMode(rawValue: raw) ?? .whileWindowOpen
     }
 }

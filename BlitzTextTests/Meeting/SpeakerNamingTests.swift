@@ -1,0 +1,199 @@
+import Foundation
+import Testing
+@testable import BlitzText
+
+struct SpeakerNamingTests {
+
+    @Test("Vergleichsform: Groß/klein, Umlaut-Schreibweise und Leerzeichen sind egal", arguments: [
+        ("Anna Müller", "anna mueller"),
+        ("Anna  Müller ", "ANNA MÜLLER"),
+        ("José", "jose"),
+        ("Strauß", "strauss")
+    ])
+    func keyMatches(a: String, b: String) {
+        #expect(SpeakerNaming.key(a) == SpeakerNaming.key(b))
+    }
+
+    @Test("Getippte Variante übernimmt die vorhandene Schreibweise")
+    func canonical() {
+        let known = ["Anna Müller", "Jens Bauer"]
+        #expect(SpeakerNaming.canonical("anna mueller", known: known) == "Anna Müller")
+        #expect(SpeakerNaming.canonical("  Neue Person ", known: known) == "Neue Person")
+    }
+
+    @Test("Vorschläge: Wortanfang vor Wortmitte, ohne Dubletten, leer zeigt alle")
+    func suggestions() {
+        let known = ["Anna Müller", "Hanna Berg", "Jens Bauer", "anna müller"]
+        #expect(SpeakerNaming.suggestions(for: "an", known: known) == ["Anna Müller", "Hanna Berg"])
+        #expect(SpeakerNaming.suggestions(for: "bau", known: known) == ["Jens Bauer"])
+        #expect(SpeakerNaming.suggestions(for: "", known: known) == ["Anna Müller", "Hanna Berg", "Jens Bauer"])
+        #expect(SpeakerNaming.suggestions(for: "xyz", known: known).isEmpty)
+    }
+
+    private func document() -> MeetingDocument {
+        MeetingDocument(
+            startedAt: Date(), duration: 60, sourceNames: ["Teams"],
+            lines: [
+                TranscriptLine(speaker: .others, start: 0, end: 4, text: "Eins", speakerID: "1"),
+                TranscriptLine(speaker: .others, start: 5, end: 8, text: "Zwei", speakerID: "3"),
+                TranscriptLine(speaker: .others, start: 20, end: 24, text: "Drei", speakerID: "2"),
+                TranscriptLine(speaker: .others, start: 30, end: 33, text: "Vier", speakerID: "3")
+            ],
+            summary: nil, notes: [],
+            speakerNames: ["1": "Anna Müller"], nameSources: ["1": .confirmed]
+        )
+    }
+
+    @Test("Zweite Stimme mit vorhandenem Namen wird mit der ersten zusammengeführt")
+    func mergesTwin() {
+        let merged = document().assigning(name: "anna mueller", to: "3", source: .confirmed)
+        #expect(merged.speakerIDs == ["1", "2"])
+        #expect(merged.lines.map(\.text) == ["Eins Zwei", "Drei", "Vier"])
+        #expect(merged.lines.map { merged.label(for: $0) } == ["Anna Müller", "Sprecher 1", "Anna Müller"])
+        #expect(merged.speakerNames["3"] == nil)
+        #expect(merged.unconfirmedSpeakerIDs == ["2"])
+    }
+
+    @Test("Neuer Name bleibt bei seiner Stimme")
+    func plainAssign() {
+        let doc = document().assigning(name: "Jens", to: "2", source: .confirmed)
+        #expect(doc.speakerNames["2"] == "Jens")
+        #expect(doc.speakerIDs == ["1", "3", "2"])
+    }
+}
+
+@MainActor
+struct LibraryNamingTests {
+
+    @Test("Bibliothek: Tippvariante eines Profils ergibt keinen zweiten Namen und führt zusammen")
+    func assignUsesProfileSpelling() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-test-archive-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = MeetingArchive(root: root)
+        let folder = try archive.makeFolder(startedAt: Date(), sourceName: "Teams")
+        try archive.writeProtocol(MeetingDocument(
+            startedAt: Date(), duration: 30, sourceNames: ["Teams"],
+            lines: [
+                TranscriptLine(speaker: .others, start: 1, end: 6, text: "A", speakerID: "4"),
+                TranscriptLine(speaker: .others, start: 7, end: 9, text: "B", speakerID: "5")
+            ],
+            summary: nil, notes: []
+        ), in: folder)
+
+        let diarizer = FakeDiarizer(MeetingDiarization(segments: [], knownNames: [:]))
+        diarizer.profileNames = ["Anna Müller"]
+        let library = MeetingLibrary(archive: archive, diarizer: diarizer,
+                                     makeSummarizer: { FakeSummarizer(result: .success("")) })
+        library.reload()
+        #expect(library.knownNames == ["Anna Müller"])
+
+        await library.assign(name: "anna mueller", to: "4", in: folder)
+        await library.assign(name: "ANNA MÜLLER", to: "5", in: folder)
+
+        #expect(diarizer.learned.map(\.name) == ["Anna Müller", "Anna Müller"])
+        let doc = try #require(archive.load(folder: folder))
+        #expect(doc.speakerIDs == ["4"])
+        #expect(Set(doc.speakerNames.values) == ["Anna Müller"])
+    }
+}
+
+/// Prüft an einem echten Meeting, ob Text und Ton der Sprechblasen zusammenpassen:
+/// Tonabschnitt herausschneiden, erneut transkribieren, mit dem gespeicherten Text vergleichen.
+/// Läuft nur mit TEST_RUNNER_BLITZTEXT_ALIGN_FOLDER=<Meeting-Ordner>.
+@MainActor
+struct TranscriptAlignmentLiveTests {
+    nonisolated static let folder = ProcessInfo.processInfo.environment["BLITZTEXT_ALIGN_FOLDER"]
+
+    @Test("Sprechblase und Tonabschnitt sagen dasselbe", .enabled(if: folder != nil), .timeLimit(.minutes(10)))
+    func textMatchesAudio() async throws {
+        let folder = URL(fileURLWithPath: try #require(Self.folder))
+        let doc = try #require(MeetingArchive(root: folder.deletingLastPathComponent()).load(folder: folder))
+        let settings = SettingsStore(defaults: UserDefaults(suiteName: "blitztext-align-\(UUID())")!)
+        let parakeet = PlainParakeetTranscriber(client: ParakeetClient(settings: settings, diarizerManager: DiarizerModelManager()))
+
+        var scores: [Double] = []
+        for line in doc.lines.filter({ $0.end - $0.start >= 1.5 }).prefix(6) {
+            let clip = TestAudio.tempURL()
+            defer { try? FileManager.default.removeItem(at: clip) }
+            try MeetingTranscriber.extract(SpeechSpan(start: line.start, end: line.end),
+                                           from: folder.appendingPathComponent(doc.trackFile(for: line)), to: clip)
+            let again = try await parakeet.transcribe(audioURL: clip, language: "de", prompt: nil)
+            let score = TranscriptMerger.similarity(line.text, again)
+            scores.append(score)
+            print("ALIGN \(doc.label(for: line)) \(Int(line.start))–\(Int(line.end)) s: Übereinstimmung \(Int(score * 100)) %")
+        }
+        #expect(!scores.isEmpty)
+        #expect(scores.allSatisfy { $0 >= 0.6 })
+    }
+}
+
+struct LineReassignTests {
+
+    private func document(side: TranscriptLine.Speaker = .others) -> MeetingDocument {
+        MeetingDocument(
+            startedAt: Date(), duration: 60, sourceNames: ["Import"],
+            lines: [
+                TranscriptLine(speaker: .others, start: 0, end: 4, text: "Hallo", speakerID: "1"),
+                TranscriptLine(speaker: side, start: 5, end: 8, text: "Falsch zugeordnet", speakerID: side == .me ? nil : "2"),
+                TranscriptLine(speaker: .others, start: 9, end: 12, text: "Weiter", speakerID: "1")
+            ],
+            summary: nil, notes: [],
+            speakerNames: ["1": "Anna", "2": "Thomas"], nameSources: ["1": .confirmed, "2": .confirmed]
+        )
+    }
+
+    @Test("Ein Beitrag wechselt die Person, Nachbarn derselben Person werden ein Absatz")
+    func moveToExisting() {
+        let doc = document().reassigning(lineAt: 1, toSpeaker: "1")
+        #expect(doc.lines.count == 1)
+        #expect(doc.lines[0].text == "Hallo Falsch zugeordnet Weiter")
+        #expect(doc.speakerIDs == ["1"])
+    }
+
+    @Test("Neuer Name legt eine Person ohne Profil an; vorhandener Name nutzt deren Stimme")
+    func moveToName() {
+        let fresh = document().reassigning(lineAt: 1, toName: "Jens")
+        let id = try! #require(fresh.lines[1].speakerID)
+        #expect(fresh.speakerNames[id] == "Jens")
+        #expect(fresh.nameSources[id] == .manual)
+        #expect(fresh.unconfirmedSpeakerIDs.isEmpty)
+
+        let existing = document().reassigning(lineAt: 1, toName: "anna")
+        #expect(existing.speakerIDs == ["1"])
+    }
+
+    @Test("Eigene Mikrofon-Beiträge bleiben, wo sie sind")
+    func microphoneStays() {
+        let doc = document(side: .me)
+        #expect(!doc.canReassign(doc.lines[1]))
+        #expect(doc.reassigning(lineAt: 1, toSpeaker: "1") == doc)
+    }
+}
+
+@MainActor
+struct LibraryReassignTests {
+
+    @Test("Bibliothek speichert das Umhängen dauerhaft")
+    func persists() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-test-archive-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = MeetingArchive(root: root)
+        let folder = try archive.makeFolder(startedAt: Date(), sourceName: "Import")
+        try archive.writeProtocol(MeetingDocument(
+            startedAt: Date(), duration: 30, sourceNames: ["Import"],
+            lines: [
+                TranscriptLine(speaker: .others, start: 1, end: 3, text: "A", speakerID: "1"),
+                TranscriptLine(speaker: .others, start: 20, end: 23, text: "B", speakerID: "2")
+            ],
+            summary: nil, notes: [], speakerNames: ["1": "Anna", "2": "Thomas"]
+        ), in: folder)
+        let library = MeetingLibrary(archive: archive, diarizer: FakeDiarizer(MeetingDiarization(segments: [], knownNames: [:])),
+                                     makeSummarizer: { FakeSummarizer(result: .success("")) })
+        library.reload()
+
+        library.reassign(lineAt: 1, to: .speaker("1"), in: folder)
+
+        let doc = try #require(archive.load(folder: folder))
+        #expect(doc.lines.map { doc.label(for: $0) } == ["Anna", "Anna"])
+    }
+}

@@ -7,7 +7,11 @@ struct HistoryView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Verlauf").font(.title2).bold()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Verlauf").font(.system(size: 22, weight: .semibold))
+                    Text("Deine letzten Diktate, roh und umformuliert.")
+                        .font(.system(size: 13)).foregroundStyle(MeetingTheme.foregroundTertiary)
+                }
                 Spacer()
                 Text("\(history.entries.count) Einträge").font(.caption).foregroundStyle(.secondary)
                 Button(role: .destructive) { confirmClear = true } label: {
@@ -19,7 +23,9 @@ struct HistoryView: View {
                     Button("Abbrechen", role: .cancel) {}
                 }
             }
-            .padding()
+            .padding(.horizontal, 32)
+            .padding(.top, 26)
+            .padding(.bottom, 14)
             Divider()
 
             if history.entries.isEmpty {

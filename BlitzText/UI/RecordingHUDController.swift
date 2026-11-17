@@ -107,7 +107,7 @@ private struct RecordingHUDView: View {
     private var backendSymbol: String {
         guard let mode = activeMode else { return "questionmark" }
         switch settings.rewriteBackend(for: mode) {
-        case .openAI:  return "cloud"
+        case .openAI, .openRouter, .requesty: return "cloud"
         case .ollama:  return "server.rack"
         }
     }
@@ -115,8 +115,12 @@ private struct RecordingHUDView: View {
     private var backendTooltip: String {
         guard let mode = activeMode else { return "" }
         switch settings.rewriteBackend(for: mode) {
-        case .openAI:  return "Rewrite über OpenAI gpt-4o-mini (Cloud)"
+        case .openAI:  return "Rewrite über OpenAI \(settings.rewriteModel) (Cloud)"
         case .ollama:  return "Rewrite lokal über Ollama (\(settings.ollamaModel))"
+        case .openRouter, .requesty:
+            let backend = settings.rewriteBackend(for: mode)
+            let model = backend.provider.map { settings.meetingSummaryModel(for: $0) } ?? ""
+            return "Rewrite über \(backend.label) mit \(model)"
         }
     }
 

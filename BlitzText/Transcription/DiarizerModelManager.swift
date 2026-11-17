@@ -105,7 +105,11 @@ final class DiarizerModelManager: ObservableObject {
     /// Idempotent: bei `.installed` direkter Return; bei laufendem Task wird auf dessen Abschluss gewartet.
     @discardableResult
     func ensureInstalled() async -> Bool {
-        if case .installed = state { return true }
+        // `.installed` heißt nur: Dateien liegen auf der Platte (so setzt es `init`). Geladen
+        // sind die Modelle erst mit `cachedModels`. Ohne diese Prüfung bekam ein Aufrufer
+        // `true` und danach `modelsIfInstalled == nil`. Bei vorhandenen Dateien lädt der
+        // Download-Pfad nur noch, ohne etwas herunterzuladen.
+        if case .installed = state, cachedModels != nil { return true }
         if loadingTask == nil {
             beginDownload()
         }
@@ -113,7 +117,7 @@ final class DiarizerModelManager: ObservableObject {
         // im Erfolgs-/Fehler-Pfad bevor wir hier zurückkehren würden.
         let task = loadingTask
         await task?.value
-        if case .installed = state { return true }
+        if case .installed = state, cachedModels != nil { return true }
         return false
     }
 

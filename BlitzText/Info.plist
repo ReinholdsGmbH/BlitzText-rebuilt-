@@ -30,6 +30,10 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>BlitzText kann Text direkt in andere Apps einfügen.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>BlitzText schneidet den Ton deiner Konferenz-Apps mit, um Meetings zu transkribieren.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>BlitzText legt Meeting-Protokolle im Ordner „BlitzText Meetings“ in deinen Dokumenten ab.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>

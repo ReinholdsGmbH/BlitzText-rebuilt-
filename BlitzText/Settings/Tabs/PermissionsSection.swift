@@ -1,13 +1,10 @@
 import SwiftUI
 import AVFoundation
 
-// MARK: - Zugang
+// MARK: - Berechtigungen und Autostart
 
-struct ZugangTab: View {
+struct PermissionsSection: View {
     @EnvironmentObject var settings: SettingsStore
-    @State private var draftKey: String = ""
-    @State private var showKey: Bool = false
-    @State private var saved: Bool = false
 
     /// Nach jeder nutzerinitiierten Aktion (AX-Prompt, Anmeldeobjekt-Eintrag) fragt der Poller
     /// den System-Status ~1 Minute im Sekundentakt nach — so springen die Badges um, ohne dass
@@ -117,53 +114,8 @@ struct ZugangTab: View {
                 Button("Status aktualisieren") { poller.refreshOnce() }
             }
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("OPENAI-API-KEY").font(.caption).foregroundStyle(.secondary).bold()
-                Text("Wird gebraucht für: Cloud-Whisper-Backend, Blitztext+ / $%&! (Rewrite via gpt-4o-mini), KI-Eigennamen-Vorschläge. Bei rein lokalem Setup (Parakeet/Whisper-Local + Roh-Modus + KI-Vorschläge aus) ist er optional.")
-                    .font(.caption).foregroundStyle(.secondary)
-                HStack {
-                    if showKey {
-                        TextField("sk-…", text: $draftKey)
-                            .textFieldStyle(.roundedBorder)
-                    } else {
-                        SecureField("sk-…", text: $draftKey)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                    Button(showKey ? "Verbergen" : "Anzeigen") { showKey.toggle() }
-                }
-                HStack {
-                    Button("Speichern") {
-                        settings.apiKey = draftKey
-                        saved = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { saved = false }
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(draftKey.isEmpty)
-                    if saved { Text("Gespeichert ✓").foregroundStyle(.green) }
-                    Spacer()
-                    if !settings.apiKey.isEmpty {
-                        Button("Löschen", role: .destructive) {
-                            settings.apiKey = ""
-                            draftKey = ""
-                        }
-                    }
-                }
-                Text("Der Schlüssel liegt in deinem macOS-Schlüsselbund (Service `de.reinholds.blitztext`, Account `openai-api-key`). Beim ersten Speichern und Lesen fragt der Schlüsselbund einmal nach Bestätigung — auf „Immer erlauben\" klicken.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("AUSGABE").font(.caption).foregroundStyle(.secondary).bold()
-                Toggle("Direkt einfügen (statt nur Zwischenablage)", isOn: $settings.autoInsert)
-            }
-
             Spacer(minLength: 0)
         }
-        .onAppear { draftKey = settings.apiKey }
         .onDisappear { poller.stop() }
     }
 
@@ -179,5 +131,51 @@ struct ZugangTab: View {
             Spacer()
             Button(actionLabel, action: action)
         }
+    }
+}
+
+// MARK: - OpenAI-Schlüssel
+
+struct OpenAIKeySection: View {
+    @EnvironmentObject var settings: SettingsStore
+    @State private var draftKey: String = ""
+    @State private var showKey: Bool = false
+    @State private var saved: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Wird gebraucht für: Cloud-Whisper-Backend, Blitztext+ / $%&! (Rewrite via gpt-4o-mini), KI-Eigennamen-Vorschläge. Bei rein lokalem Setup (Parakeet/Whisper-Local + Roh-Modus + KI-Vorschläge aus) ist er optional.")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                if showKey {
+                    TextField("sk-…", text: $draftKey)
+                        .textFieldStyle(.roundedBorder)
+                } else {
+                    SecureField("sk-…", text: $draftKey)
+                        .textFieldStyle(.roundedBorder)
+                }
+                Button(showKey ? "Verbergen" : "Anzeigen") { showKey.toggle() }
+            }
+            HStack {
+                Button("Speichern") {
+                    settings.apiKey = draftKey
+                    saved = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { saved = false }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(draftKey.isEmpty)
+                if saved { Text("Gespeichert ✓").foregroundStyle(.green) }
+                Spacer()
+                if !settings.apiKey.isEmpty {
+                    Button("Löschen", role: .destructive) {
+                        settings.apiKey = ""
+                        draftKey = ""
+                    }
+                }
+            }
+            Text("Der Schlüssel liegt in deinem macOS-Schlüsselbund (Service `de.reinholds.blitztext`, Account `openai-api-key`). Beim ersten Speichern und Lesen fragt der Schlüsselbund einmal nach Bestätigung — auf „Immer erlauben“ klicken.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .onAppear { draftKey = settings.apiKey }
     }
 }
