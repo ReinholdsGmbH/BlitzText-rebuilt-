@@ -262,3 +262,27 @@ struct LiveAudioBufferTests {
         #expect(buffer.take().samples.isEmpty)
     }
 }
+
+@MainActor
+struct ChatThreadTests {
+    @Test("Chats werden gespeichert, „Neuer Chat“ beginnt einen weiteren, alte bleiben")
+    func threadsPersist() async throws {
+        let store = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-chats-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: store) }
+        let make = { FakeSummarizer(result: .success(""), askResult: .success("Antwort")) }
+        let chat = MeetingChat(makeSummarizer: make, storeURL: store)
+        await chat.ask("Projekt Nord, wie sieht es aus?", scope: .all, entries: [])
+        await chat.ask("Und die Risiken?", scope: .all, entries: [])
+        #expect(chat.threads.count == 1)
+        #expect(chat.messages.count == 4)
+        chat.newChat()
+        await chat.ask("Neue Frage", scope: .all, entries: [])
+        #expect(chat.threads.count == 2)
+        #expect(chat.threads.first?.title == "Neue Frage")
+
+        let reloaded = MeetingChat(makeSummarizer: make, storeURL: store)
+        #expect(reloaded.threads.count == 2)
+        reloaded.delete(reloaded.threads[0].id)
+        #expect(MeetingChat(makeSummarizer: make, storeURL: store).threads.count == 1)
+    }
+}

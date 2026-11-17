@@ -824,7 +824,7 @@ struct NameEntry: View {
 // MARK: - Notizen
 
 /// Stellt die Markdown-Notizen dar: Überschriften, Aufzählungen, Aufgaben-Checkboxen.
-private struct SummaryText: View {
+struct SummaryText: View {
     let markdown: String
 
     var body: some View {

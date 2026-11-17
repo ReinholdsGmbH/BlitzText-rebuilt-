@@ -10,9 +10,9 @@ import Foundation
 @MainActor
 final class MeetingChat: ObservableObject {
 
-    struct Message: Identifiable, Equatable {
-        enum Role: Equatable { case user, assistant, error }
-        let id = UUID()
+    struct Message: Identifiable, Equatable, Codable {
+        enum Role: String, Equatable, Codable { case user, assistant, error }
+        var id = UUID()
         let role: Role
         let text: String
         /// Meetings, aus denen die Antwort schöpft (nur bei „alle Meetings“).
@@ -24,16 +24,52 @@ final class MeetingChat: ObservableObject {
         case meeting(URL)
     }
 
-    @Published private(set) var messages: [Message] = []
+    /// Ein Chat mit Verlauf, wie die Einträge links in Wispr Flows Chat-Ansicht.
+    struct Thread: Identifiable, Equatable, Codable {
+        var id = UUID()
+        var title: String
+        var createdAt = Date()
+        var updatedAt = Date()
+        /// Gesetzt, wenn der Chat nur ein Meeting betrifft.
+        var meetingFolder: URL?
+        var messages: [Message] = []
+
+        var scope: Scope { meetingFolder.map(Scope.meeting) ?? .all }
+    }
+
+    @Published private(set) var threads: [Thread] = []
+    @Published var currentID: UUID?
     @Published private(set) var busy = false
 
     private let makeSummarizer: () -> MeetingSummarizing
+    private let storeURL: URL?
 
-    init(makeSummarizer: @escaping () -> MeetingSummarizing) {
-        self.makeSummarizer = makeSummarizer
+    static var defaultStore: URL? {
+        guard !RuntimeEnvironment.isRunningTests else { return nil }
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("BlitzText/chats.json")
     }
 
-    func reset() { messages = [] }
+    init(makeSummarizer: @escaping () -> MeetingSummarizing, storeURL: URL? = MeetingChat.defaultStore) {
+        self.makeSummarizer = makeSummarizer
+        self.storeURL = storeURL
+        load()
+    }
+
+    var current: Thread? { threads.first { $0.id == currentID } }
+    var messages: [Message] { current?.messages ?? [] }
+
+    /// Neuer, leerer Chat; der alte bleibt im Verlauf.
+    func newChat() { currentID = nil }
+    func reset() { newChat() }
+
+    func select(_ id: UUID) { currentID = id }
+
+    func delete(_ id: UUID) {
+        threads.removeAll { $0.id == id }
+        if currentID == id { currentID = nil }
+        save()
+    }
 
     static let systemPrompt = """
     Du beantwortest Fragen zu Besprechungen auf Deutsch, knapp und sachlich. Grundlage sind \
@@ -45,7 +81,14 @@ final class MeetingChat: ObservableObject {
     func ask(_ question: String, scope: Scope, entries: [MeetingLibrary.Entry]) async {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !busy else { return }
-        messages.append(Message(role: .user, text: trimmed))
+        // Laufenden Chat fortsetzen, wenn er dasselbe betrifft; sonst einen neuen beginnen.
+        if current == nil || current?.scope != scope {
+            var thread = Thread(title: String(trimmed.prefix(70)))
+            if case .meeting(let folder) = scope { thread.meetingFolder = folder }
+            threads.insert(thread, at: 0)
+            currentID = thread.id
+        }
+        append(Message(role: .user, text: trimmed))
         busy = true
         defer { busy = false }
 
@@ -76,10 +119,35 @@ final class MeetingChat: ObservableObject {
         """
         do {
             let answer = try await makeSummarizer().ask(system: Self.systemPrompt, user: user)
-            messages.append(Message(role: .assistant, text: answer, sources: sources))
+            append(Message(role: .assistant, text: answer, sources: sources))
         } catch {
-            messages.append(Message(role: .error, text: error.localizedDescription))
+            append(Message(role: .error, text: error.localizedDescription))
         }
+    }
+
+    private func append(_ message: Message) {
+        guard let index = threads.firstIndex(where: { $0.id == currentID }) else { return }
+        threads[index].messages.append(message)
+        threads[index].updatedAt = Date()
+        // Zuletzt benutzter Chat nach oben.
+        let thread = threads.remove(at: index)
+        threads.insert(thread, at: 0)
+        save()
+    }
+
+    private func load() {
+        guard let storeURL, let data = try? Data(contentsOf: storeURL) else { return }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        threads = (try? decoder.decode([Thread].self, from: data)) ?? []
+    }
+
+    private func save() {
+        guard let storeURL else { return }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try? FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? encoder.encode(threads).write(to: storeURL, options: .atomic)
     }
 }
 

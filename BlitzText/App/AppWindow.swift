@@ -6,13 +6,14 @@ import SwiftUI
 /// Navigation auf Sand, rechts eine weiße Karte. Die früheren Einstellungs-Tabs sind hier
 /// aufgegangen und neu geordnet.
 enum AppSection: String, CaseIterable, Identifiable {
-    case meetings, history, dictation, style, dictionary, speakers, models, system
+    case meetings, chat, history, dictation, style, dictionary, speakers, models, system
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .meetings:   return "Meetings"
+        case .chat:       return "Fragen"
         case .history:    return "Verlauf"
         case .dictation:  return "Diktat"
         case .style:      return "Stil"
@@ -26,6 +27,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .meetings:   return "record.circle"
+        case .chat:       return "sparkles"
         case .history:    return "clock.arrow.circlepath"
         case .dictation:  return "mic"
         case .style:      return "textformat"
@@ -38,7 +40,7 @@ enum AppSection: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .meetings, .history: return ""
+        case .meetings, .history, .chat: return ""
         case .dictation:  return "Tastenkürzel und was mit dem Text passiert."
         case .style:      return "Wie Blitztext+ und $%&! deine Diktate umformulieren."
         case .dictionary: return "Begriffe und Kontext, damit Namen und Fachwörter stimmen."
@@ -187,7 +189,14 @@ struct AppRootView: View {
                         .clipped()
                     }
                     .overlay(alignment: .bottom) {
-                        if !controller.isRecording { ChatDock(chat: chat, library: library) }
+                        if !controller.isRecording {
+                            ChatDock(chat: chat, library: library) { model.section = .chat }
+                        }
+                    }
+                } else if model.section == .chat {
+                    ChatPage(chat: chat, library: library, back: { model.section = .meetings }) { folder in
+                        library.select(folder)
+                        model.section = .meetings
                     }
                 } else if model.section == .history {
                     HistoryView()
@@ -346,7 +355,7 @@ private struct SettingsPage: View {
     @ViewBuilder
     private var content: some View {
         switch section {
-        case .meetings, .history:
+        case .meetings, .history, .chat:
             EmptyView()
         case .dictation:
             SettingsCard("Tastenkürzel") { HotkeysTab() }
