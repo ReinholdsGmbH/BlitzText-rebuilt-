@@ -169,6 +169,7 @@ struct AppRootView: View {
                         // Detail ab 340 pt, Navigation 180 pt.
                         MeetingListColumn(library: library, controller: controller, search: $search)
                             .frame(minWidth: 260, idealWidth: 340, maxWidth: 340)
+                            .clipped()
                         Rectangle().fill(MeetingTheme.border).frame(width: 1)
                         Group {
                             if controller.isRecording {
@@ -180,6 +181,7 @@ struct AppRootView: View {
                             }
                         }
                         .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                     }
                 } else if model.section == .history {
                     HistoryView()

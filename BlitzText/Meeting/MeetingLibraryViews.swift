@@ -38,8 +38,12 @@ struct MeetingListColumn: View {
                     .buttonStyle(SandButtonStyle())
                     .help("Meeting-Ordner im Finder zeigen")
                 Button { controller.toggle() } label: {
-                    Label(controller.isRecording ? "Beenden" : "Aufnehmen",
-                          systemImage: controller.isRecording ? "stop.circle" : "record.circle")
+                    // Bei wenig Platz nur das Symbol, statt in die Nachbarspalte zu laufen.
+                    ViewThatFits(in: .horizontal) {
+                        Label(controller.isRecording ? "Beenden" : "Aufnehmen",
+                              systemImage: controller.isRecording ? "stop.circle" : "record.circle")
+                        Image(systemName: controller.isRecording ? "stop.circle" : "record.circle")
+                    }
                 }
                 .buttonStyle(SandButtonStyle())
                 .disabled(controller.isProcessing)
@@ -307,6 +311,8 @@ struct MeetingDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(MeetingMarkdown.title(for: document)).font(.system(size: 22, weight: .semibold))
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 6) {
                 Text(dateLine)
                 Text("•")
@@ -320,6 +326,7 @@ struct MeetingDetailView: View {
             .foregroundStyle(MeetingTheme.foregroundTertiary)
 
             if !participants.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     ForEach(Array(participants.enumerated()), id: \.offset) { _, item in
                         if let id = item.2 {
@@ -328,6 +335,7 @@ struct MeetingDetailView: View {
                             SpeakerTag(name: item.0, colors: item.1)
                         }
                     }
+                }
                 }
                 .padding(.top, 4)
             }
