@@ -23,10 +23,10 @@ final class SettingsStore: ObservableObject {
     @Published var transcriptionLanguage: String = "de"
     @Published var rewriteModel: String = "gpt-4o-mini"
     @Published var transcriptionModel: String = "whisper-1"
-    @Published var backend: TranscriptionBackend = .openAI
+    @Published var backend: TranscriptionBackend = .parakeet
     @Published var aiSuggestProperNouns: Bool = true
-    @Published var rewriteBackendForPlus: RewriteBackend = .openAI
-    @Published var rewriteBackendForRant: RewriteBackend = .openAI
+    @Published var rewriteBackendForPlus: RewriteBackend = .requesty
+    @Published var rewriteBackendForRant: RewriteBackend = .requesty
     @Published var ollamaModel: String = "gemma4:e4b"
     @Published var ollamaBaseURL: String = "http://localhost:11434"
     /// Schwellenwert für Sprecher-Matching (0.5 = aggressiv zusammenführen, 0.9 = strikt trennen).
@@ -37,7 +37,7 @@ final class SettingsStore: ObservableObject {
     /// und die Benachrichtigung.
     @Published var autoUpdateCheckEnabled: Bool = true
     /// Wer die Meeting-Zusammenfassung schreibt. Standard lokal; Cloud nur bewusst gewählt.
-    @Published var meetingSummaryProvider: SummaryProvider = .ollama
+    @Published var meetingSummaryProvider: SummaryProvider = .requesty
     @Published var openRouterModel: String = SummaryProvider.openRouter.defaultModel
     @Published var requestyModel: String = SummaryProvider.requesty.defaultModel
     /// Meetings sofort in den Wissensordner (Baalda-Vault) spiegeln, nach mw-route-Regeln.
@@ -266,8 +266,8 @@ final class SettingsStore: ObservableObject {
         backend = snap.backend
         aiSuggestProperNouns = snap.aiSuggestProperNouns ?? true
         parakeetDiarization = snap.parakeetDiarization ?? false
-        rewriteBackendForPlus = snap.rewriteBackendForPlus ?? .openAI
-        rewriteBackendForRant = snap.rewriteBackendForRant ?? .openAI
+        rewriteBackendForPlus = snap.rewriteBackendForPlus ?? .requesty
+        rewriteBackendForRant = snap.rewriteBackendForRant ?? .requesty
         hotkeyForBlitztext = snap.hotkeyForBlitztext ?? .defaultBlitztext
         hotkeyForBlitztextPlus = snap.hotkeyForBlitztextPlus ?? .defaultBlitztextPlus
         hotkeyForBlitztextRant = snap.hotkeyForBlitztextRant ?? .defaultBlitztextRant
@@ -275,7 +275,7 @@ final class SettingsStore: ObservableObject {
         ollamaBaseURL = snap.ollamaBaseURL ?? "http://localhost:11434"
         speakerMatchThreshold = snap.speakerMatchThreshold ?? 0.7
         autoUpdateCheckEnabled = snap.autoUpdateCheckEnabled ?? true
-        meetingSummaryProvider = snap.meetingSummaryProvider ?? .ollama
+        meetingSummaryProvider = snap.meetingSummaryProvider ?? .requesty
         openRouterModel = snap.openRouterModel ?? SummaryProvider.openRouter.defaultModel
         requestyModel = snap.requestyModel ?? SummaryProvider.requesty.defaultModel
         vaultExportEnabled = snap.vaultExportEnabled ?? true
