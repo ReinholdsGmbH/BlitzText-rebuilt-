@@ -141,6 +141,7 @@ final class MeetingController: ObservableObject {
     func start() {
         guard !isRecording, !isProcessing else { return }
         do {
+            liveNotes = ""
             try recorder.start(restrictToDetectedApps: true)
             if case .recording(let startedAt) = recorder.state {
                 phase = .recording(startedAt: startedAt)
@@ -274,6 +275,9 @@ final class MeetingController: ObservableObject {
         othersSide: TranscriptLine.Speaker,
         hints: [SpeakerHint]
     ) {
+        // Sofort umschalten, nicht erst im Hintergrund-Task: sonst zeigt die Oberfläche nach dem
+        // Stopp noch kurz „Aufnahme läuft“, und ein neuer Start würde verschluckt.
+        phase = (others != nil && diarizer != nil) ? .diarizing : .transcribing(done: 0, total: 0)
         let transcriber = MeetingTranscriber(transcriber: makeTranscriber(), language: language())
         let summarizer = makeSummarizer()
         let diarizer = self.diarizer

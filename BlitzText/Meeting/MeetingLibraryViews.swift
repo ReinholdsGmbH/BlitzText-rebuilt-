@@ -28,8 +28,8 @@ struct MeetingListColumn: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Meetings").font(.system(size: 22, weight: .semibold))
-                Spacer()
+                Text("Meetings").font(.system(size: 22, weight: .semibold)).lineLimit(1).layoutPriority(1)
+                Spacer(minLength: 4)
                 Button { controller.chooseAndImport() } label: { Image(systemName: "square.and.arrow.down") }
                     .buttonStyle(SandButtonStyle())
                     .help("Aufnahme importieren, z. B. aus MacWhisper")
@@ -38,7 +38,7 @@ struct MeetingListColumn: View {
                     .buttonStyle(SandButtonStyle())
                     .help("Meeting-Ordner im Finder zeigen")
                 Button { controller.toggle() } label: {
-                    Label(controller.isRecording ? "Aufnahme beenden" : "Meeting aufnehmen",
+                    Label(controller.isRecording ? "Beenden" : "Aufnehmen",
                           systemImage: controller.isRecording ? "stop.circle" : "record.circle")
                 }
                 .buttonStyle(SandButtonStyle())
@@ -918,11 +918,17 @@ struct LiveMeetingView: View {
                 }
             }
             Text("Meine Notizen").font(.system(size: 15, weight: .semibold))
-            NotesEditor(initial: controller.liveNotes,
-                        hint: "Werden beim Stopp ins Meeting übernommen und fließen in die Zusammenfassung ein.",
-                        minHeight: 320) { text in
-                controller.liveNotes = text
-            }
+            // Direkt an die Live-Notizen gebunden, ohne Kopie: Früher schrieb das Feld beim
+            // Verschwinden (Stopp) seinen alten Text zurück, nachdem die Notizen schon ins
+            // Meeting übernommen und geleert waren. Die nächste Aufnahme fand sie dann wieder vor.
+            TextEditor(text: $controller.liveNotes)
+                .font(.system(size: 13.5))
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 320)
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 12).fill(MeetingTheme.backgroundTertiary))
+            Text("Werden beim Stopp ins Meeting übernommen und fließen in die Zusammenfassung ein.")
+                .font(.caption).foregroundStyle(MeetingTheme.foregroundTertiary)
             Spacer()
         }
         .padding(.horizontal, 32)

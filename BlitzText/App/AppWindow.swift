@@ -124,7 +124,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
             window.titleVisibility = .hidden
             window.isReleasedWhenClosed = false
             window.backgroundColor = NSColor(MeetingTheme.backgroundTertiary)
-            window.minSize = NSSize(width: 1120, height: 640)
+            window.minSize = NSSize(width: 860, height: 560)
             let env = environment
             window.contentViewController = NSHostingController(
                 rootView: AppRootView(model: model, library: library, controller: controller)
@@ -161,12 +161,14 @@ struct AppRootView: View {
     var body: some View {
         HStack(spacing: 0) {
             AppSidebar(model: model, controller: controller)
-                .frame(width: 210)
+                .frame(width: 180)
             Group {
                 if model.section == .meetings {
                     HStack(spacing: 0) {
+                        // Schmal genug für ein Fenster am Bildschirmrand: Liste 260–340 pt,
+                        // Detail ab 340 pt, Navigation 180 pt.
                         MeetingListColumn(library: library, controller: controller, search: $search)
-                            .frame(width: 360)
+                            .frame(minWidth: 260, idealWidth: 340, maxWidth: 340)
                         Rectangle().fill(MeetingTheme.border).frame(width: 1)
                         Group {
                             if controller.isRecording {
@@ -177,7 +179,7 @@ struct AppRootView: View {
                                 EmptyDetail()
                             }
                         }
-                        .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
                     }
                 } else if model.section == .history {
                     HistoryView()

@@ -191,3 +191,35 @@ struct UserNotesTests {
         #expect(archive.load(folder: folder)?.userNotes == nil)
     }
 }
+
+@MainActor
+struct LiveNotesTests {
+    @Test("Live-Notizen gehören nur zur eigenen Aufnahme")
+    func notesDoNotLeak() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-test-archive-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        func controller() throws -> MeetingController {
+            let mic = try TestAudio.wav(duration: 4, bursts: [1...2], at: TestAudio.tempURL())
+            return MeetingController(
+                recorder: MeetingRecorder(microphone: FakeAudioRecorder(fixtureURL: mic),
+                                          systemAudio: FakeSystemAudioTap(fixtureURL: try TestAudio.wav(duration: 4, bursts: [], at: TestAudio.tempURL())),
+                                          detector: MeetingDetector(), processList: FakeAudioProcessList()),
+                archive: MeetingArchive(root: root),
+                makeTranscriber: { SequenceTranscriber(["Hallo"]) },
+                makeSummarizer: { FakeSummarizer(result: .success("### Zusammenfassung\n- A")) },
+                language: { "de" })
+        }
+        let c = try controller()
+        c.start()
+        c.liveNotes = "Notiz erste Aufnahme"
+        #expect(c.isRecording, "Start 1: \(c.phase)")
+        c.stop()
+        #expect(!c.isRecording, "Nach Stopp: \(c.phase)")
+        #expect(c.liveNotes.isEmpty)
+        c.liveNotes = "Rest aus der alten Ansicht"
+        for _ in 0..<200 { if !c.isProcessing { break }; try await Task.sleep(for: .milliseconds(25)) }
+        c.start()
+        #expect(c.isRecording, "Phase: \(c.phase)")
+        #expect(c.liveNotes.isEmpty, "Notizen: \(c.liveNotes) / Phase: \(c.phase)")
+    }
+}
