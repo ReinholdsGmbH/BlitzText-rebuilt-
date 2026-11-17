@@ -126,7 +126,13 @@ final class SettingsStore: ObservableObject {
 
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = .standard) {
+    /// Im Test-Host nie die echten Einstellungen: Tests, die `SettingsStore()` ohne eigenen
+    /// Speicher anlegen, schrieben sonst in die BlitzText-Einstellungen des Nutzers.
+    static var defaultStorage: UserDefaults {
+        RuntimeEnvironment.isRunningTests ? (UserDefaults(suiteName: "de.reinholds.blitztext.tests") ?? .standard) : .standard
+    }
+
+    init(defaults: UserDefaults = SettingsStore.defaultStorage) {
         self.defaults = defaults
         load()
         loadAPIKeyFromKeychainAsync()
