@@ -205,6 +205,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             meeting: meetingController
         )
         menuBarController.openApp = { [weak self] in self?.meetingWindow.show() }
+        menuBarController.toggleMeeting = { [weak self] in self?.meetingController.toggle() }
+        menuBarController.openMeetings = { [weak self] in self?.meetingWindow.show(section: .meetings) }
 
         let processor = modeProcessor!
         hotkeyManager = HotkeyManager(settings: settingsStore) { mode, action in
@@ -279,6 +281,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsStore.backend == .openAI { return true }
         if settingsStore.aiSuggestProperNouns { return true }
         return false
+    }
+
+    /// Rechtsklick aufs Dock-Symbol: Aufnahme starten/beenden und Meetings öffnen, wie bei Wispr.
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        let recording = meetingController?.isRecording == true
+        let record = NSMenuItem(title: recording ? "Aufnahme beenden" : "Meeting aufnehmen",
+                                action: #selector(toggleMeetingFromMenu), keyEquivalent: "")
+        record.target = self
+        record.isEnabled = meetingController?.isProcessing != true
+        menu.addItem(record)
+        let open = NSMenuItem(title: "Meetings öffnen", action: #selector(openMeetingsFromMenu), keyEquivalent: "")
+        open.target = self
+        menu.addItem(open)
+        return menu
+    }
+
+    // `nonisolated` @objc + Main-Queue: AppKit ruft Menü-Actions ohne Swift-Task-Kontext auf;
+    // eine @MainActor-@objc-Methode crasht dort im Executor-Check (siehe MenuBarController).
+    @objc nonisolated func toggleMeetingFromMenu() {
+        DispatchQueue.main.async { [weak self] in self?.meetingController?.toggle() }
+    }
+
+    @objc nonisolated func openMeetingsFromMenu() {
+        DispatchQueue.main.async { [weak self] in self?.meetingWindow?.show(section: .meetings) }
     }
 
     /// Klick aufs Dock-Symbol (oder erneutes Öffnen im Finder) holt das App-Fenster.

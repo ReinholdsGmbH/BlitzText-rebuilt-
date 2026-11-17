@@ -72,6 +72,8 @@ final class MenuBarController: NSObject {
     /// Linksklick öffnet das App-Fenster (Meetings, Verlauf, Einstellungen), Rechtsklick das
     /// Kontextmenü. Das frühere Popover mit Modi-Liste ist im App-Fenster aufgegangen.
     var openApp: (() -> Void)?
+    var toggleMeeting: (() -> Void)?
+    var openMeetings: (() -> Void)?
 
     @MainActor private func handleStatusClick(rightClick: Bool) {
         if rightClick {
@@ -102,6 +104,16 @@ final class MenuBarController: NSObject {
         menu.addItem(releaseItem)
         menu.addItem(.separator())
 
+        let recordItem = NSMenuItem(title: meeting.isRecording ? "Aufnahme beenden" : "Meeting aufnehmen",
+                                    action: #selector(toggleMeetingFromMenu), keyEquivalent: "")
+        recordItem.target = self
+        recordItem.isEnabled = !meeting.isProcessing
+        menu.addItem(recordItem)
+        let meetingsItem = NSMenuItem(title: "Meetings öffnen", action: #selector(openMeetingsFromMenu), keyEquivalent: "")
+        meetingsItem.target = self
+        menu.addItem(meetingsItem)
+        menu.addItem(.separator())
+
         let settingsItem = NSMenuItem(title: "Einstellungen…", action: #selector(openSettingsFromMenu), keyEquivalent: "")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -118,6 +130,12 @@ final class MenuBarController: NSObject {
     // @MainActor-Arbeit läuft über DispatchQueue.main (vermeidet Prolog-Executor-Check + Crash).
     @objc nonisolated private func openSettingsFromMenu() {
         DispatchQueue.main.async { [weak self] in self?.settingsWindow.show() }
+    }
+    @objc nonisolated private func toggleMeetingFromMenu() {
+        DispatchQueue.main.async { [weak self] in self?.toggleMeeting?() }
+    }
+    @objc nonisolated private func openMeetingsFromMenu() {
+        DispatchQueue.main.async { [weak self] in self?.openMeetings?() }
     }
     @objc nonisolated private func quitFromMenu() {
         DispatchQueue.main.async { NSApp.terminate(nil) }
