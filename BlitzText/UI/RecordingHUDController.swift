@@ -3,7 +3,7 @@ import SwiftUI
 import Combine
 
 /// Schwebendes Aufnahme-HUD am unteren Bildschirmrand mit Live-Pegel-Visualisierung.
-/// Inspiriert von Whispr Flow — pille-förmig, click-through, immer im Vordergrund.
+/// Kleine schwarze Kapsel wie Wispr Flows Leiste und die Meeting-Pille; click-through, immer vorn.
 @MainActor
 final class RecordingHUDController {
     private var window: NSPanel?
@@ -35,7 +35,7 @@ final class RecordingHUDController {
         if window != nil { return }
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 268, height: 56),
+            contentRect: NSRect(x: 0, y: 0, width: 240, height: 48),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -57,7 +57,7 @@ final class RecordingHUDController {
         // Position: zentriert horizontal, etwa 100pt über Bildschirm-Unterkante des Hauptscreens
         if let screen = NSScreen.main {
             let frame = screen.visibleFrame
-            let w: CGFloat = 268, h: CGFloat = 56
+            let w: CGFloat = 240, h: CGFloat = 48
             let x = frame.midX - w / 2
             let y = frame.minY + 100
             panel.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
@@ -125,88 +125,75 @@ private struct RecordingHUDView: View {
     }
 
     var body: some View {
-        ZStack {
-            Capsule()
-                .fill(.black.opacity(0.85))
-                .overlay(
-                    Capsule().strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
-                )
-
-            HStack(spacing: 12) {
-                PulsingDot()
-
-                LevelBars(level: recorder.currentLevel)
-                    .frame(height: 24)
-
-                Text(langBadge)
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .tracking(1)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.white.opacity(0.12), in: Capsule())
-
-                if showsBackendBadge {
-                    Image(systemName: backendSymbol)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 12, height: 12)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .background(.white.opacity(0.12), in: Capsule())
-                        .help(backendTooltip)
-                }
+        // Kleine Kapsel im Stil der Flow-Leiste (wie die Meeting-Pille): Modus-Symbol, fünf
+        // Pegelbalken, beim Transkribieren/Umformulieren wandernde Balken.
+        HStack(spacing: 9) {
+            Image(systemName: modeSymbol)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(MeetingTheme.dawn500)
+            if case .recording = processor.state {
+                CompactLevelBars(level: recorder.currentLevel)
+            } else {
+                WorkingBars()
             }
-            .padding(.horizontal, 18)
+            Text(langBadge)
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.55))
+            if showsBackendBadge {
+                Image(systemName: backendSymbol)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .help(backendTooltip)
+            }
         }
-        .padding(8)
+        .padding(.horizontal, 14)
+        .frame(height: 34)
+        .background(
+            Capsule().fill(MeetingTheme.vast950)
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+                .shadow(color: .black.opacity(0.28), radius: 10, y: 4)
+        )
+        .fixedSize()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var modeSymbol: String {
+        switch activeMode {
+        case .blitztextPlus: return "sparkles"
+        case .blitztextRant: return "flame.fill"
+        default:             return "bolt.fill"
+        }
     }
 }
 
-private struct PulsingDot: View {
-    @State private var pulsing = false
-
-    var body: some View {
-        Circle()
-            .fill(.red)
-            .frame(width: 10, height: 10)
-            .opacity(pulsing ? 1.0 : 0.4)
-            .animation(
-                .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
-                value: pulsing
-            )
-            .onAppear { pulsing = true }
-    }
-}
-
-private struct LevelBars: View {
+private struct CompactLevelBars: View {
     var level: Float
-    private let barCount = 12
+    private let weights: [CGFloat] = [0.45, 0.8, 1, 0.7, 0.4]
 
     var body: some View {
-        GeometryReader { proxy in
-            HStack(spacing: 2) {
-                ForEach(0..<barCount, id: \.self) { i in
-                    Capsule()
-                        .fill(barColor(index: i))
-                        .frame(height: barHeight(index: i, in: proxy.size.height))
+        HStack(spacing: 2.5) {
+            ForEach(weights.indices, id: \.self) { i in
+                Capsule()
+                    .fill(Color.white)
+                    .frame(width: 3, height: 4 + 14 * weights[i] * max(0.12, CGFloat(min(1, level * 1.4))))
+            }
+        }
+        .frame(height: 20)
+        .animation(.easeOut(duration: 0.08), value: level)
+    }
+}
+
+private struct WorkingBars: View {
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 20)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 2.5) {
+                ForEach(0..<4, id: \.self) { i in
+                    Capsule().fill(MeetingTheme.dawn500)
+                        .frame(width: 3, height: 5 + 9 * (0.5 + 0.5 * sin(t * 5 - Double(i) * 0.8)))
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .center)
+            .frame(height: 20)
         }
-    }
-
-    private func barHeight(index: Int, in maxHeight: CGFloat) -> CGFloat {
-        // Wellenform-Optik: mittlere Bars größer als äußere
-        let center = Float(barCount - 1) / 2
-        let distance = abs(Float(index) - center) / center
-        let envelope = 1.0 - distance * 0.4
-        let scaled = max(0.15, level * envelope)
-        return CGFloat(scaled) * maxHeight
-    }
-
-    private func barColor(index: Int) -> Color {
-        let active = Float(index) / Float(barCount - 1) < level + 0.1
-        return active ? .white : .white.opacity(0.25)
     }
 }
