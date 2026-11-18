@@ -135,10 +135,7 @@ struct DictionarySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(settings.properNouns.sorted { $0.occurrenceCount > $1.occurrenceCount }) { noun in
-                ProperNounRow(noun: noun) { settings.properNouns.removeAll { $0.id == noun.id } }
-                Divider()
-            }
+            // Eingabe oben: Neue Begriffe sollen schnell gehen, auch bei langer Liste.
             HStack {
                 TextField("Neuer Begriff", text: $newProperNoun)
                     .textFieldStyle(.roundedBorder)
@@ -147,8 +144,19 @@ struct DictionarySection: View {
                     .buttonStyle(LavenderButtonStyle(compact: true))
                     .disabled(newProperNoun.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-            Toggle("KI-Vorschläge nach jeder Aufnahme (gpt-4o-mini)", isOn: $settings.aiSuggestProperNouns)
-            Text("Unbekannte, großgeschriebene Wörter werden auf dem Gerät erkannt und nach dem zweiten Vorkommen vorgeschlagen. Die KI-Vorschläge laufen über die OpenAI-Cloud.")
+            .padding(.bottom, 4)
+            ForEach(settings.properNouns.sorted { $0.occurrenceCount > $1.occurrenceCount }) { noun in
+                ProperNounRow(noun: noun) { settings.properNouns.removeAll { $0.id == noun.id } }
+                Divider()
+            }
+            Toggle("KI-Vorschläge nach jeder Aufnahme", isOn: $settings.aiSuggestProperNouns)
+            if settings.aiSuggestProperNouns {
+                Picker("Anbieter", selection: $settings.properNounSuggestBackend) {
+                    ForEach(RewriteBackend.allCases.filter { $0 != .ollama }) { Text($0.label).tag($0) }
+                }
+                .frame(maxWidth: 320)
+            }
+            Text("Unbekannte, großgeschriebene Wörter werden auf dem Gerät erkannt und nach dem zweiten Vorkommen vorgeschlagen. Die KI-Vorschläge laufen über den gewählten Cloud-Anbieter, mit Schlüssel und Modell aus „Modelle“.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

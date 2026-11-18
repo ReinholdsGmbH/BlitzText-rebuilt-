@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import AVFoundation
 import SwiftUI
 
@@ -16,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var modeProcessor: ModeProcessor!
     private var settingsWindow: SettingsWindowController!
     private var updateService: UpdateService!
+    private let vocabularySnapshot = VocabularySnapshot()
+    private var cancellables = Set<AnyCancellable>()
     private var updateWindow: UpdateWindowController!
     private var recordingHUD: RecordingHUDController!
     private var suggestionToast: SuggestionToastController!
@@ -150,13 +153,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             store: modeProcessor.speakerStore,
             threshold: { Float(settings.speakerMatchThreshold) }
         )
+        // Wörterbuch für Meetings: Schnappschuss, den die Hintergrund-Transkription lesen darf.
+        settings.$properNouns
+            .sink { [vocabularySnapshot] in vocabularySnapshot.set($0) }
+            .store(in: &cancellables)
         meetingController = MeetingController(
             recorder: MeetingRecorder(),
             makeTranscriber: { PlainParakeetTranscriber(client: parakeet) },
             makeSummarizer: { settings.makeMeetingSummarizer() },
             diarizer: meetingDiarizer,
             makeExporter: { settings.makeVaultExporter() },
-            language: { settings.transcriptionLanguage.isEmpty ? nil : settings.transcriptionLanguage }
+            language: { settings.transcriptionLanguage.isEmpty ? nil : settings.transcriptionLanguage },
+            vocabulary: { [vocabularySnapshot] in vocabularySnapshot.current }
         )
         meetingLibrary = MeetingLibrary(
             archive: meetingController.archive,
@@ -295,7 +303,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func needsOpenAIKey() -> Bool {
         guard settingsStore.apiKey.isEmpty else { return false }
         if settingsStore.backend == .openAI { return true }
-        if settingsStore.aiSuggestProperNouns { return true }
+        if settingsStore.aiSuggestProperNouns, settingsStore.properNounSuggestBackend == .openAI { return true }
         return false
     }
 

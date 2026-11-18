@@ -285,3 +285,24 @@ struct TeamsTileLabelTests {
         #expect(TeamsTileLabel.name(in: label) == expected)
     }
 }
+
+struct MeetingVocabularyTests {
+    @Test("Meeting-Transkription wendet das Wörterbuch an, ohne Treffer zu zählen")
+    func correctingTranscriber() async throws {
+        let base = SequenceTranscriber(["Wir besprechen das mit Kursbaar morgen"])
+        let nouns = [ProperNoun(text: "Kursbar")]
+        let transcriber = CorrectingTranscriber(base: base, vocabulary: { nouns })
+        let text = try await transcriber.transcribe(audioURL: URL(fileURLWithPath: "/dev/null"), language: nil, prompt: nil)
+        #expect(text.contains("Kursbar"))
+        #expect(!text.contains("Kursbaar"))
+    }
+}
+
+struct EigennamenAIParseTests {
+    @Test("Wortvorschläge aus JSON, auch im Codeblock")
+    func parsesAnswer() {
+        #expect(EigennamenAISuggester.parse(#"{"eigennamen": ["Kursbar", "X"]}"#) == ["Kursbar"])
+        #expect(EigennamenAISuggester.parse("```json\n{\"eigennamen\": [\"Auftragslauf\"]}\n```") == ["Auftragslauf"])
+        #expect(EigennamenAISuggester.parse("keine") == [])
+    }
+}

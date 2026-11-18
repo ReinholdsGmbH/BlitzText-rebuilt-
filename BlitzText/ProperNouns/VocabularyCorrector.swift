@@ -106,3 +106,26 @@ struct VocabularyCorrector {
         }
     }
 }
+
+/// Wendet das Wörterbuch auf jedes Ergebnis eines Transkriptionsdienstes an, etwa für das
+/// Meeting-Transkript. Lernt anders als das Diktat keine Varianten und zählt keine Treffer:
+/// Meetings enthalten fremde Sprecher, deren Aussprache das Wörterbuch nicht prägen soll.
+struct CorrectingTranscriber: TranscriptionService {
+    let base: TranscriptionService
+    let vocabulary: @Sendable () -> [ProperNoun]
+
+    func transcribe(audioURL: URL, language: String?, prompt: String?) async throws -> String {
+        let raw = try await base.transcribe(audioURL: audioURL, language: language, prompt: prompt)
+        return VocabularyCorrector().correct(raw, using: vocabulary()).text
+    }
+}
+
+/// Thread-sicherer Schnappschuss des Wörterbuchs für Hintergrund-Transkriptionen. Wird von
+/// den Einstellungen bei jeder Änderung nachgeführt; Lesen blockiert den Haupt-Thread nie.
+final class VocabularySnapshot: @unchecked Sendable {
+    private let lock = NSLock()
+    private var nouns: [ProperNoun] = []
+
+    var current: [ProperNoun] { lock.withLock { nouns } }
+    func set(_ newValue: [ProperNoun]) { lock.withLock { nouns = newValue } }
+}

@@ -25,6 +25,8 @@ final class SettingsStore: ObservableObject {
     @Published var transcriptionModel: String = "whisper-1"
     @Published var backend: TranscriptionBackend = .parakeet
     @Published var aiSuggestProperNouns: Bool = true
+    /// Wer die KI-Wortvorschläge macht. Ollama ist ausgenommen: zu langsam für jede Aufnahme.
+    @Published var properNounSuggestBackend: RewriteBackend = .requesty
     @Published var rewriteBackendForPlus: RewriteBackend = .requesty
     @Published var rewriteBackendForRant: RewriteBackend = .requesty
     @Published var ollamaModel: String = "gemma4:e4b"
@@ -226,6 +228,7 @@ final class SettingsStore: ObservableObject {
         var transcriptionModel: String
         var backend: TranscriptionBackend
         var aiSuggestProperNouns: Bool?
+        var properNounSuggestBackend: RewriteBackend?
         var parakeetDiarization: Bool?
         var rewriteBackendForPlus: RewriteBackend?
         var rewriteBackendForRant: RewriteBackend?
@@ -276,6 +279,7 @@ final class SettingsStore: ObservableObject {
         transcriptionModel = snap.transcriptionModel
         backend = snap.backend
         aiSuggestProperNouns = snap.aiSuggestProperNouns ?? true
+        properNounSuggestBackend = snap.properNounSuggestBackend ?? .requesty
         parakeetDiarization = snap.parakeetDiarization ?? false
         rewriteBackendForPlus = snap.rewriteBackendForPlus ?? .requesty
         rewriteBackendForRant = snap.rewriteBackendForRant ?? .requesty
@@ -364,6 +368,7 @@ final class SettingsStore: ObservableObject {
             transcriptionModel: transcriptionModel,
             backend: backend,
             aiSuggestProperNouns: aiSuggestProperNouns,
+            properNounSuggestBackend: properNounSuggestBackend,
             parakeetDiarization: parakeetDiarization,
             rewriteBackendForPlus: rewriteBackendForPlus,
             rewriteBackendForRant: rewriteBackendForRant,
