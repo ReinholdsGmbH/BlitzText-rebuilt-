@@ -329,7 +329,7 @@ struct MeetingAreaTests {
 
     @Test("Ohne Stichwort schlägt das Modell PAG vor, Unsinn bleibt ohne Vorschlag")
     func suggests() async {
-        let document = doc(title: "Abstimmung Prozessumfang und Testfälle SAP-Umstellung", summary: "- Testfälle je Prozess")
+        let document = doc(title: "Abstimmung Prozessumfang Buchhaltung", summary: "- Umfang je Prozess")
         #expect(VaultExporter.detectProject(for: document) == "eingang")
         var model = FakeSummarizer(result: .success(""))
         model.askResult = .success("pag")
