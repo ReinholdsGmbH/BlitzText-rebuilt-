@@ -43,6 +43,11 @@ final class UpdateService: NSObject, ObservableObject {
 
     /// Prüfintervall: 1 h. Das unauth. GitHub-Limit (60/h je Rechner) ist damit unkritisch.
     static let checkInterval: TimeInterval = 60 * 60
+    /// Für Texte in den Einstellungen, damit sie dem Takt nicht hinterherhinken.
+    static var checkIntervalText: String {
+        let hours = Int(checkInterval / 3600)
+        return hours == 1 ? "stündlich" : "alle \(hours) Stunden"
+    }
     /// Verzögerung der ersten Prüfung nach Start — nicht mit Modell-Preload konkurrieren.
     private static let initialDelay: TimeInterval = 12
 
