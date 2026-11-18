@@ -6,24 +6,141 @@ import SwiftUI
 /// Umformulieren (Blitztext+, $%&!) und Meeting-Zusammenfassung gemeinsam.
 struct ProviderAccountSection: View {
     @EnvironmentObject var settings: SettingsStore
+    let provider: SummaryProvider
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            AccountKeyField(
+                hasKey: !settings.providerKeys.key(for: provider).isEmpty,
+                save: { settings.providerKeys.setKey($0, for: provider) },
+                remove: { settings.providerKeys.setKey("", for: provider) }
+            )
+            AccountModelPicker(
+                model: Binding(
+                    get: { settings.meetingSummaryModel(for: provider) },
+                    set: { settings.setMeetingSummaryModel($0, for: provider) }
+                ),
+                defaultModel: provider.isLocal ? nil : provider.defaultModel,
+                note: provider.isLocal ? "Dasselbe Ollama-Modell wie beim Diktat-Rewrite." : nil,
+                load: { try await ModelCatalog.fetch(provider, ollamaBaseURL: settings.ollamaBaseURL) },
+                loadErrorPrefix: provider.isLocal ? "Ollama nicht erreichbar" : "Liste nicht geladen"
+            )
+            AccountConnectionTest(model: settings.meetingSummaryModel(for: provider)) {
+                let chat = OpenAICompatibleChat(provider: provider, apiKey: settings.providerKeys.key(for: provider),
+                                                model: settings.meetingSummaryModel(for: provider))
+                return try await chat.complete(system: AccountConnectionTest.systemPrompt, user: "Verbindungstest")
+            }
+        }
+    }
+}
+
+/// Zugang OpenAI im selben Aufbau wie OpenRouter und Requesty. Der Schlüssel dient außerdem
+/// Cloud-Whisper und den KI-Eigennamen-Vorschlägen; das Modell ist das Umformulier-Modell.
+struct OpenAIAccountSection: View {
+    @EnvironmentObject var settings: SettingsStore
+
+    static let defaultModel = "gpt-4o-mini"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            AccountKeyField(
+                hasKey: !settings.apiKey.isEmpty,
+                save: { settings.apiKey = $0 },
+                remove: { settings.apiKey = "" },
+                usage: "Gebraucht für Cloud-Whisper, Umformulieren über OpenAI und KI-Eigennamen-Vorschläge."
+            )
+            AccountModelPicker(
+                model: $settings.rewriteModel,
+                defaultModel: Self.defaultModel,
+                note: "Gilt für Blitztext+ und $%&!, wenn dort OpenAI gewählt ist.",
+                load: { try await OpenAIModelCatalog.fetch(apiKey: settings.apiKey) },
+                loadErrorPrefix: "Liste nicht geladen"
+            )
+            AccountConnectionTest(model: settings.rewriteModel) {
+                try await OpenAIChatClient(settings: settings).rewrite(
+                    input: "Verbindungstest", systemPrompt: AccountConnectionTest.systemPrompt, model: settings.rewriteModel)
+            }
+        }
+    }
+}
+
+/// Modellliste von OpenAI, ohne Audio-, Bild- und Embedding-Modelle.
+enum OpenAIModelCatalog {
+    static let url = URL(string: "https://api.openai.com/v1/models")!
+
+    static func fetch(apiKey: String) async throws -> [ModelOption] {
+        guard !apiKey.isEmpty else { throw TranscriptionError.missingAPIKey }
+        var request = URLRequest(url: url, timeoutInterval: 20)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw TranscriptionError.http(http.statusCode, String(data: data, encoding: .utf8) ?? "")
+        }
+        return try parse(data)
+    }
+
+    static func parse(_ data: Data) throws -> [ModelOption] {
+        struct Model: Decodable { let id: String }
+        struct List: Decodable { let data: [Model] }
+        let excluded = ["whisper", "tts", "dall-e", "embedding", "audio", "realtime", "transcribe", "image", "moderation", "search"]
+        return try JSONDecoder().decode(List.self, from: data).data
+            .map(\.id)
+            .filter { id in (id.hasPrefix("gpt") || id.hasPrefix("o") || id.hasPrefix("chatgpt")) && !excluded.contains { id.contains($0) } }
+            .sorted()
+            .map { ModelOption(id: $0, name: $0) }
+    }
+}
+
+// MARK: - Bausteine der Zugangs-Karten
+
+struct AccountKeyField: View {
+    let hasKey: Bool
+    let save: (String) -> Void
+    let remove: () -> Void
+    var usage: String?
 
     @State private var draftKey = ""
     @State private var keySaved = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("API-SCHLÜSSEL").font(.caption).foregroundStyle(.secondary).bold()
+            if let usage {
+                Text(usage).font(.caption).foregroundStyle(.secondary)
+            }
+            HStack {
+                SecureField(hasKey ? "gespeichert, zum Ersetzen neu einfügen" : "Schlüssel einfügen", text: $draftKey)
+                    .textFieldStyle(.roundedBorder)
+                Button("Speichern") {
+                    save(draftKey.trimmingCharacters(in: .whitespacesAndNewlines))
+                    draftKey = ""
+                    keySaved = true
+                }
+                .disabled(draftKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                if hasKey {
+                    Button("Entfernen", role: .destructive) {
+                        remove()
+                        keySaved = false
+                    }
+                }
+            }
+            Text(keySaved ? "Im Schlüsselbund gespeichert." : "Liegt im macOS-Schlüsselbund, nicht in den Einstellungsdateien.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
+struct AccountModelPicker: View {
+    @Binding var model: String
+    let defaultModel: String?
+    let note: String?
+    let load: () async throws -> [ModelOption]
+    let loadErrorPrefix: String
+
     @State private var models: [ModelOption] = []
     @State private var loadingModels = false
     @State private var loadError: String?
     @State private var filter = ""
-    @State private var testing = false
-    @State private var testResult: (ok: Bool, text: String)?
-
-    let provider: SummaryProvider
-
-    private var modelBinding: Binding<String> {
-        Binding(
-            get: { settings.meetingSummaryModel(for: provider) },
-            set: { settings.setMeetingSummaryModel($0, for: provider) }
-        )
-    }
 
     private var filteredModels: [ModelOption] {
         let needle = filter.trimmingCharacters(in: .whitespaces).lowercased()
@@ -34,48 +151,15 @@ struct ProviderAccountSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            keySection
-            modelSection
-            testSection
-        }
-    }
-
-    private var keySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("API-SCHLÜSSEL").font(.caption).foregroundStyle(.secondary).bold()
-            HStack {
-                SecureField(settings.providerKeys.key(for: provider).isEmpty ? "Schlüssel einfügen" : "gespeichert, zum Ersetzen neu einfügen",
-                            text: $draftKey)
-                    .textFieldStyle(.roundedBorder)
-                Button("Speichern") {
-                    settings.providerKeys.setKey(draftKey, for: provider)
-                    draftKey = ""
-                    keySaved = true
-                }
-                .disabled(draftKey.trimmingCharacters(in: .whitespaces).isEmpty)
-                if !settings.providerKeys.key(for: provider).isEmpty {
-                    Button("Entfernen", role: .destructive) {
-                        settings.providerKeys.setKey("", for: provider)
-                        keySaved = false
-                    }
-                }
-            }
-            Text(keySaved ? "Im Schlüsselbund gespeichert." : "Liegt im macOS-Schlüsselbund, nicht in den Einstellungsdateien.")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    private var modelSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("MODELL").font(.caption).foregroundStyle(.secondary).bold()
             HStack {
-                TextField("Modell-ID", text: modelBinding)
+                TextField("Modell-ID", text: $model)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
-                if !provider.isLocal {
-                    Button("Standard") { modelBinding.wrappedValue = provider.defaultModel }
-                        .help(provider.defaultModel)
+                if let defaultModel {
+                    Button("Standard") { model = defaultModel }
+                        .help(defaultModel)
                 }
                 Button {
                     Task { await loadModels() }
@@ -84,9 +168,8 @@ struct ProviderAccountSection: View {
                 }
                 .disabled(loadingModels)
             }
-            if provider.isLocal {
-                Text("Dasselbe Ollama-Modell wie beim Diktat-Rewrite.")
-                    .font(.caption).foregroundStyle(.secondary)
+            if let note {
+                Text(note).font(.caption).foregroundStyle(.secondary)
             }
             if let loadError {
                 Text(loadError).font(.caption).foregroundStyle(.red)
@@ -94,19 +177,19 @@ struct ProviderAccountSection: View {
             if !models.isEmpty {
                 TextField("Suchen, z. B. haiku, gemini, eu-central", text: $filter)
                     .textFieldStyle(.roundedBorder)
-                List(filteredModels) { model in
+                List(filteredModels) { option in
                     Button {
-                        modelBinding.wrappedValue = model.id
+                        model = option.id
                     } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(model.id).font(.system(.callout, design: .monospaced))
-                                if model.name != model.id {
-                                    Text(model.name).font(.caption).foregroundStyle(.secondary)
+                                Text(option.id).font(.system(.callout, design: .monospaced))
+                                if option.name != option.id {
+                                    Text(option.name).font(.caption).foregroundStyle(.secondary)
                                 }
                             }
                             Spacer()
-                            if model.id == modelBinding.wrappedValue {
+                            if option.id == model {
                                 Image(systemName: "checkmark").foregroundStyle(.tint)
                             }
                         }
@@ -121,7 +204,29 @@ struct ProviderAccountSection: View {
         }
     }
 
-    private var testSection: some View {
+    private func loadModels() async {
+        loadingModels = true
+        loadError = nil
+        defer { loadingModels = false }
+        do {
+            models = try await load()
+            if models.isEmpty { loadError = "Keine Modelle gefunden." }
+        } catch {
+            loadError = "\(loadErrorPrefix): \(error.localizedDescription)"
+        }
+    }
+}
+
+struct AccountConnectionTest: View {
+    static let systemPrompt = "Antworte ausschließlich mit dem Wort OK."
+
+    let model: String
+    let run: () async throws -> String
+
+    @State private var testing = false
+    @State private var testResult: (ok: Bool, text: String)?
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("VERBINDUNG").font(.caption).foregroundStyle(.secondary).bold()
             HStack(spacing: 10) {
@@ -138,7 +243,7 @@ struct ProviderAccountSection: View {
                         .lineLimit(3)
                 }
             }
-            Text("Schickt eine Mini-Anfrage ohne Meeting-Inhalte an das gewählte Modell.")
+            Text("Schickt eine Mini-Anfrage ohne Inhalte an das gewählte Modell.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -147,30 +252,13 @@ struct ProviderAccountSection: View {
         testing = true
         testResult = nil
         defer { testing = false }
-        let model = settings.meetingSummaryModel(for: provider)
-        let chat = OpenAICompatibleChat(provider: provider, apiKey: settings.providerKeys.key(for: provider), model: model)
         let started = Date()
         do {
-            let reply = try await chat.complete(system: "Antworte ausschließlich mit dem Wort OK.", user: "Verbindungstest")
+            let reply = try await run()
             let seconds = String(format: "%.1f", Date().timeIntervalSince(started))
             testResult = (true, "\(model) antwortet (\(seconds) s): \(reply.prefix(40))")
         } catch {
             testResult = (false, error.localizedDescription)
-        }
-    }
-
-
-    private func loadModels() async {
-        loadingModels = true
-        loadError = nil
-        defer { loadingModels = false }
-        do {
-            models = try await ModelCatalog.fetch(provider, ollamaBaseURL: settings.ollamaBaseURL)
-            if models.isEmpty { loadError = "Keine Modelle gefunden." }
-        } catch {
-            loadError = provider.isLocal
-                ? "Ollama nicht erreichbar: \(error.localizedDescription)"
-                : "Liste nicht geladen: \(error.localizedDescription)"
         }
     }
 }

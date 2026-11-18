@@ -372,7 +372,7 @@ private struct SettingsPage: View {
             SettingsCard("Transkription") { LokalTab() }
             SettingsCard("Umformulieren", footnote: "Blitztext+ und $%&! einzeln: lokal über Ollama oder über einen Cloud-Anbieter.") { RewriteBackendSection() }
             SettingsCard("Meeting-Zusammenfassung") { MeetingSummarySection() }
-            SettingsCard("Zugang OpenAI") { OpenAIKeySection() }
+            SettingsCard("Zugang OpenAI") { OpenAIAccountSection() }
             SettingsCard("Zugang OpenRouter") { ProviderAccountSection(provider: .openRouter) }
             SettingsCard("Zugang Requesty") { ProviderAccountSection(provider: .requesty) }
         case .system:
