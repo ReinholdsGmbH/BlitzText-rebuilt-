@@ -283,15 +283,22 @@ private struct NavItem: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: icon).font(.system(size: 13)).frame(width: 18)
-                Text(title).font(.system(size: 13.5, weight: .medium))
+                Image(systemName: icon).font(.system(size: 13, weight: active ? .semibold : .regular)).frame(width: 18)
+                    .foregroundStyle(active ? MeetingTheme.accent : MeetingTheme.foregroundTertiary)
+                Text(title).font(.system(size: 13.5, weight: active ? .semibold : .medium))
+                    .foregroundStyle(active ? MeetingTheme.foreground : MeetingTheme.foreground.opacity(0.85))
                 Spacer()
             }
             .padding(.horizontal, 10)
             .frame(height: 32)
             .background(RoundedRectangle(cornerRadius: 8)
-                .fill(active ? MeetingTheme.backgroundSecondary : (hovering ? MeetingTheme.backgroundSecondary.opacity(0.5) : .clear)))
+                .fill(active ? MeetingTheme.accentSoft : (hovering ? MeetingTheme.backgroundSecondary.opacity(0.6) : .clear)))
+            .overlay(alignment: .leading) {
+                // Kleiner Balken links zeigt, wo man ist.
+                Capsule().fill(MeetingTheme.accent).frame(width: 3, height: active ? 16 : 0).offset(x: -1)
+            }
             .contentShape(Rectangle())
+            .animation(.easeOut(duration: 0.15), value: active)
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }

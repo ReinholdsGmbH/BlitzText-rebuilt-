@@ -409,3 +409,17 @@ struct LiveScrollTests {
         #expect(LiveScrollMetrics.atBottom(previous: false, old: m(300, 1200), new: m(790, 1200), tolerance: 40))
     }
 }
+
+@MainActor
+struct SummarySectionTests {
+    @Test("Notizen werden in Rubriken mit passender Farbe zerlegt")
+    func sections() {
+        let md = "Einleitung\n### Zusammenfassung\n- A\n\n### Entscheidungen\n- B\n### Aufgaben\n- [ ] C\n### Offene Fragen\n- D"
+        let sections = SummaryText.sections(of: md)
+        #expect(sections.map(\.title) == [nil, "Zusammenfassung", "Entscheidungen", "Aufgaben", "Offene Fragen"])
+        #expect(sections[3].lines == ["- [ ] C"])
+        #expect(SummaryText.style(for: "Entscheidungen").symbol == "checkmark.seal.fill")
+        #expect(SummaryText.style(for: "Aufgaben").symbol == "checklist")
+        #expect(SummaryText.style(for: "Offene Fragen").symbol == "questionmark.bubble.fill")
+    }
+}
