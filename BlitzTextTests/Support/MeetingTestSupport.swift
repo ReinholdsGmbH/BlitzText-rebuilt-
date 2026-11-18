@@ -83,4 +83,14 @@ final class FakeDiarizer: MeetingDiarizing, @unchecked Sendable {
     }
 
     func knownSpeakerNames() -> [String] { profileNames }
+
+    /// Klang je Stimme für Abgleich-Tests: Schlüssel ist der Beginn des ersten Abschnitts.
+    var voices: [TimeInterval: [Float]] = [:]
+    var profiles: [(name: String, embedding: [Float])] = []
+
+    func voiceEmbedding(from track: URL, spans: [SpeechSpan]) async throws -> [Float] {
+        voices[spans.first?.start ?? -1] ?? []
+    }
+
+    func profileEmbeddings() -> [(name: String, embedding: [Float])] { profiles }
 }

@@ -215,6 +215,45 @@ final class MeetingLibrary: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([entry.folder.appendingPathComponent(MeetingArchive.protocolFile)])
     }
 
+    // MARK: - Sprecher neu abgleichen
+
+    /// Unbenannte Stimmen gegen Stimmprofile und gegen einander abgleichen. Nur Eindeutiges
+    /// wird übernommen; der Rest bleibt unter „Wer spricht hier?“.
+    func rematchSpeakers(in folder: URL) async {
+        guard let diarizer, let index = index(of: folder) else { return }
+        let document = entries[index].document
+        let track = folder.appendingPathComponent(document.diarizedTrack)
+        busy = "Gleiche Sprecher ab …"
+        defer { busy = nil }
+
+        var voices: [SpeakerRematcher.Voice] = []
+        for id in document.speakerIDs {
+            let spans = document.lines.filter { $0.speakerID == id }.map { SpeechSpan(start: $0.start, end: $0.end) }
+            let duration = Float(spans.reduce(0) { $0 + $1.end - $1.start })
+            let embedding = (try? await diarizer.voiceEmbedding(from: track, spans: spans)) ?? []
+            voices.append(.init(id: id, duration: duration, embedding: embedding, name: document.speakerNames[id]))
+        }
+        // Auf der reinen Gegenseite kann ich nicht sprechen; in einer Mischspur schon.
+        let excluding: Set<String> = document.diarizedTrack == MeetingArchive.othersTrackFile
+            ? Set([SpeakerNaming.selfName].compactMap { $0 }.map(SpeakerNaming.key)) : []
+        let plan = SpeakerRematcher.plan(voices: voices, profiles: diarizer.profileEmbeddings(), excluding: excluding)
+        Log.write("MeetingLibrary: Abgleich \(folder.lastPathComponent) — \(voices.count) Stimmen, \(plan.names.count) erkannt, \(plan.merges.count) zusammengelegt")
+        guard !plan.isEmpty, let current = self.index(of: folder) else { return }
+        save(entries[current].document.applying(plan), at: current)
+    }
+
+    static let mixedVoicesName = "Mehrere Personen"
+
+    /// Für Stimmen, in denen mehrere Leute übereinander reden: ehrlich als Gemisch markieren,
+    /// ohne Stimmprofil, damit „Wer spricht hier?“ nicht zum Auseinanderklauben zwingt.
+    func markMixedVoices(_ speakerID: String, in folder: URL) {
+        guard let index = index(of: folder) else { return }
+        var document = entries[index].document
+        document.speakerNames[speakerID] = Self.mixedVoicesName
+        document.nameSources[speakerID] = .manual
+        save(document, at: index)
+    }
+
     // MARK: - Zusammenführen
 
     /// Für die Mehrfachauswahl in der Liste (⌘-Klick, ⇧-Klick).
@@ -242,6 +281,8 @@ final class MeetingLibrary: ObservableObject {
             reload()
             selection = folder
             busy = nil
+            // Stimmen über die Teile hinweg abgleichen, bevor die Zusammenfassung Namen nennt.
+            await rematchSpeakers(in: folder)
             await regenerateSummary(in: folder)
         } catch {
             busy = nil
