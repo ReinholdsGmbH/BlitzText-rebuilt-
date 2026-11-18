@@ -88,6 +88,16 @@ final class AppWindowController: NSObject, NSWindowDelegate {
         applyDockPolicy()
     }
 
+    /// Hinweis rechts in der Titelleiste, sobald der Updater eine neuere Version kennt.
+    private static func updateBadge(for service: UpdateService) -> NSTitlebarAccessoryViewController {
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.layoutAttribute = .trailing
+        let host = NSHostingView(rootView: UpdateBadge(service: service))
+        host.frame = NSRect(x: 0, y: 0, width: 190, height: 28)
+        accessory.view = host
+        return accessory
+    }
+
     private var isWindowOpen: Bool { window?.isVisible == true }
 
     /// Dock-Symbol nach Einstellung und Fensterzustand. `.regular` bringt Dock-Symbol, ⌘-Tab
@@ -129,6 +139,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
             window.isReleasedWhenClosed = false
             window.backgroundColor = NSColor(MeetingTheme.backgroundTertiary)
             window.minSize = NSSize(width: 860, height: 560)
+            window.addTitlebarAccessoryViewController(Self.updateBadge(for: environment.updateService))
             let env = environment
             window.contentViewController = NSHostingController(
                 rootView: AppRootView(model: model, library: library, controller: controller, chat: chat)
@@ -416,5 +427,36 @@ struct SettingsCard<Content: View>: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 16).fill(MeetingTheme.backgroundTertiary))
+    }
+}
+
+/// Kapsel „Update 0.7.1“ in der Titelleiste. Ein Klick öffnet das Update-Fenster mit den
+/// Neuerungen und dem Knopf zum Aktualisieren. Ohne verfügbares Update unsichtbar.
+struct UpdateBadge: View {
+    @ObservedObject var service: UpdateService
+    @State private var hovering = false
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 0)
+            if let plan = service.availableUpdate {
+                Button { service.presentWindow?() } label: {
+                    HStack(spacing: 5) {
+                        Circle().fill(MeetingTheme.dawn500).frame(width: 6, height: 6)
+                        Text("Update \(plan.latest.version.description)")
+                            .font(.system(size: 11.5, weight: .semibold))
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 22)
+                    .background(Capsule().fill(hovering ? MeetingTheme.dawn500.opacity(0.35) : MeetingTheme.dawn500.opacity(0.2)))
+                    .foregroundStyle(MeetingTheme.foreground)
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering = $0 }
+                .help("BlitzText \(plan.latest.version.description) ist verfügbar. Klicken für die Neuerungen.")
+            }
+        }
+        .padding(.trailing, 14)
+        .frame(width: 190, height: 28)
     }
 }
