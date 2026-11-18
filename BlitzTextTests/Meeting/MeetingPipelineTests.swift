@@ -272,3 +272,16 @@ struct SpeakerSampleTests {
         #expect(!ActiveSpeakerPoller.isCandidate(String(repeating: "Video ", count: 40)))
     }
 }
+
+struct TeamsTileLabelTests {
+    @Test("Name aus Teams-Kacheln, eigene Kachel ausgenommen", arguments: [
+        ("Echo, Kontextmenü ist verfügbar", "Echo"),
+        ("Max Muster, Kontextmenü ist verfügbar", "Max Muster"),
+        ("Muster, Max (ABC_EXTERN), Kontextmenü ist verfügbar", "Max Muster"),
+        ("Video von mir selbst, Beispiel, Erika (ABC_EXTERN), Stummschaltung aufgehoben, Video ist ein, Frame ausfüllen, Hat Kontextmenü", nil),
+        ("Mikrofon stummschalten", nil)
+    ] as [(String, String?)])
+    func tileNames(label: String, expected: String?) {
+        #expect(TeamsTileLabel.name(in: label) == expected)
+    }
+}
