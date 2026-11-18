@@ -204,9 +204,13 @@ final class SettingsStore: ObservableObject {
                     Log.write("SettingsStore: API-Key Migration fehlgeschlagen — UserDefaults-Eintrag bleibt erhalten")
                 }
             }
-            cache.set(value ?? "")
+            cache.finishLoading(value ?? "")
         }
     }
+
+    /// `true`, sobald der OpenAI-Schlüssel aus dem Schlüsselbund geladen ist. Nach einem neuen
+    /// Build kann das dauern, bis der Nutzer die Passwortabfrage bestätigt.
+    var isAPIKeyLoaded: Bool { apiKeyCache.isLoaded }
 
     private struct Snapshot: Codable {
         var styleForPlus: WritingStyle
@@ -393,8 +397,12 @@ final class SettingsStore: ObservableObject {
 private final class APIKeyCache: @unchecked Sendable {
     private let lock = NSLock()
     private var value = ""
+    private var loaded = false
     var current: String { lock.withLock { value } }
+    /// Erst nach dem Laden aus dem Schlüsselbund ist „leer“ auch wirklich „kein Schlüssel“.
+    var isLoaded: Bool { lock.withLock { loaded } }
     func set(_ newValue: String) { lock.withLock { value = newValue } }
+    func finishLoading(_ newValue: String) { lock.withLock { value = newValue; loaded = true } }
 }
 
 enum TranscriptionBackend: String, CaseIterable, Codable, Identifiable {

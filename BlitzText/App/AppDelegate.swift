@@ -266,12 +266,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // `needsOpenAIKey()` BEWUSST verzögert auswerten: Der API-Key wird beim Start
         // asynchron aus der Keychain in den Cache geladen (nicht-blockierend). Würde man
         // hier sofort prüfen, wäre der Cache noch leer → Settings poppte fälschlich auf.
-        let forceSettings = CommandLine.arguments.contains("--settings")
+        // Gewartet wird, bis der Schlüssel wirklich geladen ist: Nach einem neuen Build hängt
+        // der Schlüsselbund an der Passwortabfrage, und ein noch leerer Cache öffnete sonst
+        // jedes Mal die Einstellungen statt der Meetings.
+        if CommandLine.arguments.contains("--settings") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.settingsWindow.show(section: .dictation)
+            }
+        } else {
+            checkOpenAIKeyWhenLoaded(attempt: 0)
+        }
+    }
+
+    /// Prüft alle halbe Sekunde, höchstens zwei Minuten lang.
+    private func checkOpenAIKeyWhenLoaded(attempt: Int) {
+        guard attempt < 240 else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
-            if forceSettings || self.needsOpenAIKey() {
-                self.settingsWindow.show(section: forceSettings ? .dictation : .models)
+            guard self.settingsStore.isAPIKeyLoaded else {
+                self.checkOpenAIKeyWhenLoaded(attempt: attempt + 1)
+                return
             }
+            if self.needsOpenAIKey() { self.settingsWindow.show(section: .models) }
         }
     }
 
