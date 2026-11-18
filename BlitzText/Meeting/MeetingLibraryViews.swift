@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: Meeting-Liste
 
@@ -7,6 +8,7 @@ struct MeetingListColumn: View {
     @ObservedObject var library: MeetingLibrary
     @ObservedObject var controller: MeetingController
     @Binding var search: String
+    @State private var dropState: AudioDropDelegate.State = .none
 
     private var filtered: [MeetingLibrary.Entry] {
         let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -98,6 +100,33 @@ struct MeetingListColumn: View {
                 }
             }
         }
+        // Audiodateien aus dem Finder oder MacWhisper auf die Liste ziehen: wie „Importieren“.
+        // Schon beim Hereinziehen zeigt die Liste, ob die Dateien angenommen werden.
+        .onDrop(of: [.fileURL], delegate: AudioDropDelegate(state: $dropState,
+                                                          busy: controller.isRecording || controller.isProcessing) { urls in
+            controller.importFiles(urls)
+        })
+        .overlay {
+            if dropState != .none {
+                let valid = dropState == .valid
+                let tint = valid ? MeetingTheme.dawn500 : MeetingTheme.coral
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(tint, style: StrokeStyle(lineWidth: 2, dash: valid ? [] : [6, 4]))
+                    .background(RoundedRectangle(cornerRadius: 14).fill(tint.opacity(valid ? 0.12 : 0.06)))
+                    .overlay {
+                        Label(dropState.message, systemImage: valid ? "square.and.arrow.down" : "nosign")
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(.horizontal, 14).frame(height: 32)
+                            .background(Capsule().fill(MeetingTheme.vast950))
+                            .foregroundStyle(MeetingTheme.sand50)
+                            .scaleEffect(valid ? 1.04 : 1)
+                    }
+                    .padding(8)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: dropState)
     }
 
     /// Wie im Finder: ⌘-Klick markiert einzelne Meetings dazu, ⇧-Klick einen Bereich.
@@ -125,6 +154,62 @@ struct MeetingListColumn: View {
         formatter.dateFormat = "EEE, d. MMM"
         let prefix = calendar.isDateInToday(day) ? "HEUTE, " : (calendar.isDateInYesterday(day) ? "GESTERN, " : "")
         return (prefix + formatter.string(from: day)).uppercased()
+    }
+}
+
+/// Nimmt Audio- und Videodateien zum Import an und zeigt schon beim Hereinziehen, ob sie
+/// passen. Der Finder liefert neben der Datei-URL auch den Dateityp mit; daran wird geprüft.
+struct AudioDropDelegate: DropDelegate {
+    enum State: Equatable {
+        case none, valid, invalid, busy
+
+        var message: String {
+            switch self {
+            case .valid: return "Zum Importieren loslassen"
+            case .invalid: return "Nur Audio- oder Videodateien"
+            case .busy: return "Erst nach der laufenden Aufnahme"
+            case .none: return ""
+            }
+        }
+    }
+
+    @Binding var state: State
+    let busy: Bool
+    let onImport: ([URL]) -> Void
+
+    static let acceptedTypes: [UTType] = [.audio, .movie]
+
+    private func evaluate(_ info: DropInfo) -> State {
+        if busy { return .busy }
+        return info.hasItemsConforming(to: Self.acceptedTypes) ? .valid : .invalid
+    }
+
+    /// Immer annehmen, damit auch ungültige Dateien den Hinweis bekommen; abgelehnt wird
+    /// beim Loslassen (`performDrop`) und per Verbotszeiger (`dropUpdated`).
+    func validateDrop(info: DropInfo) -> Bool { true }
+    func dropEntered(info: DropInfo) { state = evaluate(info) }
+    func dropExited(info: DropInfo) { state = .none }
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: evaluate(info) == .valid ? .copy : .forbidden)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        state = .none
+        guard evaluate(info) == .valid else { return false }
+        let providers = info.itemProviders(for: [.fileURL])
+        Task { @MainActor in
+            var urls: [URL] = []
+            for provider in providers {
+                let loaded: URL? = await withCheckedContinuation { continuation in
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
+                }
+                guard let url = loaded, let type = UTType(filenameExtension: url.pathExtension),
+                      Self.acceptedTypes.contains(where: type.conforms(to:)) else { continue }
+                urls.append(url)
+            }
+            if !urls.isEmpty { onImport(urls) }
+        }
+        return true
     }
 }
 
