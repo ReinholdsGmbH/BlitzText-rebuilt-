@@ -271,12 +271,24 @@ struct MeetingDetailView: View {
     @StateObject private var player = SnippetPlayer()
     @State private var tab: Tab = .notes
     @State private var transcriptSearch = ""
+    /// Beitrag, zu dem gesprungen und der hervorgehoben wird („Im Transkript zeigen“).
+    @State private var focusedLine: Int?
 
     enum Tab: Hashable { case notes, myNotes, transcript }
+
+    /// Erster Beitrag einer Stimme: Reiter Transkript, Suche leeren, hinspringen.
+    private func showFirstLine(of speakerID: String) {
+        guard let index = document.lines.firstIndex(where: { $0.speakerID == speakerID }) else { return }
+        transcriptSearch = ""
+        tab = .transcript
+        focusedLine = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { focusedLine = index }
+    }
 
     private var document: MeetingDocument { entry.document }
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
@@ -311,6 +323,11 @@ struct MeetingDetailView: View {
             .padding(.bottom, 110)
             .frame(maxWidth: 760, alignment: .leading)
         }
+        .onChange(of: focusedLine) { _, index in
+            guard let index else { return }
+            withAnimation { proxy.scrollTo("line-\(index)", anchor: .center) }
+        }
+        }
         .onDisappear { player.stop() }
     }
 
@@ -336,7 +353,8 @@ struct MeetingDetailView: View {
                 HStack(spacing: 6) {
                     ForEach(Array(participants.enumerated()), id: \.offset) { _, item in
                         if let id = item.2 {
-                            RenameTag(name: item.0, colors: item.1, speakerID: id, entry: entry, library: library)
+                            RenameTag(name: item.0, colors: item.1, speakerID: id, entry: entry, library: library,
+                                      player: player, showInTranscript: { showFirstLine(of: id) })
                         } else {
                             SpeakerTag(name: item.0, colors: item.1)
                         }
@@ -447,6 +465,10 @@ struct MeetingDetailView: View {
                         player.toggle(id: id, url: entry.folder.appendingPathComponent(document.trackFile(for: line)),
                                       start: line.start, end: line.end)
                     }
+                    .padding(focusedLine == item.index ? 6 : 0)
+                    .background(RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(MeetingTheme.dawn500, lineWidth: focusedLine == item.index ? 2 : 0))
+                    .id("line-\(item.index)")
                 }
                 if lines.isEmpty {
                     Text(document.lines.isEmpty ? "Es wurde keine Sprache erkannt." : "Keine Treffer.")
@@ -573,6 +595,8 @@ private struct RenameTag: View {
     let speakerID: String
     let entry: MeetingLibrary.Entry
     @ObservedObject var library: MeetingLibrary
+    @ObservedObject var player: SnippetPlayer
+    let showInTranscript: () -> Void
     @State private var open = false
     @State private var draft = ""
     @State private var hovering = false
@@ -595,6 +619,7 @@ private struct RenameTag: View {
         .popover(isPresented: $open, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Wer ist \(name)?").font(.system(size: 14, weight: .semibold))
+                checkRow
                 NameEntry(
                     text: $draft,
                     known: library.knownNames,
@@ -608,6 +633,30 @@ private struct RenameTag: View {
             }
             .padding(16)
             .frame(width: 360, alignment: .leading)
+        }
+    }
+
+    /// Prüfen vor dem Umbenennen: Hörprobe dieser Stimme und Sprung zum ersten Beitrag.
+    @ViewBuilder
+    private var checkRow: some View {
+        let document = entry.document
+        HStack(spacing: 10) {
+            if let probe = document.sampleLine(of: speakerID) {
+                let playID = "rename-\(speakerID)"
+                PlayButton(playing: player.playingID == playID, size: 24) {
+                    player.toggle(id: playID, url: entry.folder.appendingPathComponent(document.trackFile(for: probe)),
+                                  start: probe.start, end: probe.end)
+                }
+                Text("„\(probe.text)“")
+                    .font(.system(size: 12)).foregroundStyle(MeetingTheme.foregroundTertiary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 4)
+            Button("Im Transkript zeigen") {
+                open = false
+                showInTranscript()
+            }
+            .buttonStyle(SandButtonStyle())
         }
     }
 }
