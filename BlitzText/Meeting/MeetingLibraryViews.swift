@@ -1285,6 +1285,23 @@ struct LiveMeetingView: View {
 }
 
 /// Laufendes Transkript als Sprechblasen, scrollt automatisch mit.
+/// Scroll-Lage des Live-Transkripts. Nur eigenes Scrollen entscheidet, ob die Ansicht am
+/// Ende steht. Wächst bloß der Inhalt (neuer Text), meldet SwiftUI das vor dem Mitscrollen
+/// als „nicht mehr unten“; das darf den Zustand nicht kippen, sonst scrollt nichts mit.
+struct LiveScrollMetrics: Equatable {
+    var offset: CGFloat
+    var visible: CGFloat
+    var content: CGFloat
+
+    func isAtBottom(tolerance: CGFloat) -> Bool { offset + visible >= content - tolerance }
+
+    static func atBottom(previous: Bool, old: LiveScrollMetrics, new: LiveScrollMetrics, tolerance: CGFloat) -> Bool {
+        let contentGrew = new.content != old.content && abs(new.offset - old.offset) < 1
+        if contentGrew { return previous || new.isAtBottom(tolerance: tolerance) }
+        return new.isAtBottom(tolerance: tolerance)
+    }
+}
+
 private struct LiveTranscriptPanel: View {
     @ObservedObject var live: LiveTranscriber
     /// Steht die Ansicht am Ende? Nur dann scrollt sie mit; wer hochscrollt, liest in Ruhe.
@@ -1345,11 +1362,11 @@ private struct LiveTranscriptPanel: View {
                 Color.clear.frame(height: 1).id(Self.endID)
             }
             .background(RoundedRectangle(cornerRadius: 18).fill(MeetingTheme.panel))
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.y + geometry.containerSize.height
-                    >= geometry.contentSize.height - Self.bottomTolerance
-            } action: { _, isAtBottom in
-                atBottom = isAtBottom
+            .onScrollGeometryChange(for: LiveScrollMetrics.self) { geometry in
+                LiveScrollMetrics(offset: geometry.contentOffset.y, visible: geometry.containerSize.height,
+                                  content: geometry.contentSize.height)
+            } action: { old, new in
+                atBottom = LiveScrollMetrics.atBottom(previous: atBottom, old: old, new: new, tolerance: Self.bottomTolerance)
             }
             .onAppear {
                 // Zurück aus „Meine Notizen“ oder einer anderen Seite: gleich an die aktuelle
@@ -1359,12 +1376,14 @@ private struct LiveTranscriptPanel: View {
             }
             .onChange(of: contentFingerprint) { _, _ in
                 guard atBottom else { return }
-                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(Self.endID, anchor: .bottom) }
+                // Ohne Animation: Zwischenstände einer Animation sähen aus wie Hochscrollen.
+                proxy.scrollTo(Self.endID, anchor: .bottom)
             }
             .overlay(alignment: .bottom) {
                 if !atBottom && !live.lines.isEmpty {
                     Button {
-                        withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(Self.endID, anchor: .bottom) }
+                        atBottom = true
+                        proxy.scrollTo(Self.endID, anchor: .bottom)
                     } label: {
                         Label("Zur aktuellen Stelle", systemImage: "arrow.down")
                             .font(.system(size: 12, weight: .semibold))
