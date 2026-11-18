@@ -13,8 +13,10 @@ final class MeetingPillController {
     private var panel: NSPanel?
     private let controller: MeetingController
     private var cancellables = Set<AnyCancellable>()
+    private let mover = PillDragMover()
 
     static let size = NSSize(width: 460, height: 56)
+    static let originKey = "meetingPillOrigin"
 
     init(controller: MeetingController) {
         self.controller = controller
@@ -59,17 +61,30 @@ final class MeetingPillController {
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
 
-        let host = NSHostingView(rootView: MeetingPillView(controller: controller))
+        let host = NSHostingView(rootView: MeetingPillView(controller: controller, mover: mover))
         host.frame = NSRect(origin: .zero, size: Self.size)
         host.autoresizingMask = [.width, .height]
         panel.contentView = host
 
-        if let screen = NSScreen.main {
-            let frame = screen.visibleFrame
-            panel.setFrameOrigin(NSPoint(x: frame.midX - Self.size.width / 2, y: frame.minY + 36))
-        }
+        panel.setFrameOrigin(Self.savedOrigin() ?? Self.defaultOrigin())
         panel.orderFrontRegardless()
         self.panel = panel
+        mover.panel = panel
+    }
+
+    /// Unten mittig auf dem Hauptbildschirm.
+    static func defaultOrigin() -> NSPoint {
+        guard let frame = NSScreen.main?.visibleFrame else { return .zero }
+        return NSPoint(x: frame.midX - size.width / 2, y: frame.minY + 36)
+    }
+
+    /// Zuletzt hingezogene Stelle, solange die Pille dort noch ganz auf einem Bildschirm liegt
+    /// (etwa nicht, wenn der zweite Monitor fehlt).
+    static func savedOrigin(defaults: UserDefaults = .standard, screens: [NSRect] = NSScreen.screens.map(\.visibleFrame)) -> NSPoint? {
+        guard let stored = defaults.string(forKey: originKey) else { return nil }
+        let origin = NSPointFromString(stored)
+        let frame = NSRect(origin: origin, size: size)
+        return screens.contains { $0.contains(frame) } ? origin : nil
     }
 
     private func hide() {
@@ -78,10 +93,38 @@ final class MeetingPillController {
     }
 }
 
+/// Zieht die Pille mit der Maus. Gerechnet wird in Bildschirmkoordinaten (NSEvent), nicht in
+/// SwiftUI-Koordinaten: Die bewegen sich mit dem Fenster mit, und die Pille würde zittern.
+@MainActor
+final class PillDragMover {
+    weak var panel: NSPanel?
+    private var startMouse: NSPoint?
+    private var startOrigin: NSPoint?
+
+    func drag() {
+        guard let panel else { return }
+        let mouse = NSEvent.mouseLocation
+        if startMouse == nil {
+            startMouse = mouse
+            startOrigin = panel.frame.origin
+        }
+        guard let startMouse, let startOrigin else { return }
+        panel.setFrameOrigin(NSPoint(x: startOrigin.x + mouse.x - startMouse.x,
+                                     y: startOrigin.y + mouse.y - startMouse.y))
+    }
+
+    func end(defaults: UserDefaults = .standard) {
+        if let panel { defaults.set(NSStringFromPoint(panel.frame.origin), forKey: MeetingPillController.originKey) }
+        startMouse = nil
+        startOrigin = nil
+    }
+}
+
 /// Die Pille im Stil der Flow-Leiste: eine kleine schwarze Kapsel. Während der Aufnahme nur
 /// Pegelbalken, Laufzeit und ein grünes Stopp-Quadrat, wie auf wisprflow.ai zu sehen.
 struct MeetingPillView: View {
     @ObservedObject var controller: MeetingController
+    var mover: PillDragMover?
 
     var body: some View {
         HStack(spacing: 10) { content }
@@ -94,6 +137,13 @@ struct MeetingPillView: View {
                     .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
             )
             .foregroundStyle(MeetingTheme.sand50)
+            // Überall anfassbar; der Stopp-Knopf fängt Ziehen selbst ab (siehe StopSquare).
+            .contentShape(Capsule())
+            .gesture(
+                DragGesture(minimumDistance: 3)
+                    .onChanged { _ in mover?.drag() }
+                    .onEnded { _ in mover?.end() }
+            )
             .fixedSize()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: controller.phase)
@@ -233,17 +283,28 @@ private struct StopSquare: View {
     let action: () -> Void
     @State private var hovering = false
 
+    /// Eigene Geste statt Button: Sie fängt auch Ziehen ab, damit die Pille sich vom
+    /// Stopp-Knopf aus nicht verschieben lässt. Gestoppt wird nur, wenn die Maus auf dem
+    /// Knopf losgelassen wird; wer wegzieht, bricht ab.
     var body: some View {
-        Button(action: action) {
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(MeetingTheme.success)
-                .frame(width: 10, height: 10)
-                .frame(width: 26, height: 26)
-                .background(Circle().fill(Color.white.opacity(hovering ? 0.16 : 0.08)))
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .help("Aufnahme beenden")
+        RoundedRectangle(cornerRadius: 2.5)
+            .fill(MeetingTheme.success)
+            .frame(width: 10, height: 10)
+            .frame(width: 26, height: 26)
+            .background(Circle().fill(Color.white.opacity(hovering ? 0.16 : 0.08)))
+            .contentShape(Circle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onEnded { value in
+                        if CGRect(x: 0, y: 0, width: 26, height: 26).contains(value.location) { action() }
+                    }
+            )
+            .onHover { hovering = $0 }
+            .help("Aufnahme beenden")
+            .accessibilityElement()
+            .accessibilityLabel("Aufnahme beenden")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { action() }
     }
 }
 

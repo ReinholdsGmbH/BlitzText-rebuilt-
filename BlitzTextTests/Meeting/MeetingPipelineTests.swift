@@ -142,6 +142,45 @@ struct MeetingControllerTests {
         #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("gegenseite.wav").path))
     }
 
+    @Test("Import während der Aufnahme wartet und läuft danach von selbst")
+    func importWaitsForRecording() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-test-archive-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (controller, _) = try makeController(
+            root: root,
+            transcriber: SequenceTranscriber(["Ich fange an", "Die anderen antworten", "Importierter Text", "Mehr"]),
+            summary: .success("### Zusammenfassung\n- Test")
+        )
+        let file = try TestAudio.wav(duration: 4, bursts: [1...3], at: TestAudio.tempURL())
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        controller.start()
+        controller.importFiles([file])
+        #expect(controller.importQueue.count == 1)
+        #expect(controller.isRecording)
+
+        controller.stop()
+        for _ in 0..<400 where !isFinished(controller) { try await Task.sleep(for: .milliseconds(25)) }
+        // Wenige Wörter: Rückfrage „Versehentlich gestartet?“. Der Import wartet darauf.
+        #expect(controller.accidentalFolder != nil)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(controller.importQueue.count == 1)
+
+        controller.resolveAccidental(keep: true)
+        for _ in 0..<400 where !controller.importQueue.isEmpty || controller.isProcessing {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(controller.importQueue.isEmpty)
+        let folders = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        #expect(folders.count == 2)
+    }
+
+    private func isFinished(_ controller: MeetingController) -> Bool {
+        if case .finished = controller.phase { return true }
+        if case .failed = controller.phase { return true }
+        return false
+    }
+
     @Test("Fällt Ollama aus, bleibt das Transkript erhalten und es gibt einen Hinweis")
     func summaryFailureKeepsTranscript() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-test-archive-\(UUID())")
@@ -304,5 +343,22 @@ struct EigennamenAIParseTests {
         #expect(EigennamenAISuggester.parse(#"{"eigennamen": ["Kursbar", "X"]}"#) == ["Kursbar"])
         #expect(EigennamenAISuggester.parse("```json\n{\"eigennamen\": [\"Auftragslauf\"]}\n```") == ["Auftragslauf"])
         #expect(EigennamenAISuggester.parse("keine") == [])
+    }
+}
+
+@MainActor
+struct PillPositionTests {
+    @Test("Gemerkte Pillen-Position gilt nur, solange sie ganz auf einem Bildschirm liegt")
+    func savedOrigin() throws {
+        let defaults = try #require(UserDefaults(suiteName: "blitztext-pill-\(UUID())"))
+        let screen = NSRect(x: 0, y: 0, width: 1800, height: 1169)
+        #expect(MeetingPillController.savedOrigin(defaults: defaults, screens: [screen]) == nil)
+
+        defaults.set(NSStringFromPoint(NSPoint(x: 100, y: 200)), forKey: MeetingPillController.originKey)
+        #expect(MeetingPillController.savedOrigin(defaults: defaults, screens: [screen]) == NSPoint(x: 100, y: 200))
+
+        // Zweiter Monitor fehlt: Position liegt außerhalb, Standardplatz greift.
+        defaults.set(NSStringFromPoint(NSPoint(x: -1500, y: 1500)), forKey: MeetingPillController.originKey)
+        #expect(MeetingPillController.savedOrigin(defaults: defaults, screens: [screen]) == nil)
     }
 }

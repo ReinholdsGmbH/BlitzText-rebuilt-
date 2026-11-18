@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: Meeting-Liste
 
@@ -7,6 +8,7 @@ struct MeetingListColumn: View {
     @ObservedObject var library: MeetingLibrary
     @ObservedObject var controller: MeetingController
     @Binding var search: String
+    @State private var dropState: AudioDropDelegate.State = .none
 
     private var filtered: [MeetingLibrary.Entry] {
         let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -32,8 +34,9 @@ struct MeetingListColumn: View {
                 Spacer(minLength: 4)
                 Button { controller.chooseAndImport() } label: { Image(systemName: "square.and.arrow.down") }
                     .buttonStyle(SandButtonStyle())
-                    .help("Aufnahme importieren, z. B. aus MacWhisper")
-                    .disabled(controller.isRecording || controller.isProcessing)
+                    .help(controller.canImportNow
+                          ? "Aufnahme importieren, z. B. aus MacWhisper. Dateien lassen sich auch auf die Liste ziehen."
+                          : "Aufnahme importieren; startet, sobald die laufende Aufnahme fertig ist.")
                 Button { controller.revealArchive() } label: { Image(systemName: "folder") }
                     .buttonStyle(SandButtonStyle())
                     .help("Meeting-Ordner im Finder zeigen")
@@ -64,6 +67,15 @@ struct MeetingListColumn: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 8)
+
+            if !controller.importQueue.isEmpty {
+                Label(controller.importQueue.count == 1
+                      ? "1 Import wartet auf das Ende der Aufnahme"
+                      : "\(controller.importQueue.count) Imports warten auf das Ende der Aufnahme",
+                      systemImage: "clock")
+                    .font(.system(size: 11.5)).foregroundStyle(MeetingTheme.foregroundTertiary)
+                    .padding(.horizontal, 22).padding(.bottom, 6)
+            }
 
             if library.entries.isEmpty {
                 VStack(spacing: 10) {
@@ -98,6 +110,33 @@ struct MeetingListColumn: View {
                 }
             }
         }
+        // Audiodateien aus dem Finder oder MacWhisper auf die Liste ziehen: wie „Importieren“.
+        // Schon beim Hereinziehen zeigt die Liste, ob die Dateien angenommen werden.
+        .onDrop(of: [.fileURL], delegate: AudioDropDelegate(state: $dropState,
+                                                          queued: !controller.canImportNow) { urls in
+            controller.importFiles(urls)
+        })
+        .overlay {
+            if dropState != .none {
+                let valid = dropState == .valid || dropState == .queued
+                let tint = valid ? MeetingTheme.dawn500 : MeetingTheme.coral
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(tint, style: StrokeStyle(lineWidth: 2, dash: valid ? [] : [6, 4]))
+                    .background(RoundedRectangle(cornerRadius: 14).fill(tint.opacity(valid ? 0.12 : 0.06)))
+                    .overlay {
+                        Label(dropState.message, systemImage: valid ? "square.and.arrow.down" : "nosign")
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(.horizontal, 14).frame(height: 32)
+                            .background(Capsule().fill(MeetingTheme.vast950))
+                            .foregroundStyle(MeetingTheme.sand50)
+                            .scaleEffect(valid ? 1.04 : 1)
+                    }
+                    .padding(8)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: dropState)
     }
 
     /// Wie im Finder: ⌘-Klick markiert einzelne Meetings dazu, ⇧-Klick einen Bereich.
@@ -125,6 +164,63 @@ struct MeetingListColumn: View {
         formatter.dateFormat = "EEE, d. MMM"
         let prefix = calendar.isDateInToday(day) ? "HEUTE, " : (calendar.isDateInYesterday(day) ? "GESTERN, " : "")
         return (prefix + formatter.string(from: day)).uppercased()
+    }
+}
+
+/// Nimmt Audio- und Videodateien zum Import an und zeigt schon beim Hereinziehen, ob sie
+/// passen. Der Finder liefert neben der Datei-URL auch den Dateityp mit; daran wird geprüft.
+struct AudioDropDelegate: DropDelegate {
+    enum State: Equatable {
+        case none, valid, invalid, queued
+
+        var message: String {
+            switch self {
+            case .valid: return "Zum Importieren loslassen"
+            case .invalid: return "Nur Audio- oder Videodateien"
+            case .queued: return "Wird nach der Aufnahme importiert"
+            case .none: return ""
+            }
+        }
+    }
+
+    @Binding var state: State
+    /// BlitzText ist beschäftigt: Dateien kommen in die Warteschlange.
+    let queued: Bool
+    let onImport: ([URL]) -> Void
+
+    static let acceptedTypes: [UTType] = [.audio, .movie]
+
+    private func evaluate(_ info: DropInfo) -> State {
+        guard info.hasItemsConforming(to: Self.acceptedTypes) else { return .invalid }
+        return queued ? .queued : .valid
+    }
+
+    /// Immer annehmen, damit auch ungültige Dateien den Hinweis bekommen; abgelehnt wird
+    /// beim Loslassen (`performDrop`) und per Verbotszeiger (`dropUpdated`).
+    func validateDrop(info: DropInfo) -> Bool { true }
+    func dropEntered(info: DropInfo) { state = evaluate(info) }
+    func dropExited(info: DropInfo) { state = .none }
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: evaluate(info) == .invalid ? .forbidden : .copy)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        state = .none
+        guard evaluate(info) != .invalid else { return false }
+        let providers = info.itemProviders(for: [.fileURL])
+        Task { @MainActor in
+            var urls: [URL] = []
+            for provider in providers {
+                let loaded: URL? = await withCheckedContinuation { continuation in
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
+                }
+                guard let url = loaded, let type = UTType(filenameExtension: url.pathExtension),
+                      Self.acceptedTypes.contains(where: type.conforms(to:)) else { continue }
+                urls.append(url)
+            }
+            if !urls.isEmpty { onImport(urls) }
+        }
+        return true
     }
 }
 
