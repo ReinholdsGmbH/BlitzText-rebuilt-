@@ -43,10 +43,12 @@ final class RecordingHUDController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.ignoresMouseEvents = true
         panel.isFloatingPanel = true
+        // Erst nach isFloatingPanel: das setzt die Ebene sonst auf .floating zurück, und die
+        // Meeting-App (gleiche Ebene, aber aktiv) lag dann über der Pille.
+        panel.level = .statusBar
         panel.hidesOnDeactivate = false
 
         let hostView = NSHostingView(rootView: RecordingHUDView(recorder: recorder, processor: processor, settings: settings))
