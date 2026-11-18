@@ -290,7 +290,11 @@ private struct LiveCard: View {
                         Text(MeetingMarkdown.clock(context.date.timeIntervalSince(startedAt), alwaysHours: false))
                             .font(.system(size: 12, weight: .medium).monospacedDigit())
                             .foregroundStyle(MeetingTheme.success)
-                        Spacer()
+                            // Laufzeit nie umbrechen; bei schmaler Navigation weicht der Abstand.
+                            .lineLimit(1)
+                            .fixedSize()
+                            .layoutPriority(1)
+                        Spacer(minLength: 4)
                         Button("Stopp") { controller.stop() }.buttonStyle(SandButtonStyle())
                     }
                 }
