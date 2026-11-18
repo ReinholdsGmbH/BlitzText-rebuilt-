@@ -133,6 +133,12 @@ final class MeetingLibrary: ObservableObject {
         refreshKnownNames()
     }
 
+    /// Beitrag vor einem Wort in zwei teilen; danach lässt sich jeder Teil einzeln umhängen.
+    func split(lineAt index: Int, beforeWord wordIndex: Int, in folder: URL) {
+        guard let entryIndex = self.index(of: folder) else { return }
+        save(entries[entryIndex].document.splitting(lineAt: index, beforeWord: wordIndex), at: entryIndex)
+    }
+
     enum ReassignTarget: Equatable {
         case speaker(String)
         case name(String)

@@ -123,4 +123,26 @@ extension MeetingDocument {
         document.nameSources[id] = .manual
         return document.reassigning(lineAt: index, toSpeaker: id)
     }
+
+    /// Teilt einen Beitrag vor dem Wort `wordIndex` in zwei, etwa wenn sich mehrere Stimmen
+    /// überlagert haben und die Erkennung sie zusammengezogen hat. Beide Teile behalten
+    /// zunächst die Person; danach lässt sich jeder einzeln umhängen. Die Zeiten werden
+    /// anteilig nach Textlänge geschätzt, Wortzeiten liegen nicht vor.
+    func splitting(lineAt index: Int, beforeWord wordIndex: Int) -> MeetingDocument {
+        guard lines.indices.contains(index) else { return self }
+        let line = lines[index]
+        let words = line.text.split(separator: " ", omittingEmptySubsequences: true)
+        guard wordIndex > 0, wordIndex < words.count else { return self }
+        let first = words[..<wordIndex].joined(separator: " ")
+        let second = words[wordIndex...].joined(separator: " ")
+        let share = Double(first.count) / Double(first.count + second.count)
+        let middle = line.start + (line.end - line.start) * share
+        var document = self
+        document.lines.replaceSubrange(index...index, with: [
+            TranscriptLine(speaker: line.speaker, start: line.start, end: middle, text: first, speakerID: line.speakerID),
+            TranscriptLine(speaker: line.speaker, start: middle, end: line.end, text: second, speakerID: line.speakerID)
+        ])
+        return document
+    }
+
 }

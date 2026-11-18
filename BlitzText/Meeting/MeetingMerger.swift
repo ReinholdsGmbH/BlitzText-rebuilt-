@@ -18,12 +18,10 @@ enum MeetingMerger {
 
     enum MergeError: LocalizedError {
         case tooFewParts
-        case mixedKinds
 
         var errorDescription: String? {
             switch self {
             case .tooFewParts: return "Zum Zusammenführen mindestens zwei Meetings markieren."
-            case .mixedKinds: return "Aufnahmen und importierte Mischspuren lassen sich nicht zusammenführen."
             }
         }
     }
@@ -41,7 +39,6 @@ enum MeetingMerger {
     /// `lengths[i]` ist die Länge der Tonspuren von Teil i (Versatz für die folgenden Teile).
     static func mergedDocument(_ parts: [MeetingDocument], lengths: [TimeInterval]) throws -> MeetingDocument {
         guard parts.count >= 2, parts.count == lengths.count else { throw MergeError.tooFewParts }
-        guard Set(parts.map(\.diarizedTrack)).count == 1 else { throw MergeError.mixedKinds }
 
         var lines: [TranscriptLine] = []
         var names: [String: String] = [:]
@@ -81,7 +78,7 @@ enum MeetingMerger {
             notes: [partsNote(parts, lengths: lengths)] + parts.flatMap(\.notes),
             speakerNames: names,
             nameSources: sources,
-            diarizedTrack: first.diarizedTrack
+            diarizedTrack: targetTrack(for: parts)
         )
         document.userNotes = mergedUserNotes(parts)
         if let chosen = parts.first(where: { $0.projectChosenByUser == true }) {
@@ -89,6 +86,19 @@ enum MeetingMerger {
             document.projectChosenByUser = true
         }
         return document
+    }
+
+    /// Gleiche Art: bleibt, wie sie ist. Gemischt (Aufnahme mit Spurpaar und Import mit
+    /// Mischspur): Das Ergebnis wird eine Mischspur, Spurpaare werden dafür zusammengemischt.
+    static func targetTrack(for parts: [MeetingDocument]) -> String {
+        let kinds = Set(parts.map(\.diarizedTrack))
+        return kinds.count == 1 ? parts[0].diarizedTrack : MeetingArchive.mixedTrackFile
+    }
+
+    /// Welche Dateien eines Teils in eine Zielspur fließen.
+    static func sources(for target: String, in part: MeetingDocument) -> [String] {
+        guard target == MeetingArchive.mixedTrackFile, part.diarizedTrack != MeetingArchive.mixedTrackFile else { return [target] }
+        return [MeetingArchive.microphoneTrackFile, MeetingArchive.othersTrackFile]
     }
 
     /// Bestätigt schlägt Profil schlägt von Hand schlägt Meeting-App.
@@ -121,20 +131,24 @@ enum MeetingMerger {
     static func merge(_ parts: [Part], into archive: MeetingArchive) throws -> URL {
         let sorted = parts.sorted { $0.document.startedAt < $1.document.startedAt }
         guard sorted.count >= 2 else { throw MergeError.tooFewParts }
-        guard Set(sorted.map(\.document.diarizedTrack)).count == 1 else { throw MergeError.mixedKinds }
-        let files = trackFiles(for: sorted[0].document.diarizedTrack)
+        let documents = sorted.map(\.document)
+        let targets = trackFiles(for: targetTrack(for: documents))
 
-        // Länge je Teil: die längste Tonspur, mindestens die gespeicherte Dauer.
+        // Länge je Teil: die längste seiner Tonspuren, mindestens die gespeicherte Dauer.
         let lengths = sorted.map { part in
-            files.map { duration(of: part.folder.appendingPathComponent($0)) }.reduce(part.document.duration, max)
+            trackFiles(for: part.document.diarizedTrack)
+                .map { duration(of: part.folder.appendingPathComponent($0)) }
+                .reduce(part.document.duration, max)
         }
-        let document = try mergedDocument(sorted.map(\.document), lengths: lengths)
+        let document = try mergedDocument(documents, lengths: lengths)
 
         let folder = try archive.makeFolder(startedAt: document.startedAt, sourceName: "Zusammengeführt")
         do {
-            for file in files {
-                try concatenate(sorted.map { $0.folder.appendingPathComponent(file) }, lengths: lengths,
-                                into: folder.appendingPathComponent(file))
+            for target in targets {
+                let inputs = sorted.map { part in
+                    sources(for: target, in: part.document).map { part.folder.appendingPathComponent($0) }
+                }
+                try concatenate(inputs, lengths: lengths, into: folder.appendingPathComponent(target))
             }
             _ = try archive.writeProtocol(document, in: folder)
         } catch {
@@ -149,10 +163,11 @@ enum MeetingMerger {
         return Double(file.length) / file.fileFormat.sampleRate
     }
 
-    /// Hängt Spuren aneinander; jede wird mit Stille auf ihre Teil-Länge aufgefüllt, fehlende
-    /// Spuren werden ganz zu Stille. Format wie die erste vorhandene Spur (16 kHz mono).
-    static func concatenate(_ inputs: [URL], lengths: [TimeInterval], into output: URL) throws {
-        let template = inputs.lazy.compactMap { try? AVAudioFile(forReading: $0) }.first
+    /// Hängt Teile aneinander. Ein Teil kann aus mehreren Spuren bestehen, die dann
+    /// zusammengemischt werden (Mikrofon plus Gegenseite zur Mischspur). Jeder Teil wird mit
+    /// Stille auf seine Länge aufgefüllt; fehlende Spuren zählen als Stille.
+    static func concatenate(_ parts: [[URL]], lengths: [TimeInterval], into output: URL) throws {
+        let template = parts.joined().lazy.compactMap { try? AVAudioFile(forReading: $0) }.first
         let settings: [String: Any] = template?.fileFormat.settings ?? [
             AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
             AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false
@@ -163,25 +178,28 @@ enum MeetingMerger {
         let writer = try AVAudioFile(forWriting: output, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false)
         let chunk = AVAudioFramePosition(1 << 18)
 
-        for (input, length) in zip(inputs, lengths) {
-            var remaining = AVAudioFramePosition(length * sampleRate)
-            if let reader = try? AVAudioFile(forReading: input, commonFormat: .pcmFormatFloat32, interleaved: false),
-               reader.processingFormat.sampleRate == sampleRate, reader.processingFormat.channelCount == 1 {
-                while remaining > 0, reader.framePosition < reader.length {
-                    let wanted = AVAudioFrameCount(min(chunk, remaining))
-                    guard let buffer = AVAudioPCMBuffer(pcmFormat: reader.processingFormat, frameCapacity: wanted) else { break }
-                    try reader.read(into: buffer, frameCount: wanted)
-                    guard buffer.frameLength > 0 else { break }
-                    try writer.write(from: buffer)
-                    remaining -= AVAudioFramePosition(buffer.frameLength)
-                }
+        for (inputs, length) in zip(parts, lengths) {
+            let readers = inputs.compactMap { url -> AVAudioFile? in
+                guard let reader = try? AVAudioFile(forReading: url, commonFormat: .pcmFormatFloat32, interleaved: false),
+                      reader.processingFormat.sampleRate == sampleRate, reader.processingFormat.channelCount == 1 else { return nil }
+                return reader
             }
-            // Auffüllen bis zur Teil-Länge, damit die Zeiten der folgenden Teile stimmen.
+            var remaining = AVAudioFramePosition(length * sampleRate)
             while remaining > 0 {
                 let count = AVAudioFrameCount(min(chunk, remaining))
-                guard let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: count) else { break }
-                silence.frameLength = count
-                try writer.write(from: silence)
+                guard let mix = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: count),
+                      let out = mix.floatChannelData?[0] else { break }
+                mix.frameLength = count
+                out.update(repeating: 0, count: Int(count))
+                for reader in readers where reader.framePosition < reader.length {
+                    guard let buffer = AVAudioPCMBuffer(pcmFormat: reader.processingFormat, frameCapacity: count) else { continue }
+                    try reader.read(into: buffer, frameCount: count)
+                    guard let samples = buffer.floatChannelData?[0] else { continue }
+                    for i in 0..<Int(buffer.frameLength) { out[i] += samples[i] }
+                }
+                // Beim Zusammenmischen nicht übersteuern.
+                if readers.count > 1 { for i in 0..<Int(count) { out[i] = max(-1, min(1, out[i])) } }
+                try writer.write(from: mix)
                 remaining -= AVAudioFramePosition(count)
             }
         }

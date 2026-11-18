@@ -286,3 +286,32 @@ struct ChatThreadTests {
         #expect(MeetingChat(makeSummarizer: make, storeURL: store).threads.count == 1)
     }
 }
+
+struct LineSplitTests {
+    private func doc() -> MeetingDocument {
+        MeetingDocument(startedAt: Date(), duration: 30, sourceNames: ["Teams"],
+                        lines: [TranscriptLine(speaker: .others, start: 10, end: 20, text: "Ja genau. Nein das sehe ich anders", speakerID: "1")],
+                        summary: nil, notes: [], speakerNames: ["1": "Anna"])
+    }
+
+    @Test("Aufteilen vor einem Wort ergibt zwei Beiträge mit anteiligen Zeiten")
+    func splitsLine() {
+        let split = doc().splitting(lineAt: 0, beforeWord: 2)
+        #expect(split.lines.map(\.text) == ["Ja genau.", "Nein das sehe ich anders"])
+        #expect(split.lines.allSatisfy { $0.speakerID == "1" })
+        #expect(split.lines[0].start == 10 && split.lines[1].end == 20)
+        #expect(split.lines[0].end == split.lines[1].start)
+        #expect(split.lines[0].end > 10 && split.lines[0].end < 15)
+    }
+
+    @Test("Danach lässt sich ein Teil einer anderen Person zuordnen")
+    func reassignsPart() {
+        let split = doc().splitting(lineAt: 0, beforeWord: 2).reassigning(lineAt: 1, toName: "Bernd")
+        #expect(split.lines.map { split.label(for: $0) } == ["Anna", "Bernd"])
+    }
+
+    @Test("Ungültige Trennstellen ändern nichts", arguments: [0, 7, 99])
+    func ignoresInvalid(word: Int) {
+        #expect(doc().splitting(lineAt: 0, beforeWord: word).lines.count == 1)
+    }
+}
