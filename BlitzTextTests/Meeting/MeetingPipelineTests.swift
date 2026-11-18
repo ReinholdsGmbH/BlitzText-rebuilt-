@@ -225,3 +225,50 @@ struct SummaryProviderTests {
         #expect(local.chat is OllamaNativeChat)
     }
 }
+
+struct MeetingEndWatchTests {
+
+    @Test("Vorschlag erst nach der Schonfrist, nicht bei kurzer Lücke")
+    func graceAndShortGap() {
+        var watch = MeetingEndWatch()
+        let t0 = Date()
+        let r1 = watch.update(appActive: true, at: t0)
+        #expect(!r1)
+        let r2 = watch.update(appActive: false, at: t0.addingTimeInterval(5))
+        #expect(!r2)
+        let r3 = watch.update(appActive: true, at: t0.addingTimeInterval(10))
+        #expect(!r3)
+        let r4 = watch.update(appActive: false, at: t0.addingTimeInterval(15))
+        #expect(!r4)
+        let r5 = watch.update(appActive: false, at: t0.addingTimeInterval(25))
+        #expect(!r5)
+        let r6 = watch.update(appActive: false, at: t0.addingTimeInterval(30))
+        #expect(r6)
+    }
+
+    @Test("„Weiter“ unterdrückt den Vorschlag, bis die App wieder aktiv war")
+    func dismissUntilActiveAgain() {
+        var watch = MeetingEndWatch()
+        let t0 = Date()
+        _ = watch.update(appActive: false, at: t0)
+        let r7 = watch.update(appActive: false, at: t0.addingTimeInterval(20))
+        #expect(r7)
+        watch.dismiss()
+        let r8 = watch.update(appActive: false, at: t0.addingTimeInterval(60))
+        #expect(!r8)
+        _ = watch.update(appActive: true, at: t0.addingTimeInterval(70))
+        _ = watch.update(appActive: false, at: t0.addingTimeInterval(80))
+        let r9 = watch.update(appActive: false, at: t0.addingTimeInterval(96))
+        #expect(r9)
+    }
+}
+
+struct SpeakerSampleTests {
+    @Test("Diagnose sammelt nur kachelähnliche Beschriftungen")
+    func candidates() {
+        #expect(ActiveSpeakerPoller.isCandidate("Anna Müller, Mikrofon stummgeschaltet"))
+        #expect(ActiveSpeakerPoller.isCandidate("Video von Bernd"))
+        #expect(!ActiveSpeakerPoller.isCandidate("Chat"))
+        #expect(!ActiveSpeakerPoller.isCandidate(String(repeating: "Video ", count: 40)))
+    }
+}

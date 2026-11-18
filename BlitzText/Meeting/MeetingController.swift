@@ -40,6 +40,9 @@ final class MeetingController: ObservableObject {
     /// Mitschnitt mit kaum Sprache, wohl versehentlich gestartet. Die Pille fragt dann wie
     /// Wispr Flow: „Versehentlich gestartet? Verwerfen / Behalten“.
     @Published private(set) var accidentalFolder: URL?
+    /// Die Meeting-App nutzt das Mikrofon nicht mehr: Pille fragt, ob die Aufnahme enden soll.
+    @Published private(set) var meetingEndSuggested = false
+    private var endWatch = MeetingEndWatch()
 
     /// Unter dieser Wortzahl gilt ein Mitschnitt als versehentlich.
     static let accidentalWordLimit = 12
@@ -121,13 +124,33 @@ final class MeetingController: ObservableObject {
     }
 
     func refreshDetection() {
-        guard !isRecording else { return }
+        guard !isRecording else {
+            checkMeetingEnd()
+            return
+        }
         let sources = recorder.activeMeetingSources()
         if sources.isEmpty { noticeDismissed = false }
         if sources.map(\.bundleIdentifier) != activeSources.map(\.bundleIdentifier) {
             Log.write("MeetingController: aktive Quellen \(sources.map(\.displayName))")
         }
         activeSources = sources
+    }
+
+    /// Nur für Aufnahmen, die einer erkannten Meeting-App gelten.
+    private func checkMeetingEnd() {
+        guard !recorder.activeSources.isEmpty else { return }
+        let stillActive = !recorder.activeMeetingSources().isEmpty
+        let suggest = endWatch.update(appActive: stillActive, at: Date())
+        if suggest != meetingEndSuggested {
+            meetingEndSuggested = suggest
+            if suggest { Log.write("MeetingController: Meeting-App ohne Mikrofon seit \(Int(MeetingEndWatch.grace)) s — schlage Stopp vor") }
+        }
+    }
+
+    /// „Weiter aufnehmen“: nicht erneut fragen, bis die App wieder aktiv war.
+    func keepRecording() {
+        endWatch.dismiss()
+        meetingEndSuggested = false
     }
 
     func dismissNotice() {
@@ -144,6 +167,8 @@ final class MeetingController: ObservableObject {
         guard !isRecording, !isProcessing else { return }
         do {
             liveNotes = ""
+            endWatch = MeetingEndWatch()
+            meetingEndSuggested = false
             try recorder.start(restrictToDetectedApps: true)
             if case .recording(let startedAt) = recorder.state {
                 phase = .recording(startedAt: startedAt)
@@ -163,6 +188,7 @@ final class MeetingController: ObservableObject {
 
     func stop() {
         guard isRecording else { return }
+        meetingEndSuggested = false
         let hints = speakerPoller.stop()
         live.stop()
         recorder.detachLiveBuffers()
@@ -399,4 +425,27 @@ final class MeetingController: ObservableObject {
         onMeetingSaved?(folder)
         Log.write("MeetingController: Protokoll fertig — \(folder.lastPathComponent), \(document.speakerIDs.count) Sprecher")
     }
+}
+
+/// Erkennt das Ende eines Meetings: Die Meeting-App hat das Mikrofon `grace` Sekunden lang
+/// nicht mehr offen. Kurze Lücken (Gerätewechsel, Neuverbindung) lösen nichts aus.
+struct MeetingEndWatch {
+    static let grace: TimeInterval = 15
+
+    private var inactiveSince: Date?
+    private var dismissed = false
+
+    /// `true`, solange der Vorschlag zum Beenden gezeigt werden soll.
+    mutating func update(appActive: Bool, at now: Date) -> Bool {
+        if appActive {
+            inactiveSince = nil
+            dismissed = false
+            return false
+        }
+        let since = inactiveSince ?? now
+        inactiveSince = since
+        return !dismissed && now.timeIntervalSince(since) >= Self.grace
+    }
+
+    mutating func dismiss() { dismissed = true }
 }

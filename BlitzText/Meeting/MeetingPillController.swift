@@ -100,6 +100,18 @@ struct MeetingPillView: View {
     @ViewBuilder
     private var content: some View {
         switch controller.phase {
+        case .recording where controller.meetingEndSuggested:
+            Image(systemName: "phone.down.fill").font(.system(size: 11, weight: .bold)).foregroundStyle(MeetingTheme.glow300)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Meeting beendet?").font(.system(size: 12, weight: .semibold))
+                Text("Die Meeting-App nutzt das Mikrofon nicht mehr.").font(.system(size: 10))
+                    .foregroundStyle(MeetingTheme.sand50.opacity(0.6))
+            }
+            Button("Weiter") { controller.keepRecording() }
+                .buttonStyle(PillChoiceStyle(prominent: false))
+            Button("Stoppen") { controller.stop() }
+                .buttonStyle(PillChoiceStyle(prominent: true))
+
         case .recording(let startedAt):
             LevelBars(level: { controller.microphoneLevel })
             TimelineView(.periodic(from: startedAt, by: 1)) { context in
