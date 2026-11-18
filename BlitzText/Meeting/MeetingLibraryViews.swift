@@ -86,8 +86,9 @@ struct MeetingListColumn: View {
                                 .padding(.bottom, 4)
                             ForEach(group.entries) { entry in
                                 MeetingRow(entry: entry, library: library, search: search,
-                                           selected: MeetingLibrary.key(entry.folder) == library.selection.map(MeetingLibrary.key)) {
-                                    library.selection = entry.folder
+                                           selected: MeetingLibrary.key(entry.folder) == library.selection.map(MeetingLibrary.key)
+                                               || library.isMarked(entry.folder)) {
+                                    click(entry, in: groups.flatMap(\.entries))
                                 }
                             }
                         }
@@ -97,6 +98,24 @@ struct MeetingListColumn: View {
                 }
             }
         }
+    }
+
+    /// Wie im Finder: ⌘-Klick markiert einzelne Meetings dazu, ⇧-Klick einen Bereich.
+    /// Markierte Meetings lassen sich per Rechtsklick zusammenführen.
+    private func click(_ entry: MeetingLibrary.Entry, in ordered: [MeetingLibrary.Entry]) {
+        let flags = NSEvent.modifierFlags
+        let key = MeetingLibrary.key(entry.folder)
+        if flags.contains(.command) {
+            if library.marked.isEmpty, let current = library.selection { library.marked.insert(MeetingLibrary.key(current)) }
+            if library.marked.contains(key) { library.marked.remove(key) } else { library.marked.insert(key) }
+        } else if flags.contains(.shift), let current = library.selection,
+                  let from = ordered.firstIndex(where: { MeetingLibrary.key($0.folder) == MeetingLibrary.key(current) }),
+                  let to = ordered.firstIndex(where: { MeetingLibrary.key($0.folder) == key }) {
+            library.marked = Set(ordered[min(from, to)...max(from, to)].map { MeetingLibrary.key($0.folder) })
+        } else {
+            library.marked = []
+        }
+        library.selection = entry.folder
     }
 
     private func dayLabel(_ day: Date) -> String {
@@ -119,6 +138,14 @@ private struct MeetingRow: View {
     @State private var confirmDelete = false
     @State private var renaming = false
     @State private var draftTitle = ""
+    @State private var confirmMerge = false
+
+    /// Markierte Meetings in zeitlicher Reihenfolge.
+    private var markedFolders: [URL] {
+        library.entries.filter { library.isMarked($0.folder) }
+            .sorted { $0.document.startedAt < $1.document.startedAt }
+            .map(\.folder)
+    }
 
     var body: some View {
         Button(action: action) {
@@ -183,6 +210,12 @@ private struct MeetingRow: View {
         } message: {
             Text("Leer lassen setzt auf den automatischen Titel zurück. Datum und Uhrzeit stehen in der Ablage immer davor.")
         }
+        .confirmationDialog("\(markedFolders.count) Meetings zu einem zusammenführen?", isPresented: $confirmMerge) {
+            Button("Zusammenführen") { Task { await library.merge(markedFolders) } }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Transkripte, Tonspuren und eigene Notizen werden in zeitlicher Reihenfolge zu einem Meeting. Zusammenfassung und Titel entstehen neu. Die Einzelteile landen im Papierkorb, ihre Dateien im Wissensordner werden ersetzt.")
+        }
         .confirmationDialog("„\(MeetingMarkdown.title(for: entry.document))“ löschen?", isPresented: $confirmDelete) {
             Button("In den Papierkorb", role: .destructive) { library.delete(entry) }
             Button("Abbrechen", role: .cancel) {}
@@ -203,6 +236,16 @@ extension MeetingRow {
             Label("Titel neu erzeugen", systemImage: "sparkles")
         }
         .disabled(entry.document.lines.isEmpty || library.busy != nil)
+        Divider()
+        if library.marked.count >= 2 && library.isMarked(entry.folder) {
+            Button { confirmMerge = true } label: {
+                Label("\(library.marked.count) Meetings zusammenführen …", systemImage: "arrow.triangle.merge")
+            }
+            .disabled(library.busy != nil)
+        } else {
+            Button {} label: { Label("Zusammenführen: Teile mit ⌘-Klick markieren", systemImage: "arrow.triangle.merge") }
+                .disabled(true)
+        }
         Divider()
         Button { library.reveal(entry) } label: { Label("Im Finder zeigen", systemImage: "folder") }
         Button { library.copyTranscript(of: entry) } label: { Label("Transkript kopieren", systemImage: "doc.on.doc") }

@@ -209,6 +209,40 @@ final class MeetingLibrary: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([entry.folder.appendingPathComponent(MeetingArchive.protocolFile)])
     }
 
+    // MARK: - Zusammenführen
+
+    /// Für die Mehrfachauswahl in der Liste (⌘-Klick, ⇧-Klick).
+    @Published var marked: Set<String> = []
+
+    func isMarked(_ folder: URL) -> Bool { marked.contains(Self.key(folder)) }
+
+    /// Mehrere Teile eines Termins zu einem Meeting. Die Teile wandern danach in den Papierkorb
+    /// (samt ihren Dateien im Wissensordner), das neue Meeting bekommt Notizen und Titel neu.
+    func merge(_ folders: [URL]) async {
+        let parts = folders.compactMap { folder in
+            entries.first { Self.key($0.folder) == Self.key(folder) }
+        }
+        guard parts.count >= 2 else { lastError = MeetingMerger.MergeError.tooFewParts.errorDescription; return }
+        busy = "Führe \(parts.count) Meetings zusammen …"
+        let archive = self.archive
+        let input = parts.map { MeetingMerger.Part(folder: $0.folder, document: $0.document) }
+        do {
+            let folder = try await Task.detached(priority: .userInitiated) {
+                try MeetingMerger.merge(input, into: archive)
+            }.value
+            Log.write("MeetingLibrary: \(parts.count) Meetings zusammengeführt → \(folder.lastPathComponent)")
+            for part in parts { delete(part) }
+            marked = []
+            reload()
+            selection = folder
+            busy = nil
+            await regenerateSummary(in: folder)
+        } catch {
+            busy = nil
+            lastError = "Zusammenführen fehlgeschlagen: \(error.localizedDescription)"
+        }
+    }
+
     /// Verschiebt das Meeting in den Papierkorb, nicht endgültig gelöscht.
     func delete(_ entry: Entry) {
         makeExporter()?.remove(entry.document)
