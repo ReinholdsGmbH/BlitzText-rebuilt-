@@ -362,3 +362,20 @@ struct PillPositionTests {
         #expect(MeetingPillController.savedOrigin(defaults: defaults, screens: [screen]) == nil)
     }
 }
+
+struct LiveScrollTests {
+    private func m(_ offset: CGFloat, _ content: CGFloat) -> LiveScrollMetrics { .init(offset: offset, visible: 400, content: content) }
+
+    @Test("Neuer Text unten kippt 'am Ende' nicht, eigenes Hochscrollen schon")
+    func bottomState() {
+        // Am Ende, neuer Text wächst darunter: bleibt am Ende, damit mitgescrollt wird.
+        #expect(LiveScrollMetrics.atBottom(previous: true, old: m(600, 1000), new: m(600, 1100), tolerance: 40))
+        // Nach dem Mitscrollen steht die Ansicht wieder unten.
+        #expect(LiveScrollMetrics.atBottom(previous: true, old: m(600, 1100), new: m(700, 1100), tolerance: 40))
+        // Selbst hochgescrollt: nicht mehr am Ende, auch wenn danach Text dazukommt.
+        #expect(!LiveScrollMetrics.atBottom(previous: true, old: m(700, 1100), new: m(300, 1100), tolerance: 40))
+        #expect(!LiveScrollMetrics.atBottom(previous: false, old: m(300, 1100), new: m(300, 1200), tolerance: 40))
+        // Wieder ganz nach unten gescrollt: Mitscrollen läuft wieder.
+        #expect(LiveScrollMetrics.atBottom(previous: false, old: m(300, 1200), new: m(790, 1200), tolerance: 40))
+    }
+}
