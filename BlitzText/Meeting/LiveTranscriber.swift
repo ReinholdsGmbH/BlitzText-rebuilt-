@@ -69,22 +69,35 @@ struct LiveLine: Equatable {
 
 /// Live-Transkript während der Aufnahme, gestreamt wie bei MacWhisper.
 ///
-/// Weg: FluidAudios `SlidingWindowAsrManager` (Parakeet, lokal) je Spur. Er liefert alle ein
-/// bis zwei Sekunden eine vorläufige Hypothese und nach einigen Sekunden Kontext bestätigten
-/// Text. Bestätigtes wird zur Sprechblase, die Hypothese steht grau darunter. Namen der
-/// Gegenseite kommen aus der Sprecheranzeige der Meeting-App (`nameForOthers`).
+/// Weg: FluidAudios `SlidingWindowAsrManager` (Parakeet, lokal) je Spur, mit kurzem Fenster
+/// (`streamConfig`). Jedes Update enthält den neuen Text eines Fensters und wird sofort an die
+/// Sprechblase gehängt; so erscheint Gesprochenes nach rund vier Sekunden. FluidAudios eigene
+/// `.streaming`-Einstellung rechnet nur alle 11 s und kennt keine echten Zwischenhypothesen.
+/// Namen der Gegenseite kommen aus der Sprecheranzeige der Meeting-App (`nameForOthers`).
 ///
 /// Lädt das Streaming-Modell nicht, fällt es auf Abschnitte alle `interval` Sekunden zurück.
 /// Das endgültige Transkript mit Sprechertrennung entsteht in jedem Fall nach dem Stopp.
 @MainActor
 final class LiveTranscriber: ObservableObject {
     @Published private(set) var lines: [LiveLine] = []
-    /// Vorläufige Hypothese je Spur, ändert sich laufend.
+    /// Vorläufige Hypothese je Spur. Bleibt beim kurzen Fenster leer; die Ansicht zeigt sie, falls
+    /// ein späteres Streaming-Modell echte Zwischenstände liefert.
     @Published private(set) var volatile: [TranscriptLine.Speaker: String] = [:]
     @Published private(set) var isRunning = false
     @Published private(set) var isStreaming = false
 
     static let interval: TimeInterval = 10
+
+    /// 2,5 s neues Audio je Fenster, 5 s Rückblick für den Zusammenhang, 1,5 s Vorschau.
+    /// Verzögerung bis zur Anzeige also etwa Fenster plus Vorschau plus Rechenzeit.
+    static let streamConfig = SlidingWindowAsrConfig(
+        chunkSeconds: 2.5,
+        hypothesisChunkSeconds: 1.0,
+        leftContextSeconds: 5.0,
+        rightContextSeconds: 1.5,
+        minContextForConfirmation: 0,
+        confirmationThreshold: 0
+    )
     static let silenceRMS: Float = 0.008
     /// Gleiche Seite mit kürzerer Pause wird an die vorige Blase angehängt.
     static let joinGap: TimeInterval = 4
@@ -140,7 +153,7 @@ final class LiveTranscriber: ObservableObject {
                     Self.cachedModels = models
                 }
                 for track in tracks {
-                    let manager = SlidingWindowAsrManager(config: .streaming)
+                    let manager = SlidingWindowAsrManager(config: Self.streamConfig)
                     try await manager.loadModels(models)
                     try await manager.startStreaming(source: track.speaker == .me ? .microphone : .system)
                     let (input, continuation) = AsyncStream<AudioBufferBox>.makeStream(bufferingPolicy: .bufferingNewest(400))
@@ -170,22 +183,18 @@ final class LiveTranscriber: ObservableObject {
         streamTasks.append(Task { [weak self] in
             for await update in await manager.transcriptionUpdates {
                 if Task.isCancelled { break }
-                self?.handle(update.text, confirmed: update.isConfirmed, speaker: speaker, at: update.timestamp)
+                self?.handle(update.text, speaker: speaker, at: update.timestamp)
             }
         })
     }
 
-    private func handle(_ raw: String, confirmed: Bool, speaker: TranscriptLine.Speaker, at time: Date) {
+    /// Jedes Update ist neuer Text: FluidAudio dedupliziert die Überlappung der Fenster über
+    /// die bisherigen Tokens. Das „bestätigt“-Flag sagt nur etwas über die Konfidenz aus.
+    private func handle(_ raw: String, speaker: TranscriptLine.Speaker, at time: Date) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard isRunning else { return }
-        guard confirmed else {
-            volatile[speaker] = text
-            return
-        }
-        volatile[speaker] = nil
-        guard !text.isEmpty else { return }
+        guard isRunning, !text.isEmpty else { return }
         let name = speaker == .others ? nameForOthers() : nil
-        let start = max(0, time.timeIntervalSince(startedAt) - 2)
+        let start = max(0, time.timeIntervalSince(startedAt) - Self.streamConfig.chunkSeconds - Self.streamConfig.rightContextSeconds)
         append(LiveLine(speaker: speaker, name: name, start: start, text: text), at: time)
     }
 
@@ -193,7 +202,7 @@ final class LiveTranscriber: ObservableObject {
         if let index = lines.lastIndex(where: { $0.speaker == line.speaker }),
            index == lines.count - 1,
            lines[index].name == line.name,
-           let previous = lastConfirmed[line.speaker], time.timeIntervalSince(previous) <= Self.joinGap + 6 {
+           let previous = lastConfirmed[line.speaker], time.timeIntervalSince(previous) <= Self.joinGap + Self.streamConfig.chunkSeconds {
             lines[index].text += " " + line.text
         } else {
             lines.append(line)

@@ -106,17 +106,27 @@ struct LiveTranscriberRealTests {
         live.start(tracks: [(buffer, .me)], transcriber: PlainParakeetTranscriber(client: ParakeetClient(settings: settings, diarizerManager: DiarizerModelManager())))
         // Streaming: Puffer nach dem Start einspeisen, wie es die Aufnahme tut.
         for _ in 0..<60 where !live.isStreaming { try await Task.sleep(for: .milliseconds(500)) }
-        buffer.append(pcm)
-        let silence = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 16_000))
-        silence.frameLength = 16_000
-        for _ in 0..<15 { buffer.append(silence) }
-        var firstVolatile: String?
-        for _ in 0..<80 where live.lines.isEmpty {
-            if firstVolatile == nil, let v = live.volatile[.me], !v.isEmpty { firstVolatile = v }
-            try await Task.sleep(for: .milliseconds(250))
+        // In Echtzeit einspeisen (halbe Sekunden), damit die Latenz messbar ist.
+        let format = pcm.format
+        let step = AVAudioFrameCount(format.sampleRate / 2)
+        let fed = Date()
+        var firstLineAfter: TimeInterval?
+        var offset: AVAudioFrameCount = 0
+        while offset < pcm.frameLength || (firstLineAfter == nil && Date().timeIntervalSince(fed) < 20) {
+            let count = min(step, pcm.frameLength > offset ? pcm.frameLength - offset : step)
+            let piece = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: count))
+            piece.frameLength = count
+            if offset < pcm.frameLength, let src = pcm.floatChannelData?[0], let dst = piece.floatChannelData?[0] {
+                dst.update(from: src + Int(offset), count: Int(count))
+            }
+            buffer.append(piece)
+            offset += count
+            try await Task.sleep(for: .milliseconds(500))
+            if firstLineAfter == nil, !live.lines.isEmpty { firstLineAfter = Date().timeIntervalSince(fed) }
         }
         live.stop()
-        print("LIVE-STREAM: streaming=\(live.isStreaming) erste Hypothese=\(firstVolatile ?? "-") bestätigt=\(live.lines.map(\.text))")
-        #expect((live.lines.map(\.text).joined() + (firstVolatile ?? "")).lowercased().contains("donnerstag"))
+        print("LIVE-STREAM: streaming=\(live.isStreaming) erste Zeile nach \(firstLineAfter.map { String(format: "%.1f", $0) } ?? "-") s, Text=\(live.lines.map(\.text))")
+        #expect((firstLineAfter ?? 99) < 7)
+        #expect(live.lines.map(\.text).joined().lowercased().contains("donnerstag"))
     }
 }
