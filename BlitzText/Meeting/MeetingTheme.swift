@@ -32,6 +32,33 @@ enum MeetingTheme {
     static let border = Color(light: 0xEEEBE3, dark: 0x30302F)
 
     /// Karte „Wer spricht hier?“: hell Lavendel, dunkel tiefes Violett (dawn-950).
+    // Akzente: Lavendel als Leitfarbe, dazu die Signalfarben der Palette. Bewusst sparsam:
+    // Farbe zeigt, wo man ist (Navigation, Reiter) und was ein Inhalt ist (Rubriken, Bereiche).
+    static let accent = Color(light: 0xA26EC1, dark: 0xC9A2E6)
+    static let accentSoft = Color(light: 0xF6EDFC, dark: 0x352841)
+    static let accentRule = Color(light: 0xE4CCF5, dark: 0x5A3F70)
+    static let positive = Color(light: 0x2F9E62, dark: 0x5CCB8E)
+    static let positiveSoft = Color(light: 0xEAF7EF, dark: 0x1F3328)
+    static let amber = Color(light: 0xD9822B, dark: 0xF2A65A)
+    static let amberSoft = Color(light: 0xFFF4E6, dark: 0x3A2C1C)
+    static let coralText = Color(light: 0xD9533A, dark: 0xFF8A70)
+    static let coralSoft = Color(light: 0xFFEFEA, dark: 0x3A2420)
+    static let teal = Color(light: 0x0F7A6C, dark: 0x4CC2B0)
+    static let tealSoft = Color(light: 0xE6F4F1, dark: 0x1B312E)
+
+    /// Farbe und Zeichen je Bereich im Wissensordner, für die Meeting-Liste.
+    static func area(_ key: String?) -> (color: Color, soft: Color, symbol: String) {
+        switch key {
+        case "pag": return (accent, accentSoft, "car.fill")
+        case "wk": return (teal, tealSoft, "building.2.fill")
+        case "tm": return (amber, amberSoft, "doc.text.magnifyingglass")
+        case "intern": return (coralText, coralSoft, "person.3.fill")
+        case "kursbar", "auftragslauf", "websites", "rabaconsulting", "thraba": return (positive, positiveSoft, "briefcase.fill")
+        case "privat": return (vast600, backgroundSecondary, "house.fill")
+        default: return (vast600, backgroundSecondary, "tray.fill")
+        }
+    }
+
     static let assignCard = Color(light: 0xFCF7FF, dark: 0x2A2131)
     static let assignBorder = Color(light: 0xF0D7FF, dark: 0x6C358C)
 
@@ -115,11 +142,12 @@ struct CapsuleToggle<Value: Hashable>: View {
                     Text(option.1)
                         .font(.system(size: 13, weight: .medium))
                         .fixedSize()
-                        .foregroundStyle(MeetingTheme.foreground)
+                        .foregroundStyle(active ? MeetingTheme.accent : MeetingTheme.foreground)
                         .padding(.horizontal, 14)
                         .frame(height: 28)
                         .background(Capsule().fill(active ? MeetingTheme.card : .clear)
-                            .shadow(color: .black.opacity(active ? 0.08 : 0), radius: 2, y: 1))
+                            .overlay(Capsule().strokeBorder(MeetingTheme.accentRule, lineWidth: active ? 1 : 0))
+                            .shadow(color: MeetingTheme.accent.opacity(active ? 0.18 : 0), radius: 4, y: 1))
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -127,6 +155,7 @@ struct CapsuleToggle<Value: Hashable>: View {
         }
         .padding(3)
         .background(Capsule().fill(MeetingTheme.backgroundSecondary))
+        .animation(.easeOut(duration: 0.15), value: selection)
     }
 }
 

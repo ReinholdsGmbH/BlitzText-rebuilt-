@@ -245,15 +245,21 @@ private struct MeetingRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: "doc.text")
-                    .font(.system(size: 13))
-                    .foregroundStyle(MeetingTheme.foregroundTertiary)
+                // Farbiges Zeichen je Bereich (PAG, WK, intern …) statt eines grauen Dokuments.
+                let area = MeetingTheme.area(entry.document.project)
+                Image(systemName: area.symbol)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(area.color)
                     .frame(width: 32, height: 32)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(MeetingTheme.backgroundTertiary))
+                    .background(RoundedRectangle(cornerRadius: 9).fill(area.soft))
+                    .help(VaultExporter.areas.first { $0.key == (entry.document.project ?? "eingang") }?.label ?? "")
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text(MeetingMarkdown.title(for: entry.document))
-                            .font(.system(size: 13.5, weight: .medium)).lineLimit(1)
+                        // Datumsstempel leise, der eigentliche Titel kräftig.
+                        (Text(MeetingMarkdown.stamp(entry.document.startedAt, timeSeparator: ":") + "_")
+                            .foregroundStyle(MeetingTheme.foregroundTertiary)
+                         + Text(MeetingMarkdown.baseTitle(for: entry.document)).fontWeight(.semibold))
+                            .font(.system(size: 13.5)).lineLimit(1)
                         if !entry.document.unconfirmedSpeakerIDs.isEmpty {
                             Circle().fill(MeetingTheme.glow300).frame(width: 6, height: 6)
                                 .help("Sprecher zuordnen")
@@ -296,6 +302,11 @@ private struct MeetingRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // Doppelklick auf die Zeile öffnet „Umbenennen“, wie im Finder.
+        .simultaneousGesture(TapGesture(count: 2).onEnded {
+            draftTitle = entry.document.aiTitle ?? ""
+            renaming = true
+        })
         .onHover { hovering = $0 }
         .contextMenu { actions }
         .alert("Meeting umbenennen", isPresented: $renaming) {
@@ -416,6 +427,8 @@ struct MeetingDetailView: View {
     @State private var transcriptSearch = ""
     /// Beitrag, zu dem gesprungen und der hervorgehoben wird („Im Transkript zeigen“).
     @State private var focusedLine: Int?
+    @State private var renamingTitle = false
+    @State private var draftTitle = ""
 
     enum Tab: Hashable { case notes, myNotes, transcript }
 
@@ -477,9 +490,24 @@ struct MeetingDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(MeetingMarkdown.title(for: document)).font(.system(size: 22, weight: .semibold))
+            (Text(MeetingMarkdown.stamp(document.startedAt, timeSeparator: ":") + "_")
+                .foregroundStyle(MeetingTheme.foregroundTertiary).fontWeight(.medium)
+             + Text(MeetingMarkdown.baseTitle(for: document)))
+                .font(.system(size: 22, weight: .semibold))
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
+                .onTapGesture(count: 2) {
+                    draftTitle = document.aiTitle ?? ""
+                    renamingTitle = true
+                }
+                .help("Doppelklick zum Umbenennen")
+                .alert("Meeting umbenennen", isPresented: $renamingTitle) {
+                    TextField("Titel", text: $draftTitle)
+                    Button("Speichern") { library.rename(in: entry.folder, to: draftTitle) }
+                    Button("Abbrechen", role: .cancel) {}
+                } message: {
+                    Text("Leer lassen setzt auf den automatischen Titel zurück. Datum und Uhrzeit stehen in der Ablage immer davor.")
+                }
             HStack(spacing: 6) {
                 Text(dateLine)
                 Text("•")
@@ -1149,34 +1177,107 @@ struct NameEntry: View {
 struct SummaryText: View {
     let markdown: String
 
+    /// Eine Rubrik der Notizen (Zusammenfassung, Entscheidungen, Aufgaben …) mit ihren Zeilen.
+    struct Section {
+        var title: String?
+        var lines: [String] = []
+    }
+
+    static func sections(of markdown: String) -> [Section] {
+        var result: [Section] = []
+        for raw in markdown.components(separatedBy: "\n") {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("#") {
+                result.append(Section(title: line.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)))
+            } else if !line.isEmpty {
+                if result.isEmpty { result.append(Section(title: nil)) }
+                result[result.count - 1].lines.append(line)
+            }
+        }
+        return result.filter { $0.title != nil || !$0.lines.isEmpty }
+    }
+
+    /// Farbe und Symbol je Rubrik, am Titel erkannt.
+    static func style(for title: String?) -> (color: Color, soft: Color, symbol: String) {
+        let key = (title ?? "").lowercased()
+        if key.contains("entscheid") { return (MeetingTheme.positive, MeetingTheme.positiveSoft, "checkmark.seal.fill") }
+        if key.contains("aufgabe") || key.contains("to-do") || key.contains("todo") || key.contains("action") {
+            return (MeetingTheme.amber, MeetingTheme.amberSoft, "checklist")
+        }
+        if key.contains("offen") || key.contains("frage") || key.contains("risik") {
+            return (MeetingTheme.coralText, MeetingTheme.coralSoft, "questionmark.bubble.fill")
+        }
+        if key.contains("nächst") || key.contains("next") { return (MeetingTheme.teal, MeetingTheme.tealSoft, "arrow.forward.circle.fill") }
+        return (MeetingTheme.accent, MeetingTheme.accentSoft, "sparkles")
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            ForEach(Array(markdown.components(separatedBy: "\n").enumerated()), id: \.offset) { _, raw in
-                line(raw.trimmingCharacters(in: .whitespaces))
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(Array(Self.sections(of: markdown).enumerated()), id: \.offset) { _, section in
+                card(section)
             }
         }
         .font(.system(size: 13.5))
         .textSelection(.enabled)
     }
 
+    private func card(_ section: Section) -> some View {
+        let style = Self.style(for: section.title)
+        return VStack(alignment: .leading, spacing: 9) {
+            if let title = section.title {
+                HStack(spacing: 8) {
+                    Image(systemName: style.symbol)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(style.color)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(style.soft))
+                    Text(title).font(.system(size: 14.5, weight: .semibold))
+                    if !section.lines.isEmpty {
+                        Text("\(section.lines.count)")
+                            .font(.system(size: 10.5, weight: .bold).monospacedDigit())
+                            .foregroundStyle(style.color)
+                            .padding(.horizontal, 6).frame(height: 16)
+                            .background(Capsule().fill(style.soft))
+                    }
+                }
+                .padding(.bottom, 2)
+            }
+            ForEach(Array(section.lines.enumerated()), id: \.offset) { _, line in
+                row(line, color: style.color)
+            }
+        }
+        .padding(.vertical, 14)
+        .padding(.leading, 18)
+        .padding(.trailing, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            // Farbbalken in die Karte geschnitten, damit er der Rundung folgt.
+            ZStack(alignment: .leading) {
+                MeetingTheme.card
+                style.color.opacity(0.85).frame(width: 4)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(MeetingTheme.border))
+    }
+
     @ViewBuilder
-    private func line(_ text: String) -> some View {
-        if text.hasPrefix("#") {
-            Text(inline(text.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)))
-                .font(.system(size: 15, weight: .semibold))
-                .padding(.top, 12)
-        } else if text.hasPrefix("- [ ]") || text.hasPrefix("- [x]") {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: text.hasPrefix("- [x]") ? "checkmark.square.fill" : "square")
-                    .foregroundStyle(MeetingTheme.foregroundTertiary)
+    private func row(_ text: String, color: Color) -> some View {
+        if text.hasPrefix("- [ ]") || text.hasPrefix("- [x]") {
+            let done = text.hasPrefix("- [x]")
+            HStack(alignment: .firstTextBaseline, spacing: 9) {
+                Image(systemName: done ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(color)
                 Text(inline(String(text.dropFirst(5)).trimmingCharacters(in: .whitespaces)))
+                    .strikethrough(done, color: MeetingTheme.foregroundTertiary)
+                    .foregroundStyle(done ? MeetingTheme.foregroundTertiary : MeetingTheme.foreground)
             }
         } else if text.hasPrefix("- ") || text.hasPrefix("* ") {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Circle().fill(MeetingTheme.foregroundTertiary).frame(width: 4, height: 4).offset(y: -2)
+            HStack(alignment: .firstTextBaseline, spacing: 9) {
+                Circle().fill(color).frame(width: 5, height: 5).offset(y: -2)
                 Text(inline(String(text.dropFirst(2))))
             }
-        } else if !text.isEmpty {
+        } else {
             Text(inline(text))
         }
     }
