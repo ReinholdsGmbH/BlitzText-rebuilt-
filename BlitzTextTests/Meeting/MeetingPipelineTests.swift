@@ -306,3 +306,20 @@ struct EigennamenAIParseTests {
         #expect(EigennamenAISuggester.parse("keine") == [])
     }
 }
+
+@MainActor
+struct PillPositionTests {
+    @Test("Gemerkte Pillen-Position gilt nur, solange sie ganz auf einem Bildschirm liegt")
+    func savedOrigin() throws {
+        let defaults = try #require(UserDefaults(suiteName: "blitztext-pill-\(UUID())"))
+        let screen = NSRect(x: 0, y: 0, width: 1800, height: 1169)
+        #expect(MeetingPillController.savedOrigin(defaults: defaults, screens: [screen]) == nil)
+
+        defaults.set(NSStringFromPoint(NSPoint(x: 100, y: 200)), forKey: MeetingPillController.originKey)
+        #expect(MeetingPillController.savedOrigin(defaults: defaults, screens: [screen]) == NSPoint(x: 100, y: 200))
+
+        // Zweiter Monitor fehlt: Position liegt außerhalb, Standardplatz greift.
+        defaults.set(NSStringFromPoint(NSPoint(x: -1500, y: 1500)), forKey: MeetingPillController.originKey)
+        #expect(MeetingPillController.savedOrigin(defaults: defaults, screens: [screen]) == nil)
+    }
+}
