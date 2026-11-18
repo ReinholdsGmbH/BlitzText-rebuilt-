@@ -271,8 +271,17 @@ final class ModeProcessor: ObservableObject {
             let textForAI = polished ?? raw
             let apiKey = settings.apiKey
             let presenter = suggestionPresenter
+            // Requesty/OpenRouter mit Schlüssel und Modell aus der Zugangskarte, sonst OpenAI.
+            let providerChat = settings.properNounSuggestBackend.provider.map { provider in
+                OpenAICompatibleChat(provider: provider, apiKey: settings.providerKeys.key(for: provider),
+                                     model: settings.meetingSummaryModel(for: provider))
+            }
             Task.detached {
-                let aiCandidates = await EigennamenAISuggester.extract(from: textForAI, apiKey: apiKey)
+                let aiCandidates = if let providerChat {
+                    await EigennamenAISuggester.extract(from: textForAI, using: providerChat)
+                } else {
+                    await EigennamenAISuggester.extract(from: textForAI, apiKey: apiKey)
+                }
                 if !aiCandidates.isEmpty {
                     await MainActor.run { presenter.enqueue(aiCandidates) }
                 }

@@ -303,7 +303,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func needsOpenAIKey() -> Bool {
         guard settingsStore.apiKey.isEmpty else { return false }
         if settingsStore.backend == .openAI { return true }
-        if settingsStore.aiSuggestProperNouns { return true }
+        if settingsStore.aiSuggestProperNouns, settingsStore.properNounSuggestBackend == .openAI { return true }
         return false
     }
 

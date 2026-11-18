@@ -297,3 +297,12 @@ struct MeetingVocabularyTests {
         #expect(!text.contains("Kursbaar"))
     }
 }
+
+struct EigennamenAIParseTests {
+    @Test("Wortvorschläge aus JSON, auch im Codeblock")
+    func parsesAnswer() {
+        #expect(EigennamenAISuggester.parse(#"{"eigennamen": ["Kursbar", "X"]}"#) == ["Kursbar"])
+        #expect(EigennamenAISuggester.parse("```json\n{\"eigennamen\": [\"Auftragslauf\"]}\n```") == ["Auftragslauf"])
+        #expect(EigennamenAISuggester.parse("keine") == [])
+    }
+}
