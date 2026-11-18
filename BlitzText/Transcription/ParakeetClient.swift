@@ -43,6 +43,13 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
     }
 
     func transcribe(audioURL: URL, language: String?, prompt: String?) async throws -> String {
+        try await transcribe(audioURL: audioURL, diarize: settings.parakeetDiarization)
+    }
+
+    /// Transkription mit expliziter Wahl der Sprechertrennung. Der Meeting-Pfad ruft das
+    /// mit `diarize: false` auf: Er zerlegt die Spuren selbst in kurze Abschnitte, und die
+    /// Zuordnung „ich" gegen „andere" kommt aus der Spur, nicht aus der Diarisierung.
+    func transcribe(audioURL: URL, diarize: Bool) async throws -> String {
         let needsLoad: Bool
         if asrManager == nil {
             needsLoad = true
@@ -64,7 +71,7 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
         let result = try await asrManager.transcribe(samples, decoderState: &decoderState)
         Log.write("Parakeet: ASR fertig (\(String(format: "%.1f", Date().timeIntervalSince(t0)))s) — \(result.text.count) Zeichen")
 
-        guard settings.parakeetDiarization, let diarizer else {
+        guard diarize, let diarizer else {
             return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
@@ -91,6 +98,11 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
             let speakerNames = Self.buildSpeakerNames(from: mergedSpeakers)
             Log.write("Parakeet: \(speakerNames.count) benannte Sprecher, applyDiarization mit \(diarResult.segments.count) Segmenten")
 
+            let voices = Self.distinctVoices(in: diarResult.segments)
+            guard voices >= 2 else {
+                Log.write("Parakeet: nur eine Stimme erkannt — Diktat ohne Sprecherzeilen")
+                return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
             return Self.applyDiarization(asr: result, segments: diarResult.segments, speakerNames: speakerNames)
         } catch {
             Log.write("Parakeet: Diarization fehlgeschlagen — \(error.localizedDescription) (gebe Text ohne Sprecher zurück)")
@@ -188,6 +200,46 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
 
     /// Verbindet ASR-Token-Timings mit Diarizer-Segmenten zu einem Speaker-annotierten Text.
     /// Benannte Sprecher erscheinen als `Thomas: …`, unbenannte als `Sprecher N: …`.
+    /// Sprecherzeilen im Diktat nur, wenn wirklich mehrere Menschen sprechen. Die Diarization
+    /// zerlegt eine einzelne Stimme gern in zwei Cluster (Tonlage, Abstand zum Mikrofon). Eine
+    /// Stimme zählt daher nur, wenn sie mindestens `minVoiceSeconds` und `minVoiceShare` der
+    /// Sprechzeit hat und sich deutlich (`separateVoiceDistance`) von jeder schon gezählten
+    /// Stimme unterscheidet.
+    static let minVoiceSeconds: Float = 3
+    static let minVoiceShare: Float = 0.15
+    static let separateVoiceDistance: Float = 0.8
+
+    static func distinctVoices(in segments: [TimedSpeakerSegment]) -> Int {
+        let groups = Dictionary(grouping: segments, by: \.speakerId).map { _, segs -> (duration: Float, embedding: [Float]) in
+            let duration = segs.reduce(0) { $0 + $1.durationSeconds }
+            return (duration, meanEmbedding(segs))
+        }
+        let total = groups.reduce(0) { $0 + $1.duration }
+        guard total > 0 else { return 0 }
+        var kept: [[Float]] = []
+        for group in groups.sorted(by: { $0.duration > $1.duration })
+        where group.duration >= minVoiceSeconds && group.duration / total >= minVoiceShare {
+            let distinct = kept.allSatisfy { other in
+                group.embedding.isEmpty || other.isEmpty
+                    || SpeakerUtilities.cosineDistance(group.embedding, other) >= separateVoiceDistance
+            }
+            if distinct || kept.isEmpty { kept.append(group.embedding) }
+        }
+        return kept.count
+    }
+
+    private static func meanEmbedding(_ segments: [TimedSpeakerSegment]) -> [Float] {
+        guard let size = segments.first(where: { !$0.embedding.isEmpty })?.embedding.count else { return [] }
+        var sum = [Float](repeating: 0, count: size)
+        var weight: Float = 0
+        for segment in segments where segment.embedding.count == size {
+            let w = max(segment.durationSeconds, 0.01)
+            for i in 0..<size { sum[i] += segment.embedding[i] * w }
+            weight += w
+        }
+        return weight > 0 ? sum.map { $0 / weight } : []
+    }
+
     static func applyDiarization(
         asr: ASRResult,
         segments: [TimedSpeakerSegment],
@@ -314,5 +366,14 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
         }()
         await task.value
         loadLock.withLock { loadingTask = nil }
+    }
+}
+
+/// Parakeet ohne Sprechertrennung, unabhängig von der Einstellung im Lokal-Tab.
+struct PlainParakeetTranscriber: TranscriptionService {
+    let client: ParakeetClient
+
+    func transcribe(audioURL: URL, language: String?, prompt: String?) async throws -> String {
+        try await client.transcribe(audioURL: audioURL, diarize: false)
     }
 }

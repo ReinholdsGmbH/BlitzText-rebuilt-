@@ -15,11 +15,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lifecycleWatchdog: LifecycleWatchdog!
     private var modeProcessor: ModeProcessor!
     private var settingsWindow: SettingsWindowController!
-    private var historyWindow: HistoryWindowController!
     private var updateService: UpdateService!
     private var updateWindow: UpdateWindowController!
     private var recordingHUD: RecordingHUDController!
     private var suggestionToast: SuggestionToastController!
+    private var meetingController: MeetingController!
+    private var meetingPill: MeetingPillController!
+    private var meetingLibrary: MeetingLibrary!
+    private var meetingWindow: AppWindowController!
     private var didBecomeActiveObserver: NSObjectProtocol?
 
     // Ping-Pong: Duplikat-Instanzen senden einen Ping und warten auf den Pong der bereits
@@ -43,6 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Als Test-Host keine Menüleiste, keine Hotkeys, keine Berechtigungsabfragen und kein
+        // Schlüsselbund: Die Tests bauen sich ihre Objekte selbst.
+        guard !RuntimeEnvironment.isRunningTests else { return }
         bootstrap()
     }
 
@@ -104,7 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DistributedNotificationCenter.default().postNotificationName(
                 Self.pongName, object: nil, userInfo: nil, deliverImmediately: true
             )
-            Task { @MainActor [weak self] in self?.menuBarController?.showPopover() }
+            Task { @MainActor [weak self] in self?.menuBarController?.showApp() }
         }
 
         // Hinweis: Der frühere `de.blitztext.showPopover`-Observer wurde entfernt — er hatte
@@ -131,24 +137,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateWindow = UpdateWindowController(service: updateService)
         updateService.presentWindow = { [weak updateWindow] in updateWindow?.show() }
 
-        settingsWindow = SettingsWindowController(
-            settings: settingsStore,
-            modelManager: modelManager,
-            diarizerManager: diarizerManager,
-            speakerViewModel: speakerProfileViewModel,
-            enrollmentViewModel: enrollmentViewModel,
-            updateService: updateService
-        )
-        historyWindow = HistoryWindowController(history: historyStore)
+        settingsWindow = SettingsWindowController()
         recordingHUD = RecordingHUDController(recorder: modeProcessor.recorder, processor: modeProcessor, settings: settingsStore)
         suggestionToast = SuggestionToastController(presenter: modeProcessor.suggestionPresenter)
+        // Meeting-Mitschnitt: Transkription und Sprechertrennung immer lokal (Parakeet,
+        // FluidAudio). Die Zusammenfassung läuft über den in Einstellungen → Meetings
+        // gewählten Anbieter.
+        let settings = settingsStore
+        let parakeet = modeProcessor.parakeetClient
+        let meetingDiarizer = FluidMeetingDiarizer(
+            modelManager: diarizerManager,
+            store: modeProcessor.speakerStore,
+            threshold: { Float(settings.speakerMatchThreshold) }
+        )
+        meetingController = MeetingController(
+            recorder: MeetingRecorder(),
+            makeTranscriber: { PlainParakeetTranscriber(client: parakeet) },
+            makeSummarizer: { settings.makeMeetingSummarizer() },
+            diarizer: meetingDiarizer,
+            makeExporter: { settings.makeVaultExporter() },
+            language: { settings.transcriptionLanguage.isEmpty ? nil : settings.transcriptionLanguage }
+        )
+        meetingLibrary = MeetingLibrary(
+            archive: meetingController.archive,
+            diarizer: meetingDiarizer,
+            makeSummarizer: { settings.makeMeetingSummarizer() },
+            makeExporter: { settings.makeVaultExporter() }
+        )
+        meetingWindow = AppWindowController(
+            library: meetingLibrary,
+            controller: meetingController,
+            chat: MeetingChat(makeSummarizer: { settings.makeMeetingSummarizer() }),
+            environment: .init(
+                settings: settingsStore,
+                modelManager: modelManager,
+                diarizerManager: diarizerManager,
+                speakerViewModel: speakerProfileViewModel,
+                enrollmentViewModel: enrollmentViewModel,
+                updateService: updateService,
+                history: historyStore
+            )
+        )
+        // Einstellungen leben jetzt im App-Fenster; alle alten Einstiege führen dorthin.
+        settingsWindow.openInApp = { [weak self] section in self?.meetingWindow.show(section: section) }
+        meetingController.onOpenLibrary = { [weak self] folder in self?.meetingWindow.show(selecting: folder) }
+        meetingController.onMeetingSaved = { [weak self] _ in self?.meetingLibrary.reload() }
+        meetingPill = MeetingPillController(controller: meetingController)
+        meetingController.startMonitoring()
+
+        // Startparameter für Tests mit vorhandenen Aufnahmen (z. B. aus MacWhisper):
+        //   --meetings                  öffnet die Meeting-Bibliothek
+        //   --import-meeting <a> [<b>]  importiert eine Mischspur oder ein Spurpaar
+        let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--import-meeting") {
+            let files = arguments[(index + 1)...].prefix { !$0.hasPrefix("--") }.map { URL(fileURLWithPath: $0) }
+            meetingController.importFiles(Array(files))
+        }
+        if arguments.contains("--meetings") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.meetingWindow.show(section: .meetings) }
+        }
+
         menuBarController = MenuBarController(
             settings: settingsStore,
             processor: modeProcessor,
             settingsWindow: settingsWindow,
-            historyWindow: historyWindow,
-            updateService: updateService
+            updateService: updateService,
+            meeting: meetingController
         )
+        menuBarController.openApp = { [weak self] in self?.meetingWindow.show() }
+        menuBarController.toggleMeeting = { [weak self] in self?.meetingController.toggle() }
+        menuBarController.openMeetings = { [weak self] in self?.meetingWindow.show(section: .meetings) }
 
         let processor = modeProcessor!
         hotkeyManager = HotkeyManager(settings: settingsStore) { mode, action in
@@ -208,12 +266,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // `needsOpenAIKey()` BEWUSST verzögert auswerten: Der API-Key wird beim Start
         // asynchron aus der Keychain in den Cache geladen (nicht-blockierend). Würde man
         // hier sofort prüfen, wäre der Cache noch leer → Settings poppte fälschlich auf.
-        let forceSettings = CommandLine.arguments.contains("--settings")
+        // Gewartet wird, bis der Schlüssel wirklich geladen ist: Nach einem neuen Build hängt
+        // der Schlüsselbund an der Passwortabfrage, und ein noch leerer Cache öffnete sonst
+        // jedes Mal die Einstellungen statt der Meetings.
+        if CommandLine.arguments.contains("--settings") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.settingsWindow.show(section: .dictation)
+            }
+        } else {
+            checkOpenAIKeyWhenLoaded(attempt: 0)
+        }
+    }
+
+    /// Prüft alle halbe Sekunde, höchstens zwei Minuten lang.
+    private func checkOpenAIKeyWhenLoaded(attempt: Int) {
+        guard attempt < 240 else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
-            if forceSettings || self.needsOpenAIKey() {
-                self.settingsWindow.show()
+            guard self.settingsStore.isAPIKeyLoaded else {
+                self.checkOpenAIKeyWhenLoaded(attempt: attempt + 1)
+                return
             }
+            if self.needsOpenAIKey() { self.settingsWindow.show(section: .models) }
         }
     }
 
@@ -223,6 +297,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsStore.backend == .openAI { return true }
         if settingsStore.aiSuggestProperNouns { return true }
         return false
+    }
+
+    /// Rechtsklick aufs Dock-Symbol: Aufnahme starten/beenden und Meetings öffnen, wie bei Wispr.
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        let recording = meetingController?.isRecording == true
+        let record = NSMenuItem(title: recording ? "Aufnahme beenden" : "Meeting aufnehmen",
+                                action: #selector(toggleMeetingFromMenu), keyEquivalent: "")
+        record.target = self
+        record.isEnabled = meetingController?.isProcessing != true
+        menu.addItem(record)
+        let open = NSMenuItem(title: "Meetings öffnen", action: #selector(openMeetingsFromMenu), keyEquivalent: "")
+        open.target = self
+        menu.addItem(open)
+        return menu
+    }
+
+    // `nonisolated` @objc + Main-Queue: AppKit ruft Menü-Actions ohne Swift-Task-Kontext auf;
+    // eine @MainActor-@objc-Methode crasht dort im Executor-Check (siehe MenuBarController).
+    @objc nonisolated func toggleMeetingFromMenu() {
+        DispatchQueue.main.async { [weak self] in self?.meetingController?.toggle() }
+    }
+
+    @objc nonisolated func openMeetingsFromMenu() {
+        DispatchQueue.main.async { [weak self] in self?.meetingWindow?.show(section: .meetings) }
+    }
+
+    /// Klick aufs Dock-Symbol (oder erneutes Öffnen im Finder) holt das App-Fenster.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        meetingWindow?.show()
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {

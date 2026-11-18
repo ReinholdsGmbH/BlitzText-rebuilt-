@@ -44,8 +44,8 @@ targets:
         CFBundleDevelopmentRegion: de
         CFBundleName: BlitzText
         CFBundleDisplayName: BlitzText
-        CFBundleShortVersionString: "0.6.1"
-        CFBundleVersion: "18"
+        CFBundleShortVersionString: "0.7.0"
+        CFBundleVersion: "19"
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
         LSMinimumSystemVersion: "26.0"
@@ -54,6 +54,8 @@ targets:
         NSMicrophoneUsageDescription: "BlitzText nimmt deine Stimme auf, um sie in Text umzuwandeln."
         NSSpeechRecognitionUsageDescription: "BlitzText kann lokale Spracherkennung als Fallback nutzen."
         NSAppleEventsUsageDescription: "BlitzText kann Text direkt in andere Apps einfügen."
+        NSAudioCaptureUsageDescription: "BlitzText schneidet den Ton deiner Konferenz-Apps mit, um Meetings zu transkribieren."
+        NSDocumentsFolderUsageDescription: "BlitzText legt Meeting-Protokolle im Ordner „BlitzText Meetings“ in deinen Dokumenten ab."
     entitlements:
       path: BlitzText/BlitzText.entitlements
       properties:

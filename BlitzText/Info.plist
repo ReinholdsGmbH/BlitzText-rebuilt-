@@ -21,15 +21,19 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.6.1</string>
+	<string>0.7.0</string>
 	<key>CFBundleVersion</key>
-	<string>18</string>
+	<string>19</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>BlitzText kann Text direkt in andere Apps einfügen.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>BlitzText schneidet den Ton deiner Konferenz-Apps mit, um Meetings zu transkribieren.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>BlitzText legt Meeting-Protokolle im Ordner „BlitzText Meetings“ in deinen Dokumenten ab.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>

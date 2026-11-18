@@ -43,7 +43,7 @@ struct LokalTab: View {
             case .openAI:
                 VStack(alignment: .leading, spacing: 8) {
                     Text("OPENAI-MODELLE").font(.caption).foregroundStyle(.secondary).bold()
-                    Text("Modellnamen wie von der OpenAI-API definiert. API-Key im Tab \"Zugang\".")
+                    Text("Modellnamen wie von der OpenAI-API definiert. API-Schlüssel weiter unten auf dieser Seite.")
                         .font(.caption).foregroundStyle(.secondary)
                     LabeledContent("Transkription") {
                         TextField("whisper-1", text: $settings.transcriptionModel)

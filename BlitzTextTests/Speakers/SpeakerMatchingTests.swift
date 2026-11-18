@@ -112,6 +112,32 @@ final class SpeakerMatchingTests: XCTestCase {
         XCTAssertGreaterThan(after, before, "updateCount muss nach Match-Update steigen")
     }
 
+    // MARK: - Diktat: Sprecherzeilen nur bei mehreren Stimmen
+
+    private func seg(_ id: String, _ start: Float, _ end: Float, _ emb: [Float]) -> TimedSpeakerSegment {
+        TimedSpeakerSegment(speakerId: id, embedding: emb, startTimeSeconds: start, endTimeSeconds: end, qualityScore: 1)
+    }
+
+    func testDistinctVoices_singleSpeaker_isOne() {
+        XCTAssertEqual(ParakeetClient.distinctVoices(in: [seg("1", 0, 8, [1, 0]), seg("1", 9, 15, [1, 0])]), 1)
+    }
+
+    func testDistinctVoices_sameVoiceSplitIntoTwoClusters_isOne() {
+        // Zwei Cluster, aber fast gleiche Stimme (Kosinus-Abstand klein).
+        let voices = ParakeetClient.distinctVoices(in: [seg("1", 0, 8, [1, 0]), seg("2", 8, 14, [0.9, 0.3])])
+        XCTAssertEqual(voices, 1)
+    }
+
+    func testDistinctVoices_shortSecondSpeaker_isOne() {
+        let voices = ParakeetClient.distinctVoices(in: [seg("1", 0, 20, [1, 0]), seg("2", 20, 21.5, [0, 1])])
+        XCTAssertEqual(voices, 1)
+    }
+
+    func testDistinctVoices_twoDifferentPeople_isTwo() {
+        let voices = ParakeetClient.distinctVoices(in: [seg("1", 0, 8, [1, 0]), seg("2", 8, 15, [0, 1])])
+        XCTAssertEqual(voices, 2)
+    }
+
     // MARK: - Persistierungs-Round-Trip mit Namensauflösung
 
     func testApplyDiarization_unnamedSpeaker_formatsAsSprecher() {

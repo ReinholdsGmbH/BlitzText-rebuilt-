@@ -124,13 +124,18 @@ final class DiarizerModelManagerTests: XCTestCase {
 
     // MARK: - ensureInstalled() async (D-16, Wave 1 für ParakeetClient)
 
-    func testEnsureInstalled_whenAlreadyInstalled_returnsTrueImmediately() async {
+    /// Dateien auf der Platte heißen noch nicht „geladen“: Früher gab `ensureInstalled()` hier
+    /// `true` zurück, obwohl `modelsIfInstalled` nil war. Die Meeting-Diarisierung scheiterte
+    /// daran mit „Modell nicht installiert“. Jetzt wird genau einmal geladen (bei vorhandenen
+    /// Dateien ohne Netz). Der Fake kann keine echten Modelle liefern, daher endet es hier in `false`.
+    func testEnsureInstalled_whenFilesPresentButNotLoaded_loadsOnce() async {
         let loader = FakeDiarizerLoader()
         loader.installed = true
         let manager = DiarizerModelManager(loader: loader)
         let result = await manager.ensureInstalled()
-        XCTAssertTrue(result)
-        XCTAssertEqual(loader.downloadCallCount, 0, "Bei installed darf kein Download starten")
+        XCTAssertEqual(loader.downloadCallCount, 1, "Dateien vorhanden, aber nicht geladen: genau ein Ladeversuch")
+        XCTAssertFalse(result, "Ohne geladene Modelle darf kein true zurückkommen")
+        XCTAssertNil(manager.modelsIfInstalled)
     }
 
     func testEnsureInstalled_whenDownloadFails_returnsFalse() async {

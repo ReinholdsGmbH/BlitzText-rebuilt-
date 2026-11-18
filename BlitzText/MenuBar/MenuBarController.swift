@@ -2,31 +2,29 @@ import AppKit
 import SwiftUI
 import Combine
 
-/// Menu-Bar-Icon mit Popover-HUD ("Bereit", Modi-Liste, Status).
+/// Menüleisten-Symbol: Linksklick öffnet das App-Fenster, Rechtsklick das Kontextmenü,
+/// die Farbe zeigt den Zustand (Diktat, Meeting-Aufnahme).
 @MainActor
 final class MenuBarController: NSObject {
 
     private let statusItem: NSStatusItem
-    private let popover: NSPopover
     private let processor: ModeProcessor
     private let settings: SettingsStore
     private let settingsWindow: SettingsWindowController
-    private let historyWindow: HistoryWindowController
     private let updateService: UpdateService
+    private let meeting: MeetingController
     private var cancellables = Set<AnyCancellable>()
 
-    init(settings: SettingsStore, processor: ModeProcessor, settingsWindow: SettingsWindowController, historyWindow: HistoryWindowController, updateService: UpdateService) {
+    init(settings: SettingsStore, processor: ModeProcessor, settingsWindow: SettingsWindowController, updateService: UpdateService, meeting: MeetingController) {
+        self.meeting = meeting
         self.settings = settings
         self.processor = processor
         self.settingsWindow = settingsWindow
-        self.historyWindow = historyWindow
         self.updateService = updateService
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        self.popover = NSPopover()
         super.init()
 
         configureStatusItem()
-        configurePopover()
 
         // State-Indikator im Menubar-Icon.
         // Bewusst `DispatchQueue.main` statt `RunLoop.main`: Der MainActor-Executor IST die
@@ -34,8 +32,11 @@ final class MenuBarController: NSObject {
         // Swift-6-`isCurrentExecutor`-Check in eine komplexe Executor-Vergleichslogik fällt
         // und (bei `strict-concurrency: minimal`) als EXC_BAD_ACCESS durchschlagen kann.
         processor.$state
+            .combineLatest(meeting.$phase)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] state in self?.updateIcon(for: state) }
+            .sink { [weak self] state, phase in
+                self?.updateIcon(for: state, meetingRecording: { if case .recording = phase { return true }; return false }())
+            }
             .store(in: &cancellables)
     }
 
@@ -50,35 +51,12 @@ final class MenuBarController: NSObject {
         }
     }
 
-    private func configurePopover() {
-        popover.behavior = .transient
-        popover.contentSize = NSSize(width: 360, height: 280)
-        let host = NSHostingController(
-            rootView: HUDView(processor: processor, settings: settings, modelManager: processor.modelManager, onOpenSettings: { [weak self] in
-                guard let self else { return }
-                self.popover.performClose(nil)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    self.settingsWindow.show()
-                }
-            }, onOpenHistory: { [weak self] in
-                guard let self else { return }
-                self.popover.performClose(nil)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    self.historyWindow.show()
-                }
-            }, onQuit: {
-                NSApp.terminate(nil)
-            })
-        )
-        popover.contentViewController = host
-    }
-
     // `nonisolated` @objc: AppKit ruft die Action via `sendAction:to:from:` OHNE Swift-Task-
     // Kontext auf. Eine `@MainActor`-`@objc`-Methode bekäme im Prolog den dynamischen
     // `swift_task_isCurrentExecutor`-Check, der hier (strict-concurrency: minimal, Swift 6.3)
     // als EXC_BAD_ACCESS crasht. Das Klick-Event wird SYNCHRON ausgewertet (`currentEvent`
     // gilt nur während des Klicks), dann synchron in den (ohnehin Main-)Kontext gereicht —
-    // kein async-Defer, der mit `.transient`-Popovers flackert.
+    // kein async-Defer, der Klicks verzögert.
     @objc nonisolated private func statusItemClicked() {
         let event = NSApp.currentEvent
         let isRightClick = event.map {
@@ -91,18 +69,23 @@ final class MenuBarController: NSObject {
         }
     }
 
+    /// Linksklick öffnet das App-Fenster (Meetings, Verlauf, Einstellungen), Rechtsklick das
+    /// Kontextmenü. Das frühere Popover mit Modi-Liste ist im App-Fenster aufgegangen.
+    var openApp: (() -> Void)?
+    var toggleMeeting: (() -> Void)?
+    var openMeetings: (() -> Void)?
+
     @MainActor private func handleStatusClick(rightClick: Bool) {
         if rightClick {
             showContextMenu()
         } else {
-            togglePopover()
+            openApp?()
         }
     }
 
     /// Rechtsklick-Kontextmenü: Einstellungen öffnen oder App beenden.
     private func showContextMenu() {
         guard let button = statusItem.button else { Log.write("Kontextmenü: kein Button"); return }
-        if popover.isShown { popover.performClose(nil) }
 
         let menu = NSMenu()
 
@@ -121,6 +104,16 @@ final class MenuBarController: NSObject {
         menu.addItem(releaseItem)
         menu.addItem(.separator())
 
+        let recordItem = NSMenuItem(title: meeting.isRecording ? "Aufnahme beenden" : "Meeting aufnehmen",
+                                    action: #selector(toggleMeetingFromMenu), keyEquivalent: "")
+        recordItem.target = self
+        recordItem.isEnabled = !meeting.isProcessing
+        menu.addItem(recordItem)
+        let meetingsItem = NSMenuItem(title: "Meetings öffnen", action: #selector(openMeetingsFromMenu), keyEquivalent: "")
+        meetingsItem.target = self
+        menu.addItem(meetingsItem)
+        menu.addItem(.separator())
+
         let settingsItem = NSMenuItem(title: "Einstellungen…", action: #selector(openSettingsFromMenu), keyEquivalent: "")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -137,6 +130,12 @@ final class MenuBarController: NSObject {
     // @MainActor-Arbeit läuft über DispatchQueue.main (vermeidet Prolog-Executor-Check + Crash).
     @objc nonisolated private func openSettingsFromMenu() {
         DispatchQueue.main.async { [weak self] in self?.settingsWindow.show() }
+    }
+    @objc nonisolated private func toggleMeetingFromMenu() {
+        DispatchQueue.main.async { [weak self] in self?.toggleMeeting?() }
+    }
+    @objc nonisolated private func openMeetingsFromMenu() {
+        DispatchQueue.main.async { [weak self] in self?.openMeetings?() }
     }
     @objc nonisolated private func quitFromMenu() {
         DispatchQueue.main.async { NSApp.terminate(nil) }
@@ -157,32 +156,17 @@ final class MenuBarController: NSObject {
         }
     }
 
-    private func togglePopover() {
-        guard let button = statusItem.button else { Log.write("Popover: kein Button"); return }
-        Log.write("Popover toggle: isShown=\(popover.isShown) inWindow=\(button.window != nil)")
-        if popover.isShown {
-            popover.performClose(nil)
-        } else {
-            // Accessory-App (LSUIElement): ein `.transient`-Popover zeigt sich nur, wenn die
-            // App aktiv ist — sonst verschwindet es sofort wieder. `activate()` (modern, macOS 14+)
-            // statt des deprecated `activate(ignoringOtherApps:)`, das auf neuem macOS oft no-op ist.
-            NSApp.activate()
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
-            Log.write("Popover.show → isShown=\(popover.isShown)")
-        }
+    /// Für die laufende Instanz, wenn eine zweite gestartet wird.
+    func showApp() {
+        openApp?()
     }
 
-    func showPopover() {
-        guard let button = statusItem.button, !popover.isShown else { return }
-        NSApp.activate()
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
-    }
-
-    private func updateIcon(for state: ModeProcessor.State) {
+    private func updateIcon(for state: ModeProcessor.State, meetingRecording: Bool) {
         guard let button = statusItem.button else { return }
         let color: NSColor? = {
+            // Diktat hat Vorrang in der Anzeige; ein laufender Meeting-Mitschnitt färbt
+            // das Icon sonst dauerhaft rot, damit er nicht vergessen wird.
+            if case .idle = state, meetingRecording { return .systemRed }
             switch state {
             case .idle:         return nil
             case .recording:    return .systemGreen

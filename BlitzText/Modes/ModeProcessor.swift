@@ -37,6 +37,7 @@ final class ModeProcessor: ObservableObject {
     private let _injectedParakeetTranscriber: TranscriptionService?
     private let _injectedRewriter: RewriteService?
     private let _injectedOllamaRewriter: RewriteService?
+    private let _injectedProviderRewriter: RewriteService?
     private let _injectedRecorder: RecorderProtocol?
 
     private lazy var defaultOpenAITranscriber: TranscriptionService = WhisperAPIClient(settings: settings)
@@ -63,6 +64,17 @@ final class ModeProcessor: ObservableObject {
     private var ollamaRewriter: RewriteService {
         _injectedOllamaRewriter ?? defaultOllamaRewriter
     }
+    /// OpenRouter oder Requesty, jedes Mal frisch gebaut, damit ein neuer Schlüssel oder ein
+    /// anderes Modell aus den Einstellungen sofort greift.
+    private func providerRewriter(for backend: RewriteBackend) -> RewriteService {
+        if let injected = _injectedProviderRewriter { return injected }
+        guard let provider = backend.provider else { return rewriter }
+        return ProviderRewriteClient(
+            provider: provider,
+            apiKey: settings.providerKeys.key(for: provider),
+            model: settings.meetingSummaryModel(for: provider)
+        )
+    }
     private var activeRecorder: RecorderProtocol {
         _injectedRecorder ?? recorder
     }
@@ -82,6 +94,7 @@ final class ModeProcessor: ObservableObject {
         parakeetTranscriber: TranscriptionService? = nil,
         rewriter: RewriteService? = nil,
         ollamaRewriter: RewriteService? = nil,
+        providerRewriter: RewriteService? = nil,
         recorder: RecorderProtocol? = nil
     ) {
         self.settings = settings
@@ -95,6 +108,7 @@ final class ModeProcessor: ObservableObject {
         self._injectedParakeetTranscriber = parakeetTranscriber
         self._injectedRewriter = rewriter
         self._injectedOllamaRewriter = ollamaRewriter
+        self._injectedProviderRewriter = providerRewriter
         self._injectedRecorder = recorder
     }
 
@@ -220,7 +234,13 @@ final class ModeProcessor: ObservableObject {
             state = .rewriting(mode)
             do {
                 let backend = settings.rewriteBackend(for: mode)
-                let activeRewriter: RewriteService = backend == .ollama ? ollamaRewriter : rewriter
+                let activeRewriter: RewriteService = {
+                    switch backend {
+                    case .openAI: return rewriter
+                    case .ollama: return ollamaRewriter
+                    case .openRouter, .requesty: return providerRewriter(for: backend)
+                    }
+                }()
                 var systemPrompt = makeRewriteSystemPrompt(for: mode, backend: backend)
                 if backend == .ollama {
                     systemPrompt += "\n\nAntworte ausschließlich auf Deutsch."
@@ -332,6 +352,7 @@ final class ModeProcessor: ObservableObject {
 
     private func humanReadable(_ error: Error) -> String {
         if let e = error as? OllamaError, let msg = e.errorDescription { return msg }
+        if let e = error as? SummaryError, let msg = e.errorDescription { return msg }
         if let e = error as? TranscriptionError, let msg = e.errorDescription { return msg }
         if let e = error as? AudioRecorder.RecorderError {
             switch e {
