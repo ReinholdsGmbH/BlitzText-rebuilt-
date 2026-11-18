@@ -142,6 +142,36 @@ struct MeetingControllerTests {
         #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("gegenseite.wav").path))
     }
 
+    @Test("Nächste Aufnahme startet, während die vorige noch verarbeitet wird")
+    func recordsWhileProcessing() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-test-archive-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (controller, _) = try makeController(
+            root: root,
+            transcriber: SequenceTranscriber(["Ich fange an mit einem längeren Satz für das erste Meeting heute",
+                                              "Die anderen antworten ausführlich und mit vielen Worten dazu",
+                                              "Zweites Meeting beginnt", "Antwort im zweiten"]),
+            summary: .success("### Zusammenfassung\n- Test")
+        )
+        controller.start()
+        controller.stop()
+        #expect(controller.isProcessing)
+
+        controller.start()
+        #expect(controller.isRecording)
+        // Die Verarbeitung im Hintergrund darf die laufende Aufnahme nicht überschreiben.
+        for _ in 0..<200 where controller.backgroundStatus != nil || controller.lastFolder == nil {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(controller.isRecording)
+        #expect(controller.lastFolder != nil)
+
+        controller.stop()
+        for _ in 0..<400 where !isFinished(controller) { try await Task.sleep(for: .milliseconds(25)) }
+        let folders = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        #expect(folders.count == 2)
+    }
+
     @Test("Import während der Aufnahme wartet und läuft danach von selbst")
     func importWaitsForRecording() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-test-archive-\(UUID())")

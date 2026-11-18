@@ -316,7 +316,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let record = NSMenuItem(title: recording ? "Aufnahme beenden" : "Meeting aufnehmen",
                                 action: #selector(toggleMeetingFromMenu), keyEquivalent: "")
         record.target = self
-        record.isEnabled = meetingController?.isProcessing != true
+        // Auch während der Verarbeitung: Das nächste Meeting soll sofort aufnehmbar sein.
         menu.addItem(record)
         let open = NSMenuItem(title: "Meetings öffnen", action: #selector(openMeetingsFromMenu), keyEquivalent: "")
         open.target = self

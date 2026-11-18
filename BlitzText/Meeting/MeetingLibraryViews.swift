@@ -49,7 +49,6 @@ struct MeetingListColumn: View {
                     }
                 }
                 .buttonStyle(SandButtonStyle())
-                .disabled(controller.isProcessing)
                 .help(controller.isRecording
                       ? "Beendet die Aufnahme; danach entstehen Transkript, Sprecher und Notizen."
                       : "Startet sofort eine Aufnahme: dein Mikrofon und der Ton der Konferenz-App, getrennt.")
@@ -1258,6 +1257,10 @@ struct LiveMeetingView: View {
                 }
             }
             CapsuleToggle(options: [(Tab.transcript, "Live-Transkript"), (Tab.notes, "Meine Notizen")], selection: $tab)
+            if let status = controller.backgroundStatus {
+                Label("Vorheriges Meeting im Hintergrund: \(status)", systemImage: "gearshape.2")
+                    .font(.system(size: 12)).foregroundStyle(MeetingTheme.foregroundTertiary)
+            }
             switch tab {
             case .transcript: LiveTranscriptPanel(live: controller.live)
             case .notes:
