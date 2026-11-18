@@ -15,8 +15,8 @@ struct MeetingMergerLiveTests {
         let folder = try MeetingMerger.merge(parts, into: archive)
         let merged = try #require(archive.load(folder: folder))
         let expected = parts.map(\.document.lines.count).reduce(0, +)
-        let audio = MeetingMerger.duration(of: folder.appendingPathComponent(MeetingArchive.othersTrackFile))
-        print("MERGE: \(folder.lastPathComponent) Zeilen \(merged.lines.count)/\(expected) Dauer \(Int(merged.duration)) s Audio \(Int(audio)) s Sprecher \(merged.speakerIDs.count) Namen \(merged.speakerNames.count)")
+        let audio = MeetingMerger.duration(of: folder.appendingPathComponent(merged.diarizedTrack))
+        print("MERGE: \(folder.lastPathComponent) Zeilen \(merged.lines.count)/\(expected) Dauer \(Int(merged.duration)) s Audio \(Int(audio)) s Sprecher \(merged.speakerIDs.count) Namen \(merged.speakerNames.count) Spur \(merged.diarizedTrack)")
         #expect(merged.lines.count == expected)
         #expect(abs(audio - merged.duration) < 1)
         // Hörprobe der letzten Zeile liegt innerhalb der Tonspur.

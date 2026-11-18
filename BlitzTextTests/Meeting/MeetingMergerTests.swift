@@ -38,11 +38,15 @@ struct MeetingMergerTests {
         #expect(merged.notes.first?.hasPrefix("Zusammengeführt aus 2 Teilen") == true)
     }
 
-    @Test("Aufnahme und Mischspur-Import lassen sich nicht mischen")
-    func rejectsMixedKinds() {
-        let a = part(0, lines: [])
+    @Test("Aufnahme und Mischspur-Import ergeben zusammen eine Mischspur")
+    func mixedKindsBecomeMixed() throws {
+        let a = part(0, lines: [TranscriptLine(speaker: .me, start: 1, end: 2, text: "Ich")])
         let b = part(5, lines: [], track: MeetingArchive.mixedTrackFile)
-        #expect(throws: MeetingMerger.MergeError.self) { try MeetingMerger.mergedDocument([a, b], lengths: [60, 60]) }
+        let merged = try MeetingMerger.mergedDocument([a, b], lengths: [60, 60])
+        #expect(merged.diarizedTrack == MeetingArchive.mixedTrackFile)
+        #expect(MeetingMerger.sources(for: MeetingArchive.mixedTrackFile, in: a)
+                == [MeetingArchive.microphoneTrackFile, MeetingArchive.othersTrackFile])
+        #expect(MeetingMerger.sources(for: MeetingArchive.mixedTrackFile, in: b) == [MeetingArchive.mixedTrackFile])
     }
 
     @Test("Tonspuren werden aneinandergehängt und auf die Teil-Länge aufgefüllt")
@@ -53,7 +57,7 @@ struct MeetingMergerTests {
         let output = TestAudio.tempURL()
         defer { [first, second, output].forEach { try? FileManager.default.removeItem(at: $0) } }
 
-        try MeetingMerger.concatenate([first, missing, second], lengths: [2.5, 1, 3], into: output)
+        try MeetingMerger.concatenate([[first], [missing], [second, first]], lengths: [2.5, 1, 3], into: output)
 
         #expect(abs(MeetingMerger.duration(of: output) - 6.5) < 0.01)
     }
