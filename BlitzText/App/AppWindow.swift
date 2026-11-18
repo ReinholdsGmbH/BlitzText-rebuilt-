@@ -156,9 +156,20 @@ final class AppWindowController: NSObject, NSWindowDelegate {
             window.delegate = self
             self.window = window
         }
-        NSApp.activate()
+        // Reihenfolge wie beim Update-Fenster: erst sichtbar machen und das Dock-Symbol
+        // einschalten, dann aktivieren. Eine reine Menüleisten-App (.accessory) bekommt den
+        // Vordergrund sonst nicht, und das Fenster blieb hinter anderen Apps.
         window?.makeKeyAndOrderFront(nil)
         applyDockPolicy()
+        bringToFront()
+        // Der Wechsel der Aktivierungsart greift erst eine Runde später.
+        DispatchQueue.main.async { [weak self] in self?.bringToFront() }
+    }
+
+    private func bringToFront() {
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
+        window?.orderFrontRegardless()
     }
 }
 
