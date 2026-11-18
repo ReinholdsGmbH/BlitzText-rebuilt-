@@ -30,7 +30,7 @@ struct UeberTab: View {
 
             section("UPDATES") {
                 Toggle("Automatisch nach Updates suchen", isOn: $settings.autoUpdateCheckEnabled)
-                Text("Prüft beim Start und alle 2 Stunden, ob eine neuere Version auf GitHub liegt, und benachrichtigt dich. Der Download startet erst auf deinen Klick.")
+                Text("Prüft beim Start und danach \(UpdateService.checkIntervalText), ob eine neuere Version auf GitHub liegt. Dann erscheint oben rechts im Fenster ein Hinweis. Der Download startet erst auf deinen Klick.")
                     .font(.caption).foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
