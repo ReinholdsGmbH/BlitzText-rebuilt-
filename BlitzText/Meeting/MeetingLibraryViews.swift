@@ -1021,6 +1021,17 @@ struct LiveMeetingView: View {
 /// Laufendes Transkript als Sprechblasen, scrollt automatisch mit.
 private struct LiveTranscriptPanel: View {
     @ObservedObject var live: LiveTranscriber
+    /// Steht die Ansicht am Ende? Nur dann scrollt sie mit; wer hochscrollt, liest in Ruhe.
+    @State private var atBottom = true
+
+    static let endID = "live-end"
+    /// Spielraum, ab dem „fast unten“ als unten gilt.
+    static let bottomTolerance: CGFloat = 40
+
+    /// Ändert sich bei jeder neuen oder wachsenden Sprechblase.
+    private var contentFingerprint: String {
+        "\(live.lines.count)-\(live.lines.last?.text.count ?? 0)-\(live.volatile.values.map(\.count).reduce(0, +))"
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -1065,14 +1076,38 @@ private struct LiveTranscriptPanel: View {
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                Color.clear.frame(height: 1).id(Self.endID)
             }
             .background(RoundedRectangle(cornerRadius: 18).fill(MeetingTheme.panel))
-            .onChange(of: live.lines.count) { _, count in
-                withAnimation { proxy.scrollTo(count - 1, anchor: .bottom) }
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.containerSize.height
+                    >= geometry.contentSize.height - Self.bottomTolerance
+            } action: { _, isAtBottom in
+                atBottom = isAtBottom
             }
-            .onChange(of: live.volatile) { _, _ in
-                if let speaker = live.volatile.keys.first { proxy.scrollTo("volatile-\(speaker.rawValue)", anchor: .bottom) }
+            .onChange(of: contentFingerprint) { _, _ in
+                guard atBottom else { return }
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(Self.endID, anchor: .bottom) }
             }
+            .overlay(alignment: .bottom) {
+                if !atBottom && !live.lines.isEmpty {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(Self.endID, anchor: .bottom) }
+                    } label: {
+                        Label("Zur aktuellen Stelle", systemImage: "arrow.down")
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.horizontal, 14)
+                            .frame(height: 30)
+                            .background(Capsule().fill(MeetingTheme.vast950))
+                            .foregroundStyle(MeetingTheme.sand50)
+                            .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 14)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: atBottom)
         }
     }
 }
