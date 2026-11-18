@@ -8,6 +8,9 @@ import SwiftUI
 final class UpdateWindowController: NSObject, NSWindowDelegate {
     private let service: UpdateService
     private var window: NSWindow?
+    /// Entscheidet nach dem Schließen über Dock-Symbol und Vordergrund. Gesetzt vom AppDelegate
+    /// auf die Logik des App-Fensters, die weiß, ob das Hauptfenster noch offen ist.
+    var onClose: (() -> Void)?
 
     init(service: UpdateService) {
         self.service = service
@@ -46,8 +49,12 @@ final class UpdateWindowController: NSObject, NSWindowDelegate {
         window.orderFrontRegardless()
     }
 
-    /// Zurück zur Accessory-Policy (Dock-Icon weg), wenn kein anderes Fenster mehr offen ist.
+    /// Nicht pauschal zurück zur Menüleisten-App: Ist das Hauptfenster offen, schob das bisher
+    /// BlitzText samt Hauptfenster hinter andere Apps. Entscheidet jetzt `onClose`, erst nach
+    /// dem Schließen (vorher gilt das Update-Fenster noch als sichtbar).
     func windowWillClose(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        DispatchQueue.main.async { [weak self] in
+            if let onClose = self?.onClose { onClose() } else { NSApp.setActivationPolicy(.accessory) }
+        }
     }
 }

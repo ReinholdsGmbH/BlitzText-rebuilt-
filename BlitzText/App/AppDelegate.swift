@@ -190,6 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow.openInApp = { [weak self] section in self?.meetingWindow.show(section: section) }
         meetingController.onOpenLibrary = { [weak self] folder in self?.meetingWindow.show(selecting: folder) }
         meetingController.onOpenLive = { [weak self] in self?.meetingWindow.show(section: .meetings) }
+        updateWindow.onClose = { [weak self] in self?.meetingWindow.applyDockPolicy() }
         meetingController.onMeetingSaved = { [weak self] _ in self?.meetingLibrary.reload() }
         meetingPill = MeetingPillController(controller: meetingController)
         meetingController.startMonitoring()
