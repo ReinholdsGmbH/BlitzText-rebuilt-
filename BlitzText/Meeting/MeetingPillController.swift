@@ -51,9 +51,11 @@ final class MeetingPillController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
-        panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.isFloatingPanel = true
+        // Erst nach isFloatingPanel: das setzt die Ebene sonst auf .floating zurück, und die
+        // Meeting-App (gleiche Ebene, aber aktiv) lag dann über der Pille.
+        panel.level = .statusBar
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
 
