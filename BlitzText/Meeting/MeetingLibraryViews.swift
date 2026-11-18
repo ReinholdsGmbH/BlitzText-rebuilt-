@@ -1154,6 +1154,8 @@ struct LiveMeetingView: View {
         .padding(.top, 26)
         .padding(.bottom, 24)
         .frame(maxWidth: 760, alignment: .leading)
+        // Klick auf die Pille: in den Reiter Live-Transkript (der springt selbst ans Ende).
+        .onChange(of: controller.liveFocusRequest) { _, _ in tab = .transcript }
     }
 }
 

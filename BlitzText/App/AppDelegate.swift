@@ -189,6 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Einstellungen leben jetzt im App-Fenster; alle alten Einstiege führen dorthin.
         settingsWindow.openInApp = { [weak self] section in self?.meetingWindow.show(section: section) }
         meetingController.onOpenLibrary = { [weak self] folder in self?.meetingWindow.show(selecting: folder) }
+        meetingController.onOpenLive = { [weak self] in self?.meetingWindow.show(section: .meetings) }
         meetingController.onMeetingSaved = { [weak self] _ in self?.meetingLibrary.reload() }
         meetingPill = MeetingPillController(controller: meetingController)
         meetingController.startMonitoring()

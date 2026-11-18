@@ -56,6 +56,10 @@ final class MeetingController: ObservableObject {
     /// Wird nach jedem fertigen Protokoll gerufen (Bibliothek neu laden, Fenster öffnen).
     var onMeetingSaved: ((URL) -> Void)?
     var onOpenLibrary: ((URL?) -> Void)?
+    /// Öffnet das App-Fenster beim laufenden Meeting (gesetzt vom AppDelegate).
+    var onOpenLive: (() -> Void)?
+    /// Zählt Klicks auf die Pille hoch; die Live-Ansicht springt dann in den Reiter Transkript.
+    @Published private(set) var liveFocusRequest = 0
 
     private let recorder: MeetingRecorder
     let archive: MeetingArchive
@@ -218,6 +222,12 @@ final class MeetingController: ObservableObject {
 
     func toggle() {
         if isRecording { stop() } else { start() }
+    }
+
+    /// Klick auf die Pille während der Aufnahme: BlitzText nach vorne, Live-Transkript zeigen.
+    func openLiveTranscript() {
+        liveFocusRequest += 1
+        onOpenLive?()
     }
 
     func openLibrary() {

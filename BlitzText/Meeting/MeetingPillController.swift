@@ -144,6 +144,7 @@ struct MeetingPillView: View {
                     .onChanged { _ in mover?.drag() }
                     .onEnded { _ in mover?.end() }
             )
+
             .fixedSize()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: controller.phase)
@@ -165,12 +166,19 @@ struct MeetingPillView: View {
                 .buttonStyle(PillChoiceStyle(prominent: true))
 
         case .recording(let startedAt):
-            LevelBars(level: { controller.microphoneLevel })
-            TimelineView(.periodic(from: startedAt, by: 1)) { context in
-                Text(MeetingMarkdown.clock(context.date.timeIntervalSince(startedAt), alwaysHours: false))
-                    .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(MeetingTheme.sand50.opacity(0.7))
+            // Klick auf Pegel oder Zeit: BlitzText mit dem Live-Transkript nach vorne.
+            // Ziehen von hier verschiebt weiterhin die Pille; der Stopp-Knopf bleibt für sich.
+            HStack(spacing: 10) {
+                LevelBars(level: { controller.microphoneLevel })
+                TimelineView(.periodic(from: startedAt, by: 1)) { context in
+                    Text(MeetingMarkdown.clock(context.date.timeIntervalSince(startedAt), alwaysHours: false))
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .foregroundStyle(MeetingTheme.sand50.opacity(0.7))
+                }
             }
+            .contentShape(Rectangle())
+            .onTapGesture { controller.openLiveTranscript() }
+            .help("Live-Transkript öffnen")
             StopSquare { controller.stop() }
 
         case .importing:
