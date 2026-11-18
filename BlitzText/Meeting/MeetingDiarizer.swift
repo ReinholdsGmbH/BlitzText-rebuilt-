@@ -82,13 +82,12 @@ final class FluidMeetingDiarizer: MeetingDiarizing, @unchecked Sendable {
     func diarize(track: URL) async throws -> MeetingDiarization {
         let manager = try await diarizer()
         let speakers = manager.speakerManager
-        // Frisch pro Meeting: Sprecher-IDs aus früheren Meetings sollen nicht durchsickern.
+        // Frisch pro Meeting und ohne vorgeladene Profile: Vorgeladen hat FluidAudio eine
+        // einzige Stimme in fünf zerlegt und jedem Teil irgendein Profil gegeben. Die Profile
+        // werden erst danach und streng zugeordnet (`MeetingProfileMatcher`).
         await speakers.reset()
         await speakers.setSpeakerThreshold(threshold())
         let profiles = store.loadSpeakers().filter(\.isPermanent)
-        if !profiles.isEmpty {
-            await speakers.initializeKnownSpeakers(profiles, mode: .skip)
-        }
 
         let samples = try AudioConverter().resampleAudioFile(track)
         Log.write("MeetingDiarizer: \(String(format: "%.0f", Double(samples.count) / 16_000)) s Audio, \(profiles.count) Profile")
@@ -97,18 +96,12 @@ final class FluidMeetingDiarizer: MeetingDiarizing, @unchecked Sendable {
         let segments = result.segments.map {
             DiarizedSegment(speakerID: $0.speakerId, start: TimeInterval($0.startTimeSeconds), end: TimeInterval($0.endTimeSeconds))
         }
-        let profileIDs = Set(profiles.map(\.id))
-        let runtime = await speakers.getSpeakerList()
-        var known: [String: String] = [:]
-        for speaker in runtime where profileIDs.contains(speaker.id) && segments.contains(where: { $0.speakerID == speaker.id }) {
-            known[speaker.id] = speaker.name
-        }
-
-        // Nachgeschärfte Profile zurückschreiben. Nur permanente — unbenannte Stimmen bleiben flüchtig.
-        let refined = ParakeetClient.mergePersistedNames(runtime, from: store).filter(\.isPermanent)
-        if !refined.isEmpty { store.saveSpeakers(Self.merge(refined, into: store.loadSpeakers())) }
-
-        Log.write("MeetingDiarizer: \(Set(segments.map(\.speakerID)).count) Sprecher, \(known.count) davon bekannt")
+        let clusters = MeetingProfileMatcher.clusters(from: result.segments)
+        let known = MeetingProfileMatcher.match(clusters, profiles: profiles.map { ($0.name, $0.currentEmbedding) })
+        // Kein automatisches Nachschärfen mehr: Ein falscher Treffer hat sonst das Profil einer
+        // Person mit der Stimme einer anderen überschrieben. Profile lernen nur aus Namen, die
+        // der Nutzer vergibt oder bestätigt (`learnProfile`).
+        Log.write("MeetingDiarizer: \(clusters.count) Sprecher, \(known.count) davon bekannt")
         return MeetingDiarization(segments: segments, knownNames: known)
     }
 
@@ -211,4 +204,66 @@ struct SpeakerHint: Equatable, Codable {
     /// Sekunden ab Aufnahmebeginn.
     let time: TimeInterval
     let name: String
+}
+
+/// Ordnet getrennte Stimmen gespeicherten Profilen zu, erst nach der Trennung und streng.
+///
+/// Früher lud BlitzText die Profile in FluidAudio vor. Dort reicht ein Abstand unter der
+/// Schwelle, und bei 15 Profilen passt fast immer irgendeines: Im Call am 18.11.2026 bekam
+/// der Hauptsprecher das Profil einer anderen Person, drei Minischnipsel weitere Namen.
+/// Jetzt gilt:
+/// - Eine Stimme braucht `minimumSeconds` Sprechzeit, sonst ist ihr Embedding zu unscharf.
+/// - Das beste Profil muss nah genug (`maximumDistance`) und deutlich näher als das zweitbeste
+///   sein (`minimumMargin`).
+/// - Jedes Profil geht an höchstens eine Stimme, die nächste gewinnt.
+/// - Ausgeschlossene Namen (die eigene Person auf der Gegenseite) werden nie vergeben.
+enum MeetingProfileMatcher {
+    static let minimumSeconds: Float = 15
+    static let maximumDistance: Float = 0.5
+    static let minimumMargin: Float = 0.08
+
+    struct Cluster {
+        let id: String
+        let duration: Float
+        let embedding: [Float]
+    }
+
+    static func clusters(from segments: [TimedSpeakerSegment]) -> [Cluster] {
+        Dictionary(grouping: segments, by: \.speakerId).compactMap { id, segs in
+            guard let size = segs.first(where: { !$0.embedding.isEmpty })?.embedding.count else { return nil }
+            var sum = [Float](repeating: 0, count: size)
+            var weight: Float = 0
+            for seg in segs where seg.embedding.count == size {
+                let w = max(seg.durationSeconds, 0.01)
+                for i in 0..<size { sum[i] += seg.embedding[i] * w }
+                weight += w
+            }
+            let duration = segs.reduce(0) { $0 + $1.durationSeconds }
+            return Cluster(id: id, duration: duration, embedding: weight > 0 ? sum.map { $0 / weight } : [])
+        }
+    }
+
+    /// Stimmen-ID → Profilname.
+    static func match(_ clusters: [Cluster], profiles: [(name: String, embedding: [Float])], excluding: Set<String> = []) -> [String: String] {
+        let usable = profiles.filter { !$0.embedding.isEmpty && !excluding.contains(SpeakerNaming.key($0.name)) }
+        var candidates: [(cluster: String, name: String, distance: Float)] = []
+        for cluster in clusters where cluster.duration >= minimumSeconds && !cluster.embedding.isEmpty {
+            let ranked = usable
+                .filter { $0.embedding.count == cluster.embedding.count }
+                .map { (name: $0.name, distance: SpeakerUtilities.cosineDistance(cluster.embedding, $0.embedding)) }
+                .sorted { $0.distance < $1.distance }
+            guard let best = ranked.first, best.distance <= maximumDistance else { continue }
+            let second = ranked.dropFirst().first?.distance ?? .infinity
+            guard second - best.distance >= minimumMargin else { continue }
+            candidates.append((cluster.id, best.name, best.distance))
+        }
+        var result: [String: String] = [:]
+        var used = Set<String>()
+        for candidate in candidates.sorted(by: { $0.distance < $1.distance })
+        where !used.contains(candidate.name) && result[candidate.cluster] == nil {
+            result[candidate.cluster] = candidate.name
+            used.insert(candidate.name)
+        }
+        return result
+    }
 }

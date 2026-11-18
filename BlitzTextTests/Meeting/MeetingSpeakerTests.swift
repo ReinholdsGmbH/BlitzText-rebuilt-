@@ -288,3 +288,35 @@ struct SnippetSelectionTests {
         #expect(mixed.trackFile(for: doc.lines[0]) == MeetingArchive.mixedTrackFile)
     }
 }
+
+struct MeetingProfileMatcherTests {
+    private func cluster(_ id: String, _ seconds: Float, _ embedding: [Float]) -> MeetingProfileMatcher.Cluster {
+        .init(id: id, duration: seconds, embedding: embedding)
+    }
+
+    @Test("Nahes Profil mit klarem Vorsprung wird zugeordnet")
+    func matchesClearWinner() {
+        let result = MeetingProfileMatcher.match([cluster("1", 800, [1, 0, 0])],
+                                                 profiles: [("Max", [0.98, 0.1, 0]), ("Lisa", [0, 1, 0])])
+        #expect(result == ["1": "Max"])
+    }
+
+    @Test("Kurze Stimme, ferne Profile und knappe Abstände bleiben ohne Namen")
+    func rejectsWeakMatches() {
+        let profiles: [(name: String, embedding: [Float])] = [("A", [1, 0, 0]), ("B", [0.99, 0.12, 0]), ("C", [0, 0, 1])]
+        // zu kurz
+        #expect(MeetingProfileMatcher.match([cluster("1", 5, [1, 0, 0])], profiles: profiles).isEmpty)
+        // A und B fast gleich nah: kein klarer Vorsprung
+        #expect(MeetingProfileMatcher.match([cluster("2", 60, [1, 0.06, 0])], profiles: profiles).isEmpty)
+        // zu weit weg von allem
+        #expect(MeetingProfileMatcher.match([cluster("3", 60, [0, 1, 0])], profiles: [("A", [1, 0, 0]), ("C", [0, 0, 1])]).isEmpty)
+    }
+
+    @Test("Ein Profil geht nur an eine Stimme, die nähere gewinnt")
+    func profileUsedOnce() {
+        let result = MeetingProfileMatcher.match(
+            [cluster("1", 100, [1, 0.05, 0]), cluster("2", 100, [1, 0, 0])],
+            profiles: [("A", [1, 0, 0]), ("C", [0, 0, 1])])
+        #expect(result == ["2": "A"])
+    }
+}

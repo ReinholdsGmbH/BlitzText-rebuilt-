@@ -355,7 +355,9 @@ final class MeetingController: ObservableObject {
 
                 // 4. Namen.
                 if let diarization {
-                    for (id, name) in diarization.knownNames {
+                    // Auf der reinen Gegenseite kann ich nicht sprechen: Mein Profil dort ist ein
+                    // Fehltreffer (Echo oder ähnliche Stimme).
+                    for (id, name) in diarization.knownNames where !(othersSide == .others && SpeakerNaming.isSelf(name)) {
                         document.speakerNames[id] = name
                         document.nameSources[id] = .profile
                     }
