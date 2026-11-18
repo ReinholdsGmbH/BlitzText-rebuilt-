@@ -432,7 +432,8 @@ struct MeetingDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 if !document.unconfirmedSpeakerIDs.isEmpty {
-                    SpeakerAssignmentCard(entry: entry, library: library, player: player)
+                    SpeakerAssignmentCard(entry: entry, library: library, player: player,
+                                          showInTranscript: { showFirstLine(of: $0) })
                 }
                 HStack {
                     CapsuleToggle(options: [(Tab.notes, "Zusammenfassung"), (Tab.myNotes, "Meine Notizen"), (Tab.transcript, "Transkript")], selection: $tab)
@@ -600,7 +601,8 @@ struct MeetingDetailView: View {
                            playing: player.playingID == id,
                            choices: document.canReassign(line) ? speakerChoices : [],
                            known: library.knownNames,
-                           onReassign: { target in library.reassign(lineAt: item.index, to: target, in: entry.folder) }) {
+                           onReassign: { target in library.reassign(lineAt: item.index, to: target, in: entry.folder) },
+                           onSplit: { word in library.split(lineAt: item.index, beforeWord: word, in: entry.folder) }) {
                         player.toggle(id: id, url: entry.folder.appendingPathComponent(document.trackFile(for: line)),
                                       start: line.start, end: line.end)
                     }
@@ -648,10 +650,15 @@ private struct Bubble: View {
     var choices: [(id: String, label: String)] = []
     var known: [String] = []
     var onReassign: (MeetingLibrary.ReassignTarget) -> Void = { _ in }
+    /// Teilt vor dem Wort mit diesem Index.
+    var onSplit: ((Int) -> Void)?
     let onPlay: () -> Void
     @State private var hovering = false
     @State private var askingName = false
     @State private var draft = ""
+    @State private var splitting = false
+
+    private var words: [String] { line.text.split(separator: " ", omittingEmptySubsequences: true).map(String.init) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -698,6 +705,9 @@ private struct Bubble: View {
                 }
                 Divider()
                 Button("Andere Person …") { draft = ""; askingName = true }
+                if onSplit != nil, words.count >= 2 {
+                    Button("Aufteilen …") { splitting = true }
+                }
             } label: {
                 HStack(spacing: 2) {
                     text
@@ -722,7 +732,107 @@ private struct Bubble: View {
                 .padding(16)
                 .frame(width: 360, alignment: .leading)
             }
+            .popover(isPresented: $splitting, arrowEdge: .bottom) { splitPicker }
         }
+    }
+
+    /// Wortweise Auswahl: Das angeklickte Wort beginnt den zweiten Teil.
+    private var splitPicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Beitrag aufteilen").font(.system(size: 14, weight: .semibold))
+                Spacer()
+                PlayButton(playing: playing, size: 22, action: onPlay)
+            }
+            Text("Klicke das Wort, mit dem der zweite Teil beginnt. Danach lässt sich jeder Teil einer anderen Person zuordnen.")
+                .font(.system(size: 11.5)).foregroundStyle(MeetingTheme.foregroundTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            ScrollView {
+                FlowLayout(spacing: 4) {
+                    ForEach(Array(words.enumerated()), id: \.offset) { index, word in
+                        SplitWord(word: word, enabled: index > 0) {
+                            splitting = false
+                            onSplit?(index)
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: 260)
+        }
+        .padding(16)
+        .frame(width: 420, alignment: .leading)
+    }
+}
+
+/// Ein Wort im Aufteilen-Dialog; beim Überfahren zeigt ein Strich davor die Trennstelle.
+private struct SplitWord: View {
+    let word: String
+    let enabled: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                if hovering && enabled {
+                    Rectangle().fill(MeetingTheme.dawn500).frame(width: 2, height: 16)
+                }
+                Text(word).font(.system(size: 13))
+            }
+            .padding(.horizontal, 5).padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 5)
+                .fill(hovering && enabled ? MeetingTheme.dawn500.opacity(0.18) : .clear))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .onHover { hovering = $0 }
+    }
+}
+
+/// Einfacher Zeilenumbruch für Wörter: füllt eine Zeile, dann die nächste.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 4
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 400
+        let rows = arrange(subviews, width: width)
+        return CGSize(width: width, height: rows.last.map { $0.y + $0.height } ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for (row, subviewIndices) in zip(arrange(subviews, width: bounds.width), rowsOfIndices(subviews, width: bounds.width)) {
+            var x = bounds.minX
+            for index in subviewIndices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: bounds.minY + row.y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+        }
+    }
+
+    private struct Row { var y: CGFloat; var height: CGFloat }
+
+    private func rowsOfIndices(_ subviews: Subviews, width: CGFloat) -> [[Int]] {
+        var rows: [[Int]] = [[]]
+        var x: CGFloat = 0
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width { rows.append([]); x = 0 }
+            rows[rows.count - 1].append(index)
+            x += size.width + spacing
+        }
+        return rows
+    }
+
+    private func arrange(_ subviews: Subviews, width: CGFloat) -> [Row] {
+        var result: [Row] = []
+        var y: CGFloat = 0
+        for indices in rowsOfIndices(subviews, width: width) {
+            let height = indices.map { subviews[$0].sizeThatFits(.unspecified).height }.max() ?? 0
+            result.append(Row(y: y, height: height))
+            y += height + spacing
+        }
+        return result
     }
 }
 
@@ -825,6 +935,7 @@ private struct SpeakerAssignmentCard: View {
     let entry: MeetingLibrary.Entry
     @ObservedObject var library: MeetingLibrary
     @ObservedObject var player: SnippetPlayer
+    var showInTranscript: (String) -> Void = { _ in }
     @State private var drafts: [String: String] = [:]
 
     private var document: MeetingDocument { entry.document }
@@ -881,6 +992,10 @@ private struct SpeakerAssignmentCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 12).padding(.vertical, 7)
                     .background(RoundedRectangle(cornerRadius: 12).fill(MeetingTheme.card))
+                Spacer(minLength: 4)
+                Button("Im Transkript zeigen") { showInTranscript(id) }
+                    .buttonStyle(SandButtonStyle())
+                    .help("Zum ersten Beitrag dieser Stimme springen, etwa um überlagerte Stimmen aufzuteilen")
             }
             NameEntry(text: binding, known: library.knownNames, others: otherNames(except: id),
                       buttonTitle: fromApp ? "Bestätigen" : "Übernehmen", busy: library.busy != nil) { name in
