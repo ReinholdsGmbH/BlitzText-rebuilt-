@@ -67,6 +67,17 @@ struct VaultExporter {
         return "eingang"
     }
 
+    /// Prüftext wie mw-route, aber breiter: Titel, ganze Zusammenfassung, eigene Notizen und
+    /// der Anfang des Transkripts. Der Titel fehlte früher, dort steht das Thema am klarsten.
+    static func probeText(for document: MeetingDocument) -> String {
+        [MeetingMarkdown.baseTitle(for: document), document.summary ?? "", document.userNotes ?? "",
+         String(document.transcriptText.prefix(3_000))].joined(separator: "\n")
+    }
+
+    static func detectProject(for document: MeetingDocument) -> String {
+        detectProject(title: MeetingMarkdown.baseTitle(for: document), text: probeText(for: document))
+    }
+
     private static func matches(_ pattern: String, in text: String) -> Bool {
         text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
     }
@@ -107,9 +118,8 @@ struct VaultExporter {
         guard fm.fileExists(atPath: root.path) else { throw ExportError.rootMissing(root.path) }
 
         var document = input
-        if document.projectChosenByUser != true || document.project == nil {
-            let probe = (document.summary ?? "").prefix(500) + " " + document.transcriptText.prefix(1500)
-            document.project = Self.detectProject(title: MeetingMarkdown.baseTitle(for: document), text: String(probe))
+        if document.project == nil {
+            document.project = Self.detectProject(for: document)
         }
         let area = Self.folder(for: document.project ?? "eingang")
         let relative = "\(area)/transkripte/\(Self.fileName(for: document))"

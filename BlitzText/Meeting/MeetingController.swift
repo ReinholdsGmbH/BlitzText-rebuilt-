@@ -385,7 +385,16 @@ final class MeetingController: ObservableObject {
                     warning = "Zusammenfassung fehlgeschlagen: \(error.localizedDescription)"
                     Log.write("MeetingController: \(warning ?? "")")
                 }
-                // 6. Speichern und in den Wissensordner spiegeln, auch ohne Zusammenfassung:
+                // 6. Bereich: Stichwörter aus mw-route, sonst schlägt das Modell einen vor.
+                if exporter != nil, document.projectChosenByUser != true, document.project == nil {
+                    var area = VaultExporter.detectProject(for: document)
+                    if area == "eingang", let suggested = await MeetingAreaSuggester.suggest(for: document, using: summarizer) {
+                        area = suggested
+                        Log.write("MeetingController: Bereich vom Modell vorgeschlagen — \(area)")
+                    }
+                    document.project = area
+                }
+                // 7. Speichern und in den Wissensordner spiegeln, auch ohne Zusammenfassung:
                 // Das Transkript ist dort schon nützlich, die Notizen kommen bei „Neu erstellen“ nach.
                 let saved = archive.persist(document, in: folder, exporter: exporter)
                 document = saved.document

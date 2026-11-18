@@ -301,3 +301,40 @@ struct LogDigestTests {
         #expect(log.contains("  - Aufgabe: Ich: Angebot schreiben"))
     }
 }
+
+struct MeetingAreaTests {
+
+    private func doc(title: String, summary: String?) -> MeetingDocument {
+        var document = MeetingDocument(
+            startedAt: Date(), duration: 60, sourceNames: ["Teams"],
+            lines: [TranscriptLine(speaker: .others, start: 1, end: 3, text: "Wir gehen die Fälle durch.", speakerID: "1")],
+            summary: summary, notes: []
+        )
+        document.aiTitle = title
+        return document
+    }
+
+    @Test("Der Titel zählt jetzt mit")
+    func titleIsChecked() {
+        #expect(VaultExporter.detectProject(for: doc(title: "Projekt Nord Teststatus", summary: nil)) == "pag")
+    }
+
+    @Test("Antwort des Modells: erster bekannter Schlüssel")
+    func parsesAnswer() {
+        let keys = ["pag", "wk", "tm", "eingang"]
+        #expect(MeetingAreaSuggester.parse("pag", keys: keys) == "pag")
+        #expect(MeetingAreaSuggester.parse("Bereich: PAG.", keys: keys) == "pag")
+        #expect(MeetingAreaSuggester.parse("weiß nicht", keys: keys) == nil)
+    }
+
+    @Test("Ohne Stichwort schlägt das Modell PAG vor, Unsinn bleibt ohne Vorschlag")
+    func suggests() async {
+        let document = doc(title: "Abstimmung Prozessumfang und Testfälle SAP-Umstellung", summary: "- Testfälle je Prozess")
+        #expect(VaultExporter.detectProject(for: document) == "eingang")
+        var model = FakeSummarizer(result: .success(""))
+        model.askResult = .success("pag")
+        #expect(await MeetingAreaSuggester.suggest(for: document, using: model) == "pag")
+        model.askResult = .success("keine Ahnung")
+        #expect(await MeetingAreaSuggester.suggest(for: document, using: model) == nil)
+    }
+}
