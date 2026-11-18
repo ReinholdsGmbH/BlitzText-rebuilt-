@@ -36,6 +36,8 @@ struct MeetingMergerTests {
         #expect(merged.summary == nil)
         #expect(merged.userNotes?.contains("Notiz A") == true && merged.userNotes?.contains("Notiz B") == true)
         #expect(merged.notes.first?.hasPrefix("Zusammengeführt aus 2 Teilen") == true)
+        // Ende ist das Ende des letzten Teils (90 min + 40 s), nicht Beginn plus Summe der Längen.
+        #expect(merged.endDate == Date(timeIntervalSince1970: 90 * 60 + 40))
     }
 
     @Test("Aufnahme und Mischspur-Import ergeben zusammen eine Mischspur")

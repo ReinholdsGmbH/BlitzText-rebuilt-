@@ -208,7 +208,7 @@ final class MeetingLibrary: ObservableObject {
 
     func copyNotes(of entry: Entry) {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(entry.document.summary ?? "", forType: .string)
+        NSPasteboard.general.setString(MeetingMarkdown.summaryWithTime(entry.document), forType: .string)
     }
 
     func reveal(_ entry: Entry) {

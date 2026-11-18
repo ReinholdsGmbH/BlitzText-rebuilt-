@@ -80,6 +80,9 @@ enum MeetingMerger {
             nameSources: sources,
             diarizedTrack: targetTrack(for: parts)
         )
+        document.endedAt = zip(parts, lengths).map { part, length in
+            part.endedAt ?? part.startedAt.addingTimeInterval(length)
+        }.max()
         document.userNotes = mergedUserNotes(parts)
         if let chosen = parts.first(where: { $0.projectChosenByUser == true }) {
             document.project = chosen.project
