@@ -27,7 +27,13 @@ final class MeetingController: ObservableObject {
         case failed(String)
     }
 
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle {
+        // Ist eine Aufnahme oder ein Import fertig, kommt der nächste wartende Import dran.
+        didSet { DispatchQueue.main.async { [weak self] in self?.startNextQueuedImport() } }
+    }
+    /// Imports, die während einer Aufnahme oder Verarbeitung abgelegt wurden. Sie laufen
+    /// nacheinander, sobald BlitzText frei ist; parallel würde das Live-Transkript leiden.
+    @Published private(set) var importQueue: [[URL]] = []
     /// Konferenz-Apps, die gerade im Gespräch sind (Mikrofon aktiv).
     @Published private(set) var activeSources: [MeetingSource] = []
     /// Hinweis ausgeblendet, bis das erkannte Meeting endet.
@@ -230,9 +236,20 @@ final class MeetingController: ObservableObject {
 
     // MARK: - Import
 
-    /// Zeigt den Dateidialog und importiert eine Mischspur oder ein Spurpaar.
+    /// Frei für einen Import: keine Aufnahme, keine Verarbeitung, keine offene Rückfrage
+    /// „Versehentlich gestartet?“ (die ein neuer Import sonst überdecken würde).
+    var canImportNow: Bool { !isRecording && !isProcessing && accidentalFolder == nil }
+
+    private func startNextQueuedImport() {
+        guard canImportNow, !importQueue.isEmpty else { return }
+        let next = importQueue.removeFirst()
+        Log.write("MeetingController: wartenden Import gestartet (\(importQueue.count) weitere)")
+        importFiles(next)
+    }
+
+    /// Zeigt den Dateidialog und importiert eine Mischspur oder ein Spurpaar. Läuft gerade
+    /// eine Aufnahme, wartet der Import, bis sie fertig ist.
     func chooseAndImport() {
-        guard !isRecording, !isProcessing else { return }
         let panel = NSOpenPanel()
         panel.title = "Aufnahme importieren"
         panel.message = "Eine Mischspur, oder zwei Dateien: Mikrofon und Gegenseite (z. B. mic-audio und app-audio aus MacWhisper)."
@@ -244,7 +261,11 @@ final class MeetingController: ObservableObject {
     }
 
     func importFiles(_ urls: [URL]) {
-        guard !isRecording, !isProcessing else { return }
+        guard canImportNow else {
+            importQueue.append(urls)
+            Log.write("MeetingController: Import wartet (\(importQueue.count) in der Schlange)")
+            return
+        }
         let plan: MeetingImport.Plan
         do { plan = try MeetingImport.plan(for: urls) } catch {
             phase = .failed(error.localizedDescription)
@@ -432,6 +453,7 @@ final class MeetingController: ObservableObject {
     func resolveAccidental(keep: Bool) {
         guard let folder = accidentalFolder else { return }
         accidentalFolder = nil
+        defer { DispatchQueue.main.async { [weak self] in self?.startNextQueuedImport() } }
         if !keep {
             if let document = archive.load(folder: folder) { makeExporter()?.remove(document) }
             try? FileManager.default.trashItem(at: folder, resultingItemURL: nil)

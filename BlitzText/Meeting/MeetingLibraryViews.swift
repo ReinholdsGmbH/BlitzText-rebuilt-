@@ -34,8 +34,9 @@ struct MeetingListColumn: View {
                 Spacer(minLength: 4)
                 Button { controller.chooseAndImport() } label: { Image(systemName: "square.and.arrow.down") }
                     .buttonStyle(SandButtonStyle())
-                    .help("Aufnahme importieren, z. B. aus MacWhisper")
-                    .disabled(controller.isRecording || controller.isProcessing)
+                    .help(controller.canImportNow
+                          ? "Aufnahme importieren, z. B. aus MacWhisper. Dateien lassen sich auch auf die Liste ziehen."
+                          : "Aufnahme importieren; startet, sobald die laufende Aufnahme fertig ist.")
                 Button { controller.revealArchive() } label: { Image(systemName: "folder") }
                     .buttonStyle(SandButtonStyle())
                     .help("Meeting-Ordner im Finder zeigen")
@@ -66,6 +67,15 @@ struct MeetingListColumn: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 8)
+
+            if !controller.importQueue.isEmpty {
+                Label(controller.importQueue.count == 1
+                      ? "1 Import wartet auf das Ende der Aufnahme"
+                      : "\(controller.importQueue.count) Imports warten auf das Ende der Aufnahme",
+                      systemImage: "clock")
+                    .font(.system(size: 11.5)).foregroundStyle(MeetingTheme.foregroundTertiary)
+                    .padding(.horizontal, 22).padding(.bottom, 6)
+            }
 
             if library.entries.isEmpty {
                 VStack(spacing: 10) {
@@ -103,12 +113,12 @@ struct MeetingListColumn: View {
         // Audiodateien aus dem Finder oder MacWhisper auf die Liste ziehen: wie „Importieren“.
         // Schon beim Hereinziehen zeigt die Liste, ob die Dateien angenommen werden.
         .onDrop(of: [.fileURL], delegate: AudioDropDelegate(state: $dropState,
-                                                          busy: controller.isRecording || controller.isProcessing) { urls in
+                                                          queued: !controller.canImportNow) { urls in
             controller.importFiles(urls)
         })
         .overlay {
             if dropState != .none {
-                let valid = dropState == .valid
+                let valid = dropState == .valid || dropState == .queued
                 let tint = valid ? MeetingTheme.dawn500 : MeetingTheme.coral
                 RoundedRectangle(cornerRadius: 14)
                     .strokeBorder(tint, style: StrokeStyle(lineWidth: 2, dash: valid ? [] : [6, 4]))
@@ -161,27 +171,28 @@ struct MeetingListColumn: View {
 /// passen. Der Finder liefert neben der Datei-URL auch den Dateityp mit; daran wird geprüft.
 struct AudioDropDelegate: DropDelegate {
     enum State: Equatable {
-        case none, valid, invalid, busy
+        case none, valid, invalid, queued
 
         var message: String {
             switch self {
             case .valid: return "Zum Importieren loslassen"
             case .invalid: return "Nur Audio- oder Videodateien"
-            case .busy: return "Erst nach der laufenden Aufnahme"
+            case .queued: return "Wird nach der Aufnahme importiert"
             case .none: return ""
             }
         }
     }
 
     @Binding var state: State
-    let busy: Bool
+    /// BlitzText ist beschäftigt: Dateien kommen in die Warteschlange.
+    let queued: Bool
     let onImport: ([URL]) -> Void
 
     static let acceptedTypes: [UTType] = [.audio, .movie]
 
     private func evaluate(_ info: DropInfo) -> State {
-        if busy { return .busy }
-        return info.hasItemsConforming(to: Self.acceptedTypes) ? .valid : .invalid
+        guard info.hasItemsConforming(to: Self.acceptedTypes) else { return .invalid }
+        return queued ? .queued : .valid
     }
 
     /// Immer annehmen, damit auch ungültige Dateien den Hinweis bekommen; abgelehnt wird
@@ -190,12 +201,12 @@ struct AudioDropDelegate: DropDelegate {
     func dropEntered(info: DropInfo) { state = evaluate(info) }
     func dropExited(info: DropInfo) { state = .none }
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: evaluate(info) == .valid ? .copy : .forbidden)
+        DropProposal(operation: evaluate(info) == .invalid ? .forbidden : .copy)
     }
 
     func performDrop(info: DropInfo) -> Bool {
         state = .none
-        guard evaluate(info) == .valid else { return false }
+        guard evaluate(info) != .invalid else { return false }
         let providers = info.itemProviders(for: [.fileURL])
         Task { @MainActor in
             var urls: [URL] = []
