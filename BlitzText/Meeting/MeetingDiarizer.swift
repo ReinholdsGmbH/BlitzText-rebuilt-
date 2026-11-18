@@ -23,6 +23,10 @@ protocol MeetingDiarizing: Sendable {
     func learnProfile(name: String, from track: URL, spans: [SpeechSpan]) async throws
     /// Namen aller gespeicherten Profile, für die Vorschläge beim Tippen.
     func knownSpeakerNames() -> [String]
+    /// Klang einer Stimme aus ihren Abschnitten, für den nachträglichen Abgleich.
+    func voiceEmbedding(from track: URL, spans: [SpeechSpan]) async throws -> [Float]
+    /// Gespeicherte Stimmprofile mit Namen.
+    func profileEmbeddings() -> [(name: String, embedding: [Float])]
 }
 
 enum MeetingDiarizerError: LocalizedError {
@@ -107,6 +111,19 @@ final class FluidMeetingDiarizer: MeetingDiarizing, @unchecked Sendable {
 
     func knownSpeakerNames() -> [String] {
         store.loadSpeakers().filter(\.isPermanent).map(\.name)
+    }
+
+    func voiceEmbedding(from track: URL, spans: [SpeechSpan]) async throws -> [Float] {
+        let manager = try await diarizer()
+        let samples = try Self.samples(of: spans, in: track, limit: Self.maximumProfileSeconds)
+        guard Double(samples.count) / 16_000 >= Self.minimumProfileSeconds else {
+            throw MeetingDiarizerError.notEnoughSpeech(Double(samples.count) / 16_000)
+        }
+        return try manager.extractSpeakerEmbedding(from: samples)
+    }
+
+    func profileEmbeddings() -> [(name: String, embedding: [Float])] {
+        store.loadSpeakers().filter(\.isPermanent).map { ($0.name, $0.currentEmbedding) }
     }
 
     func learnProfile(name: String, from track: URL, spans: [SpeechSpan]) async throws {

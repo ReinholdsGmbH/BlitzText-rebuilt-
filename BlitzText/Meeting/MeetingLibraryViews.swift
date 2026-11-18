@@ -332,6 +332,11 @@ extension MeetingRow {
             Label("Titel neu erzeugen", systemImage: "sparkles")
         }
         .disabled(entry.document.lines.isEmpty || library.busy != nil)
+        Button { Task { await library.rematchSpeakers(in: entry.folder) } } label: {
+            Label("Sprecher neu abgleichen", systemImage: "person.2.wave.2")
+        }
+        .disabled(entry.document.speakerIDs.isEmpty || library.busy != nil)
+        .help("Unbenannte Stimmen mit deinen Stimmprofilen und untereinander abgleichen")
         Divider()
         if library.marked.count >= 2 && library.isMarked(entry.folder) {
             Button { confirmMerge = true } label: {
@@ -993,9 +998,14 @@ private struct SpeakerAssignmentCard: View {
                     .padding(.horizontal, 12).padding(.vertical, 7)
                     .background(RoundedRectangle(cornerRadius: 12).fill(MeetingTheme.card))
                 Spacer(minLength: 4)
-                Button("Im Transkript zeigen") { showInTranscript(id) }
-                    .buttonStyle(SandButtonStyle())
-                    .help("Zum ersten Beitrag dieser Stimme springen, etwa um überlagerte Stimmen aufzuteilen")
+                VStack(alignment: .trailing, spacing: 6) {
+                    Button("Im Transkript zeigen") { showInTranscript(id) }
+                        .buttonStyle(SandButtonStyle())
+                        .help("Zum ersten Beitrag dieser Stimme springen, etwa um überlagerte Stimmen aufzuteilen")
+                    Button(MeetingLibrary.mixedVoicesName) { library.markMixedVoices(id, in: entry.folder) }
+                        .buttonStyle(SandButtonStyle())
+                        .help("Hier reden mehrere übereinander. Als Gemisch markieren, ohne Stimmprofil.")
+                }
             }
             NameEntry(text: binding, known: library.knownNames, others: otherNames(except: id),
                       buttonTitle: fromApp ? "Bestätigen" : "Übernehmen", busy: library.busy != nil) { name in
