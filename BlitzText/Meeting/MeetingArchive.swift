@@ -37,6 +37,12 @@ struct MeetingDocument: Codable, Equatable {
     var projectChosenByUser: Bool?
     /// Pfad der exportierten Datei relativ zum Wissensordner, sobald exportiert.
     var vaultFile: String?
+    /// Ende des Meetings. Nur bei zusammengeführten Meetings gesetzt (Pausen zwischen den
+    /// Teilen); sonst gilt Beginn plus Dauer.
+    var endedAt: Date?
+
+    /// Wann das Meeting endete.
+    var endDate: Date { endedAt ?? startedAt.addingTimeInterval(duration) }
 
     enum NameSource: String, Codable {
         /// Stimme passte zu einem gespeicherten Profil.
@@ -110,6 +116,7 @@ enum MeetingMarkdown {
         out.append("# \(title(for: document))")
         out.append("")
         out.append("- Beginn: \(dateFormatter.string(from: document.startedAt)) Uhr")
+        out.append("- Ende: \(dateFormatter.string(from: document.endDate)) Uhr")
         out.append("- Dauer: \(clock(document.duration, alwaysHours: false))")
         if !document.sourceNames.isEmpty {
             out.append("- Quelle: \(document.sourceNames.joined(separator: ", "))")
@@ -122,6 +129,8 @@ enum MeetingMarkdown {
         out.append("")
 
         out.append("## Protokoll")
+        out.append("")
+        out.append(timeLine(for: document))
         out.append("")
         out.append(document.summary ?? "_Keine Zusammenfassung vorhanden._")
         out.append("")
@@ -177,9 +186,33 @@ enum MeetingMarkdown {
         return String(format: "%d:%02d", m, s)
     }
 
+    /// „Zeit: 18.11.2026, 08:30 bis 09:12 Uhr“, über Mitternacht mit beiden Daten.
+    /// Steht über jeder Zusammenfassung, damit Beginn und Ende überall mitgehen.
+    static func timeLine(for document: MeetingDocument) -> String {
+        let day = formatter("dd.MM.yyyy"), time = formatter("HH:mm")
+        let start = document.startedAt, end = document.endDate
+        let sameDay = day.string(from: start) == day.string(from: end)
+        let to = sameDay ? time.string(from: end) : day.string(from: end) + ", " + time.string(from: end)
+        return "Zeit: \(day.string(from: start)), \(time.string(from: start)) bis \(to) Uhr"
+    }
+
+    /// Zusammenfassung mit der Zeitzeile davor, etwa zum Kopieren.
+    static func summaryWithTime(_ document: MeetingDocument) -> String {
+        timeLine(for: document) + "\n\n" + (document.summary ?? "")
+    }
+
+    private static func formatter(_ format: String) -> DateFormatter {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.timeZone = TimeZone(identifier: "Europe/Berlin")
+        f.dateFormat = format
+        return f
+    }
+
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "de_DE")
+        f.timeZone = TimeZone(identifier: "Europe/Berlin")
         f.dateFormat = "dd.MM.yyyy, HH:mm"
         return f
     }()

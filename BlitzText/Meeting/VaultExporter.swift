@@ -194,7 +194,7 @@ struct VaultExporter {
         if !people.isEmpty { out.append("**Teilnehmende:** \(people.joined(separator: ", "))") }
         out.append("")
         if let summary = document.summary {
-            out += ["## Zusammenfassung", "", summary, ""]
+            out += ["## Zusammenfassung", "", MeetingMarkdown.timeLine(for: document), "", summary, ""]
         }
         if let notes = document.userNotes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             out += ["## Meine Notizen", "", notes, ""]

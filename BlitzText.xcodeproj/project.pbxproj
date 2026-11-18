@@ -111,6 +111,7 @@
 		9D0A5703D2A2F11BCE7C7245 /* RewriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917E21BB6D2AF55D54D58532 /* RewriteService.swift */; };
 		9E2FAD8DD66D9DBB61CF955C /* ETAEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA5A4483686336CE963A764 /* ETAEstimatorTests.swift */; };
 		9EE0B6AFC0B15E71AA75F7D6 /* StringSimilarityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3971DF354EE39973683B80 /* StringSimilarityTests.swift */; };
+		A3086B9CEF55F58CED0A1508 /* MeetingTimeLineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACA7D67D3B8EEE5E06BAB76 /* MeetingTimeLineTests.swift */; };
 		A3AD1F3B22FC85928016F63C /* MeetingSpeakerLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8650F36501BC6DD174E0002 /* MeetingSpeakerLiveTests.swift */; };
 		A4FC83E6D3C16A29FED5E728 /* AppWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C36F38DAF61F08F2B844CAC /* AppWindow.swift */; };
 		A52A8EA707F16D5E868731CD /* SpeechSegmenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF44615128BEC7324F326264 /* SpeechSegmenter.swift */; };
@@ -338,6 +339,7 @@
 		F8DE9D29B87246CF31734175 /* MwRouteRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MwRouteRules.swift; sourceTree = "<group>"; };
 		F9592C8DC40369A825B03C42 /* VaultExporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultExporterTests.swift; sourceTree = "<group>"; };
 		FAB93AE4AD0A783AB5C77E03 /* FakeTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeTranscriptionService.swift; sourceTree = "<group>"; };
+		FACA7D67D3B8EEE5E06BAB76 /* MeetingTimeLineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingTimeLineTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -691,6 +693,7 @@
 				DA93ACEFD11D5E63DDFD1DCF /* MeetingRecorderTests.swift */,
 				B8650F36501BC6DD174E0002 /* MeetingSpeakerLiveTests.swift */,
 				5286B9932DD91106234B7D14 /* MeetingSpeakerTests.swift */,
+				FACA7D67D3B8EEE5E06BAB76 /* MeetingTimeLineTests.swift */,
 				381DA16F6FA586CB07DCE44A /* ProfileCalibrationTests.swift */,
 				A3FCDB00D3559177DEA22002 /* SpeakerNamingTests.swift */,
 				247DF0729959CF78B8A54170 /* SpeakerRematcherTests.swift */,
@@ -912,6 +915,7 @@
 				A3AD1F3B22FC85928016F63C /* MeetingSpeakerLiveTests.swift in Sources */,
 				1FD1518B723C2FFF3A68517B /* MeetingSpeakerTests.swift in Sources */,
 				1CACD9B500A757ADA907597C /* MeetingTestSupport.swift in Sources */,
+				A3086B9CEF55F58CED0A1508 /* MeetingTimeLineTests.swift in Sources */,
 				4E9759616FAB0DF4A1BD3A75 /* NumberWordConverterTests.swift in Sources */,
 				3835AE5005D99B7F4BF71978 /* PipelineErrorPathTests.swift in Sources */,
 				AE721443428932CBB28E4DCC /* ProfileCalibrationTests.swift in Sources */,

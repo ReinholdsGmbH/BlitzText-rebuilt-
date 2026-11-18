@@ -581,9 +581,12 @@ struct MeetingDetailView: View {
     private var dateLine: String {
         let calendar = Calendar.current
         let time = document.startedAt.formatted(.dateTime.hour().minute())
-        if calendar.isDateInToday(document.startedAt) { return "Heute • \(time)" }
-        if calendar.isDateInYesterday(document.startedAt) { return "Gestern • \(time)" }
-        return document.startedAt.formatted(.dateTime.day().month(.wide).year()) + " • \(time)"
+        let end = document.endDate.formatted(.dateTime.hour().minute())
+        let span = calendar.isDate(document.startedAt, inSameDayAs: document.endDate)
+            ? "\(time) bis \(end) Uhr" : "\(time) bis " + document.endDate.formatted(.dateTime.day().month().hour().minute())
+        if calendar.isDateInToday(document.startedAt) { return "Heute • \(span)" }
+        if calendar.isDateInYesterday(document.startedAt) { return "Gestern • \(span)" }
+        return document.startedAt.formatted(.dateTime.day().month(.wide).year()) + " • \(span)"
     }
 
     /// Teilnehmende als (Name, Farben, Sprecher-ID). Nur Stimmen mit ID lassen sich umbenennen.
