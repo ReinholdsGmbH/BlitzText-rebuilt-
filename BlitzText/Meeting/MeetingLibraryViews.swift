@@ -1085,6 +1085,12 @@ private struct LiveTranscriptPanel: View {
             } action: { _, isAtBottom in
                 atBottom = isAtBottom
             }
+            .onAppear {
+                // Zurück aus „Meine Notizen“ oder einer anderen Seite: gleich an die aktuelle
+                // Stelle. Eine Runde später, damit die Zeilen schon ausgelegt sind.
+                atBottom = true
+                DispatchQueue.main.async { proxy.scrollTo(Self.endID, anchor: .bottom) }
+            }
             .onChange(of: contentFingerprint) { _, _ in
                 guard atBottom else { return }
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(Self.endID, anchor: .bottom) }
