@@ -23,6 +23,16 @@ final class ActiveSpeakerPoller {
     private var pids: [pid_t] = []
     private var startedAt = Date()
     private var polls = 0
+    /// Beschriftungen, die nach Teilnehmerkachel aussehen. Bleibt der Poller ohne Treffer,
+    /// landen sie in `diagnosticsURL`, damit sich der Parser an die echte App anpassen lässt.
+    private var labelSamples = Set<String>()
+    private var budgetExhausted = 0
+
+    static let diagnosticsURL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("Logs/BlitzText-Sprecheranzeige.txt")
+    static let sampleLimit = 400
+    nonisolated static let sampleKeywords = ["speak", "sprech", "spricht", "mute", "stumm", "mikro", "micro", "video",
+                                 "kamera", "camera", "teilnehm", "particip", "hand", "audio", "ton "]
 
     static let interval: TimeInterval = 1
     /// Obergrenze je Durchlauf, damit ein großer Teams-Baum den Main-Thread nicht blockiert.
@@ -34,6 +44,8 @@ final class ActiveSpeakerPoller {
         self.startedAt = startedAt
         hints = []
         polls = 0
+        labelSamples = []
+        budgetExhausted = 0
         guard !pids.isEmpty else { return }
         for pid in pids {
             AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid), "AXManualAccessibility" as CFString, kCFBooleanTrue)
@@ -59,9 +71,20 @@ final class ActiveSpeakerPoller {
         timer?.invalidate()
         timer = nil
         if polls > 0 {
-            Log.write("ActiveSpeakerPoller: \(polls) Abfragen, \(hints.count) Treffer, \(Set(hints.map(\.name)).count) Namen")
+            Log.write("ActiveSpeakerPoller: \(polls) Abfragen, \(hints.count) Treffer, \(Set(hints.map(\.name)).count) Namen, Budget \(budgetExhausted)× ausgeschöpft")
+            if hints.isEmpty { writeDiagnostics() }
         }
         return hints
+    }
+
+    /// Nur lokal, nie im Wissensordner: enthält Teilnehmernamen.
+    private func writeDiagnostics() {
+        guard !labelSamples.isEmpty else { return }
+        let header = "BlitzText: Beschriftungen der Meeting-App ohne erkannten Sprecher, \(Date())\n"
+            + "Abfragen: \(polls), Knotenbudget ausgeschöpft: \(budgetExhausted)×\n\n"
+        let body = labelSamples.sorted().joined(separator: "\n")
+        try? (header + body).write(to: Self.diagnosticsURL, atomically: true, encoding: .utf8)
+        Log.write("ActiveSpeakerPoller: \(labelSamples.count) Beschriftungen in \(Self.diagnosticsURL.lastPathComponent)")
     }
 
     private func poll() {
@@ -69,28 +92,40 @@ final class ActiveSpeakerPoller {
         let now = Date().timeIntervalSince(startedAt)
         var budget = Self.nodeBudget
         var names = Set<String>()
+        // Proben nur alle 10 Abfragen und nur solange noch kein Name erkannt wurde.
+        let sample = hints.isEmpty && polls % 10 == 1 && labelSamples.count < Self.sampleLimit
+        var samples = Set<String>()
         for pid in pids {
             let app = AXUIElementCreateApplication(pid)
             for window in Self.children(of: app, attribute: kAXWindowsAttribute) {
-                Self.collect(in: window, budget: &budget, into: &names)
+                Self.collect(in: window, budget: &budget, into: &names, sampling: sample, samples: &samples)
             }
         }
+        if budget <= 0 { budgetExhausted += 1 }
+        if sample { labelSamples.formUnion(samples.prefix(Self.sampleLimit - labelSamples.count)) }
         for name in names { hints.append(SpeakerHint(time: now, name: name)) }
     }
 
-    private static func collect(in element: AXUIElement, budget: inout Int, into names: inout Set<String>) {
+    private static func collect(in element: AXUIElement, budget: inout Int, into names: inout Set<String>,
+                                sampling: Bool, samples: inout Set<String>) {
         guard budget > 0 else { return }
         budget -= 1
         for attribute in [kAXDescriptionAttribute, kAXTitleAttribute, kAXValueAttribute, kAXHelpAttribute] {
             var value: CFTypeRef?
-            if AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
-               let text = value as? String, let name = SpeakerLabelParser.speakingName(in: text) {
-                names.insert(name)
-            }
+            guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
+                  let text = value as? String else { continue }
+            if let name = SpeakerLabelParser.speakingName(in: text) { names.insert(name) }
+            if sampling, isCandidate(text) { samples.insert("[\(attribute)] \(text)") }
         }
         for child in children(of: element, attribute: kAXChildrenAttribute) {
-            collect(in: child, budget: &budget, into: &names)
+            collect(in: child, budget: &budget, into: &names, sampling: sampling, samples: &samples)
         }
+    }
+
+    nonisolated static func isCandidate(_ text: String) -> Bool {
+        guard (3...160).contains(text.count) else { return false }
+        let lower = text.lowercased()
+        return sampleKeywords.contains(where: lower.contains)
     }
 
     private static func children(of element: AXUIElement, attribute: String) -> [AXUIElement] {
