@@ -250,3 +250,42 @@ enum TeamsTileLabel {
         return first
     }
 }
+
+/// Läuft in Teams noch ein Anruf? Erkennbar am Auflegen-Knopf, den Teams nur während eines
+/// Calls zeigt (DOM-ID `hangup-button`, belegt am 18.11.2026). Teilen, Stummschalten und
+/// Gerätewechsel lassen ihn stehen, deshalb taugt er als Gegenprobe zum Mikrofon-Signal.
+enum TeamsCallControls {
+    static let bundleIDs: Set<String> = ["com.microsoft.teams2", "com.microsoft.teams"]
+    static let hangupIdentifier = "hangup-button"
+    static let nodeBudget = 8_000
+
+    static func isInCall(pid: pid_t) -> Bool {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        var budget = nodeBudget
+        for window in children(of: app, attribute: kAXWindowsAttribute) where find(in: window, budget: &budget) {
+            return true
+        }
+        return false
+    }
+
+    private static func find(in element: AXUIElement, budget: inout Int) -> Bool {
+        guard budget > 0 else { return false }
+        budget -= 1
+        var value: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXDOMIdentifier" as CFString, &value) == .success,
+           (value as? String) == hangupIdentifier {
+            return true
+        }
+        for child in children(of: element, attribute: kAXChildrenAttribute) where find(in: child, budget: &budget) {
+            return true
+        }
+        return false
+    }
+
+    private static func children(of element: AXUIElement, attribute: String) -> [AXUIElement] {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return [] }
+        return value as? [AXUIElement] ?? []
+    }
+}

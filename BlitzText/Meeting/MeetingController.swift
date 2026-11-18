@@ -139,7 +139,14 @@ final class MeetingController: ObservableObject {
     /// Nur für Aufnahmen, die einer erkannten Meeting-App gelten.
     private func checkMeetingEnd() {
         guard !recorder.activeSources.isEmpty else { return }
-        let stillActive = !recorder.activeMeetingSources().isEmpty
+        var stillActive = !recorder.activeMeetingSources().isEmpty
+        // Teams: Mikrofon zu heißt noch nicht aufgelegt. Steht der Auflegen-Knopf noch da,
+        // läuft der Call weiter (Gerätewechsel, Neuverbindung). Nur geprüft, wenn das
+        // Mikrofon-Signal fehlt, damit der Baum nicht alle fünf Sekunden durchsucht wird.
+        if !stillActive {
+            let teams = recorder.activeSources.filter { TeamsCallControls.bundleIDs.contains($0.bundleIdentifier) }
+            stillActive = teams.contains { TeamsCallControls.isInCall(pid: $0.pid) }
+        }
         let suggest = endWatch.update(appActive: stillActive, at: Date())
         if suggest != meetingEndSuggested {
             meetingEndSuggested = suggest

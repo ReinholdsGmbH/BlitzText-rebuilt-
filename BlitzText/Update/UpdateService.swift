@@ -41,8 +41,8 @@ final class UpdateService: NSObject, ObservableObject {
     private let client: GitHubReleaseClient
     private let installer: UpdateInstaller
 
-    /// Prüfintervall: 2 h. Das unauth. GitHub-Limit (60/h) ist damit unkritisch.
-    private static let checkInterval: TimeInterval = 2 * 60 * 60
+    /// Prüfintervall: 1 h. Das unauth. GitHub-Limit (60/h je Rechner) ist damit unkritisch.
+    static let checkInterval: TimeInterval = 60 * 60
     /// Verzögerung der ersten Prüfung nach Start — nicht mit Modell-Preload konkurrieren.
     private static let initialDelay: TimeInterval = 12
 
