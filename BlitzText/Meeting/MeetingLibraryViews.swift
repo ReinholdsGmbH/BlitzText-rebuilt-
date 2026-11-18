@@ -575,13 +575,23 @@ private struct RenameTag: View {
     @ObservedObject var library: MeetingLibrary
     @State private var open = false
     @State private var draft = ""
+    @State private var hovering = false
 
     var body: some View {
         Button { draft = entry.document.speakerNames[speakerID] ?? ""; open = true } label: {
-            SpeakerTag(name: name, colors: colors)
+            // Der Stift zeigt, dass die ganze Stimme hier umbenannt werden kann.
+            HStack(spacing: 3) {
+                SpeakerTag(name: name, colors: colors)
+                Image(systemName: "pencil")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(MeetingTheme.foregroundTertiary)
+                    .opacity(hovering || open ? 1 : 0)
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Umbenennen oder mit einer anderen Stimme zusammenführen")
+        .onHover { hovering = $0 }
+        .help("Ganze Stimme umbenennen oder mit einer anderen zusammenführen")
         .popover(isPresented: $open, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Wer ist \(name)?").font(.system(size: 14, weight: .semibold))
