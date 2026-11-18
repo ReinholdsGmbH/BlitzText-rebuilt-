@@ -54,6 +54,7 @@ final class MeetingController: ObservableObject {
     private let recorder: MeetingRecorder
     let archive: MeetingArchive
     private let makeTranscriber: () -> TranscriptionService
+    private let vocabulary: @Sendable () -> [ProperNoun]
     private let makeSummarizer: () -> MeetingSummarizing
     private let diarizer: MeetingDiarizing?
     private let language: () -> String?
@@ -72,12 +73,16 @@ final class MeetingController: ObservableObject {
         makeSummarizer: @escaping () -> MeetingSummarizing,
         diarizer: MeetingDiarizing? = nil,
         makeExporter: @escaping () -> VaultExporter? = { nil },
-        language: @escaping () -> String?
+        language: @escaping () -> String?,
+        vocabulary: @escaping @Sendable () -> [ProperNoun] = { [] }
     ) {
         self.makeExporter = makeExporter
         self.recorder = recorder
         self.archive = archive
-        self.makeTranscriber = makeTranscriber
+        // Wörterbuch für fertiges Transkript und Live-Abschnitte; das Live-Streaming bekommt
+        // es über `correctLive`.
+        self.makeTranscriber = { CorrectingTranscriber(base: makeTranscriber(), vocabulary: vocabulary) }
+        self.vocabulary = vocabulary
         self.makeSummarizer = makeSummarizer
         self.diarizer = diarizer
         self.language = language
@@ -183,7 +188,9 @@ final class MeetingController: ObservableObject {
                 let buffers = recorder.attachLiveBuffers()
                 if !buffers.isEmpty {
                     let poller = speakerPoller
+                    let vocabulary = self.vocabulary
                     live.start(tracks: buffers, transcriber: makeTranscriber(),
+                               correct: { VocabularyCorrector().correct($0, using: vocabulary()).text },
                                nameForOthers: { poller.recentName() })
                 }
             }

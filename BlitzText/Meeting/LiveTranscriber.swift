@@ -105,6 +105,8 @@ final class LiveTranscriber: ObservableObject {
     private var tracks: [(buffer: LiveAudioBuffer, speaker: TranscriptLine.Speaker)] = []
     private var transcriber: TranscriptionService?
     private var nameForOthers: () -> String? = { nil }
+    /// Wörterbuch auf gestreamten Text; die Abschnitte laufen über den korrigierenden Transcriber.
+    private var correct: (String) -> String = { $0 }
     private var startedAt = Date()
     private var timer: Timer?
     private var working = false
@@ -117,9 +119,11 @@ final class LiveTranscriber: ObservableObject {
     func start(
         tracks: [(LiveAudioBuffer, TranscriptLine.Speaker)],
         transcriber: TranscriptionService,
+        correct: @escaping (String) -> String = { $0 },
         nameForOthers: @escaping () -> String? = { nil }
     ) {
         stop()
+        self.correct = correct
         self.tracks = tracks.map { (buffer: $0.0, speaker: $0.1) }
         self.transcriber = transcriber
         self.nameForOthers = nameForOthers
@@ -191,7 +195,7 @@ final class LiveTranscriber: ObservableObject {
     /// Jedes Update ist neuer Text: FluidAudio dedupliziert die Überlappung der Fenster über
     /// die bisherigen Tokens. Das „bestätigt“-Flag sagt nur etwas über die Konfidenz aus.
     private func handle(_ raw: String, speaker: TranscriptLine.Speaker, at time: Date) {
-        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = correct(raw.trimmingCharacters(in: .whitespacesAndNewlines))
         guard isRunning, !text.isEmpty else { return }
         let name = speaker == .others ? nameForOthers() : nil
         let start = max(0, time.timeIntervalSince(startedAt) - Self.streamConfig.chunkSeconds - Self.streamConfig.rightContextSeconds)
