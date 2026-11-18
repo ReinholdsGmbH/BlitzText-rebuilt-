@@ -72,6 +72,9 @@ final class MeetingController: ObservableObject {
     private let speakerPoller = ActiveSpeakerPoller()
     private var pollTimer: Timer?
     private var processingTask: Task<Void, Never>?
+    /// Fortschritt einer Verarbeitung, die im Hintergrund läuft, während schon die nächste
+    /// Aufnahme läuft. Sonst nil.
+    @Published private(set) var backgroundStatus: String?
 
     /// Pollintervall der Meeting-Erkennung.
     static let pollInterval: TimeInterval = 5
@@ -185,8 +188,10 @@ final class MeetingController: ObservableObject {
 
     // MARK: - Aufnahme
 
+    /// Startet auch, während das vorige Meeting noch verarbeitet wird: Wer direkt ins nächste
+    /// Meeting muss, soll nicht warten. Die Verarbeitung läuft im Hintergrund weiter.
     func start() {
-        guard !isRecording, !isProcessing else { return }
+        guard !isRecording else { return }
         do {
             liveNotes = ""
             endWatch = MeetingEndWatch()
@@ -216,6 +221,9 @@ final class MeetingController: ObservableObject {
         let hints = speakerPoller.stop()
         live.stop()
         recorder.detachLiveBuffers()
+        // Erst den Aufnahmezustand verlassen: Die Verarbeitung schreibt ihren Zustand nur,
+        // wenn keine Aufnahme läuft (siehe `setPipelinePhase`).
+        phase = .idle
         guard let recording = recorder.stop() else { return }
         process(recording, hints: hints)
     }
@@ -306,7 +314,7 @@ final class MeetingController: ObservableObject {
                     othersSide: .others, hints: []
                 )
             } catch {
-                self?.phase = .failed("Import fehlgeschlagen: \(error.localizedDescription)")
+                self?.setPipelinePhase(.failed("Import fehlgeschlagen: \(error.localizedDescription)"))
             }
         }
     }
@@ -348,6 +356,22 @@ final class MeetingController: ObservableObject {
                     others: stored.systemAudio, othersSide: .others, hints: hints)
     }
 
+    /// Zustand der Verarbeitung setzen, ohne eine laufende Aufnahme zu überschreiben. Läuft
+    /// schon die nächste Aufnahme, landet der Fortschritt in `backgroundStatus`.
+    private func setPipelinePhase(_ next: Phase) {
+        guard isRecording else { phase = next; return }
+        switch next {
+        case .importing: backgroundStatus = "Importiere …"
+        case .diarizing: backgroundStatus = "Erkenne Sprecher …"
+        case .transcribing(let done, let total): backgroundStatus = total == 0 ? "Transkribiere …" : "Transkribiere \(done)/\(total)"
+        case .summarizing: backgroundStatus = "Schreibe Notizen …"
+        case .failed(let message):
+            backgroundStatus = nil
+            Log.write("MeetingController: Hintergrund-Verarbeitung — \(message)")
+        default: break
+        }
+    }
+
     private func runPipeline(
         document initial: MeetingDocument,
         folder: URL,
@@ -358,7 +382,7 @@ final class MeetingController: ObservableObject {
     ) {
         // Sofort umschalten, nicht erst im Hintergrund-Task: sonst zeigt die Oberfläche nach dem
         // Stopp noch kurz „Aufnahme läuft“, und ein neuer Start würde verschluckt.
-        phase = (others != nil && diarizer != nil) ? .diarizing : .transcribing(done: 0, total: 0)
+        setPipelinePhase((others != nil && diarizer != nil) ? .diarizing : .transcribing(done: 0, total: 0))
         let transcriber = MeetingTranscriber(transcriber: makeTranscriber(), language: language())
         let summarizer = makeSummarizer()
         let diarizer = self.diarizer
@@ -367,19 +391,23 @@ final class MeetingController: ObservableObject {
 
         let report: @Sendable (Int, Int) -> Void = { [weak self] done, total in
             Task { @MainActor in
-                guard let self, self.isProcessing else { return }
-                self.phase = .transcribing(done: done, total: total)
+                guard let self, self.isProcessing || self.isRecording else { return }
+                self.setPipelinePhase(.transcribing(done: done, total: total))
             }
         }
 
+        // Läuft noch eine frühere Verarbeitung, kommt diese danach dran; zwei gleichzeitig
+        // würden sich um das Modell streiten.
+        let previous = processingTask
         processingTask = Task { [weak self] in
+            await previous?.value
             var document = initial
             do {
                 // 2. Stimmen der Gegenseite trennen.
                 var othersTrack = others.map { MeetingTranscriber.Track(url: $0, speaker: othersSide) }
                 var diarization: MeetingDiarization?
                 if let others, let diarizer {
-                    self?.phase = .diarizing
+                    self?.setPipelinePhase(.diarizing)
                     do {
                         let result = try await diarizer.diarize(track: others)
                         diarization = result
@@ -391,7 +419,7 @@ final class MeetingController: ObservableObject {
                 }
 
                 // 3. Transkribieren.
-                self?.phase = .transcribing(done: 0, total: 0)
+                self?.setPipelinePhase(.transcribing(done: 0, total: 0))
                 var tracks: [MeetingTranscriber.Track] = []
                 if let microphone { tracks.append(.init(url: microphone, speaker: .me)) }
                 if let othersTrack { tracks.append(othersTrack) }
@@ -422,7 +450,7 @@ final class MeetingController: ObservableObject {
                 }
 
                 // 5. Zusammenfassung.
-                self?.phase = .summarizing
+                self?.setPipelinePhase(.summarizing)
                 var warning: String?
                 do {
                     let split = MeetingSummarizer.splitTitle(try await summarizer.summarize(transcript: document.summaryInput))
@@ -453,7 +481,7 @@ final class MeetingController: ObservableObject {
                 }
                 self?.finish(folder: folder, warning: warning, document: document)
             } catch {
-                self?.phase = .failed("Transkription fehlgeschlagen: \(error.localizedDescription)")
+                self?.setPipelinePhase(.failed("Transkription fehlgeschlagen: \(error.localizedDescription)"))
                 Log.write("MeetingController: Transkription fehlgeschlagen — \(error.localizedDescription)")
             }
         }
@@ -474,6 +502,15 @@ final class MeetingController: ObservableObject {
     }
 
     private func finish(folder: URL, warning: String?, document: MeetingDocument) {
+        backgroundStatus = nil
+        // Läuft schon die nächste Aufnahme: still fertig, ohne Ergebnis-Pille und ohne die
+        // Rückfrage „Versehentlich gestartet?“ über die laufende Aufnahme zu legen.
+        if isRecording {
+            lastFolder = folder
+            onMeetingSaved?(folder)
+            Log.write("MeetingController: im Hintergrund fertig — \(folder.lastPathComponent)\(warning.map { " (\($0))" } ?? "")")
+            return
+        }
         let words = document.lines.reduce(0) { $0 + $1.text.split(separator: " ").count }
         let imported = document.sourceNames == ["Import"]
         accidentalFolder = (!imported && words < Self.accidentalWordLimit) ? folder : nil

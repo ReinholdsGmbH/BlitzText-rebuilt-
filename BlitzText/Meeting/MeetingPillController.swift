@@ -234,12 +234,16 @@ struct MeetingPillView: View {
         }
     }
 
+    /// Fortschritt plus „Aufnehmen“: Wer direkt ins nächste Meeting muss, startet hier, und
+    /// die Verarbeitung läuft im Hintergrund weiter.
     private func progress(_ text: String) -> some View {
         HStack(spacing: 8) {
             CyclingBars()
             Text(text).font(.system(size: 12, weight: .medium).monospacedDigit())
+            Button("Aufnehmen") { controller.start() }
+                .buttonStyle(LavenderButtonStyle(compact: true))
+                .help("Nächstes Meeting aufnehmen; dieses wird im Hintergrund fertig verarbeitet")
         }
-        .padding(.trailing, 8)
     }
 
     private var noticeTitle: String {
