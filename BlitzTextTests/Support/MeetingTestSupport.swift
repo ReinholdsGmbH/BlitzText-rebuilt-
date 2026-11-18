@@ -75,7 +75,10 @@ final class FakeDiarizer: MeetingDiarizing, @unchecked Sendable {
 
     var profileNames: [String] = []
 
+    var learnError: Error?
+
     func learnProfile(name: String, from track: URL, spans: [SpeechSpan]) async throws {
+        if let learnError { throw learnError }
         learned.append((name, spans))
     }
 

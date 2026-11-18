@@ -232,6 +232,32 @@ struct MeetingSpeakerPipelineTests {
         #expect(doc.nameSources["4"] == .confirmed)
         #expect(doc.unconfirmedSpeakerIDs == ["5"])
     }
+
+    @Test("Zu kurze Stimme: Name wird trotzdem zugeordnet und verschwindet aus „Wer spricht hier?“")
+    func assignWithoutProfileStillConfirms() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-test-archive-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = MeetingArchive(root: root)
+        let folder = try archive.makeFolder(startedAt: Date(), sourceName: "Teams")
+        try archive.writeProtocol(MeetingDocument(
+            startedAt: Date(), duration: 30, sourceNames: ["Teams"],
+            lines: [TranscriptLine(speaker: .others, start: 1, end: 2, text: "Ja.", speakerID: "7")],
+            summary: nil, notes: []
+        ), in: folder)
+
+        let diarizer = FakeDiarizer(MeetingDiarization(segments: [], knownNames: [:]))
+        diarizer.learnError = EnrollmentError.tooShort
+        let library = MeetingLibrary(archive: archive, diarizer: diarizer,
+                                     makeSummarizer: { FakeSummarizer(result: .success("")) })
+        library.reload()
+        await library.assign(name: "Bernd", to: "7", in: folder)
+
+        let doc = try #require(archive.load(folder: folder))
+        #expect(doc.speakerNames["7"] == "Bernd")
+        #expect(doc.nameSources["7"] == .manual)
+        #expect(doc.unconfirmedSpeakerIDs.isEmpty)
+        #expect(library.lastError?.contains("ohne Stimmprofil") == true)
+    }
 }
 
 struct SnippetSelectionTests {

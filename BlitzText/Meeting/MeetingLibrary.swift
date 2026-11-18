@@ -104,11 +104,14 @@ final class MeetingLibrary: ObservableObject {
             }
         }
 
+        // Reicht die Stimme nicht für ein Profil (etwa nur ein kurzer Satz), gilt der Name
+        // trotzdem als zugeordnet: `.manual` statt `.meetingApp`, sonst stünde die Stimme
+        // für immer wieder unter „Wer spricht hier?“.
         let updated = document.assigning(name: name, to: speakerID,
-                                         source: profileNote == nil ? .confirmed : .meetingApp)
+                                         source: profileNote == nil ? .confirmed : .manual)
         save(updated, at: index)
         refreshKnownNames()
-        if let profileNote { lastError = "Name übernommen, aber kein Profil: \(profileNote)" }
+        if let profileNote { lastError = "Name übernommen, ohne Stimmprofil: \(profileNote)" }
     }
 
     /// Ein einzelner Beitrag gehört zu einer anderen Person. Lernt bewusst kein Profil:
