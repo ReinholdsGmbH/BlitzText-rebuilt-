@@ -50,7 +50,7 @@ final class SettingsStore: ObservableObject {
         didSet { SpeakerNaming.selfName = selfSpeakerName.isEmpty ? nil : selfSpeakerName }
     }
     /// Schlüssel für OpenRouter/Requesty — Keychain, nie UserDefaults.
-    let providerKeys = ProviderKeyStore(keychain: RuntimeEnvironment.isRunningTests ? nil : .shared)
+    let providerKeys = ProviderKeyStore(vault: RuntimeEnvironment.isRunningTests ? nil : .shared)
     /// Bei Parakeet-Backend: Sprecher-Diarization aktivieren.
     /// Side-Effect (D-01): `false → true` triggert sofortigen Manager-Download.
     /// Snapshot-Save läuft separat über das debounced `objectWillChange`-Sink.
@@ -108,11 +108,7 @@ final class SettingsStore: ObservableObject {
             }
             #endif
             apiKeyCache.set(newValue)
-            if newValue.isEmpty {
-                Keychain.shared.delete(account: Self.apiKeyKeychainAccount)
-            } else {
-                Keychain.shared.write(value: newValue, account: Self.apiKeyKeychainAccount)
-            }
+            SecretVault.shared.set(newValue, for: Self.apiKeyKeychainAccount)
             objectWillChange.send()
         }
     }
@@ -195,13 +191,13 @@ final class SettingsStore: ObservableObject {
         let legacy = defaults.string(forKey: Self.apiKeyLegacyDefaultsKey)   // nicht-blockierend
         let cache = apiKeyCache
         Task.detached {
-            var value = Keychain.shared.read(account: account)
+            var value = SecretVault.shared.value(for: account)
             if value == nil, let legacy, !legacy.isEmpty {
                 // Einmalige Legacy-Migration (UserDefaults → Keychain). Der verwaiste
                 // UserDefaults-Eintrag bleibt liegen — harmlos, weil nach erfolgreicher
                 // Migration jeder Folge-Load die Keychain zuerst trifft (value != nil) und
                 // diesen Zweig nie wieder betritt.
-                if Keychain.shared.write(value: legacy, account: account) {
+                if SecretVault.shared.set(legacy, for: account) {
                     value = legacy
                     Log.write("SettingsStore: API-Key von UserDefaults nach Keychain migriert")
                 } else {

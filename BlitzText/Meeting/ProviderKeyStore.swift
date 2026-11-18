@@ -9,15 +9,15 @@ import Foundation
 final class ProviderKeyStore: @unchecked Sendable {
     private let lock = NSLock()
     private var keys: [SummaryProvider: String] = [:]
-    private let keychain: Keychain?
+    private let vault: SecretVault?
 
-    /// `keychain: nil` hält alles nur im Speicher (Tests).
-    init(keychain: Keychain? = .shared, loadAsync: Bool = true) {
-        self.keychain = keychain
-        guard loadAsync, let keychain else { return }
+    /// `vault: nil` hält alles nur im Speicher (Tests).
+    init(vault: SecretVault? = .shared, loadAsync: Bool = true) {
+        self.vault = vault
+        guard loadAsync, let vault else { return }
         Task.detached(priority: .utility) { [weak self] in
             for provider in SummaryProvider.allCases where !provider.isLocal {
-                if let value = keychain.read(account: provider.keychainAccount), !value.isEmpty {
+                if let value = vault.value(for: provider.keychainAccount), !value.isEmpty {
                     self?.cache(value, for: provider)
                 }
             }
@@ -33,12 +33,7 @@ final class ProviderKeyStore: @unchecked Sendable {
         guard !provider.isLocal else { return }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         cache(trimmed, for: provider)
-        guard let keychain else { return }
-        if trimmed.isEmpty {
-            keychain.delete(account: provider.keychainAccount)
-        } else {
-            keychain.write(value: trimmed, account: provider.keychainAccount)
-        }
+        vault?.set(trimmed, for: provider.keychainAccount)
     }
 
     private func cache(_ value: String, for provider: SummaryProvider) {
