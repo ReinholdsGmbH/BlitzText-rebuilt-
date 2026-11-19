@@ -20,35 +20,59 @@ final class WordSuggestions {
         return Self.unique(result.map { Self.matchCase($0, to: partial) }.filter { $0 != partial }, limit: 3)
     }
 
+    /// Was die letzte Swipe-Auflösung gesehen hat (für die Anzeige, wenn nichts passt).
+    private(set) var lastDiagnosis = ""
+
     /// Kandidaten für eine Swipe-Spur. `path` sind alle überstrichenen Buchstaben, `corners` die Richtungswechsel.
+    /// Quellen: Vervollständigungen zu den ersten Buchstaben und Rechtschreib-Vorschläge zur Eckenfolge.
+    /// Anfang und Ende dürfen eine Taste daneben liegen (Finger setzt oft knapp neben der Taste auf oder ab).
     func swipeCandidates(path: [String], corners: [String], limit: Int = 4) -> [String] {
         let letters = path.compactMap(\.first)
-        guard let first = letters.first, let last = letters.last, letters.count >= 2 else { return [] }
-        let cornerLetters = corners.compactMap(\.first)
+        guard letters.count >= 2 else { return [] }
+        let cornerLetters = Self.collapseDoubles(corners.compactMap(\.first))
+        let firsts = Set(letters.prefix(2))
+        let lasts = Set(letters.suffix(2))
 
-        var prefixes = [String(first)]
-        for second in letters.dropFirst().prefix(10) where !prefixes.contains(String([first, second])) {
-            prefixes.append(String([first, second]))
-        }
         var pool: [String] = []
-        for prefix in prefixes {
+        func complete(_ prefix: String) {
             for variant in [prefix, prefix.prefix(1).uppercased() + prefix.dropFirst()] {
                 let range = NSRange(location: 0, length: (variant as NSString).length)
-                pool += (checker.completions(forPartialWordRange: range, in: variant, language: language) ?? []).prefix(400)
+                pool += (checker.completions(forPartialWordRange: range, in: variant, language: language) ?? []).prefix(500)
+            }
+        }
+        func guess(_ word: String) {
+            guard word.count >= 2 else { return }
+            for variant in [word, word.prefix(1).uppercased() + word.dropFirst()] {
+                let range = NSRange(location: 0, length: (variant as NSString).length)
+                pool += checker.guesses(forWordRange: range, in: variant, language: language) ?? []
+                if checker.rangeOfMisspelledWord(in: variant, range: range, startingAt: 0, wrap: false,
+                                                 language: language).location == NSNotFound {
+                    pool.append(variant)
+                }
+            }
+        }
+        guess(String(cornerLetters))
+        for first in firsts {
+            var seen = Set<String>()
+            for second in letters.dropFirst().prefix(12) where seen.insert(String([first, second])).inserted {
+                complete(String([first, second]))
             }
         }
 
         var scored: [(word: String, score: Double)] = []
         for (rank, word) in pool.enumerated() where word.count >= 2 && !word.contains(" ") {
-            let normalized = Self.normalize(word)
-            guard normalized.first == first, normalized.last == last else { continue }
-            let collapsed = Self.collapseDoubles(normalized)
-            guard Self.isSubsequence(collapsed, of: letters) else { continue }
-            let missingCorners = cornerLetters.count - Self.matchedCount(cornerLetters, in: collapsed)
-            let skipped = letters.count - collapsed.count
-            scored.append((word, Double(missingCorners) * 3 + Double(skipped) * 0.12 + Double(rank) * 0.0004))
+            let normalized = Self.collapseDoubles(Self.normalize(word))
+            guard let first = normalized.first, let last = normalized.last,
+                  firsts.contains(first), lasts.contains(last),
+                  Self.isSubsequence(normalized, of: letters) else { continue }
+            let missingCorners = cornerLetters.count - Self.matchedCount(cornerLetters, in: normalized)
+            let skipped = letters.count - normalized.count
+            let edgePenalty = (first == letters.first ? 0 : 1.5) + (last == letters.last ? 0 : 1.5)
+            scored.append((word, Double(missingCorners) * 3 + Double(skipped) * 0.1 + edgePenalty + Double(rank) * 0.0002))
         }
-        return Self.unique(scored.sorted { $0.score < $1.score }.map(\.word), limit: limit)
+        let result = Self.unique(scored.sorted { $0.score < $1.score }.map(\.word), limit: limit)
+        lastDiagnosis = "Spur \(String(letters)), Ecken \(String(cornerLetters)), \(pool.count) geprüft"
+        return result
     }
 
     // MARK: - Hilfen

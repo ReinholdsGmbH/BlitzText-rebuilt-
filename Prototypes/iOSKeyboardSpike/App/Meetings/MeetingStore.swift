@@ -38,6 +38,12 @@ struct Meeting: Codable, Identifiable, Hashable {
     var summary: String = ""
     /// Eigene Notizen, Stichpunkte, Aufgaben, während oder nach dem Meeting getippt.
     var ownNotes: String = ""
+    /// Anzahl Audio-Teile; jedes „Fortsetzen“ hängt einen Teil an. Fehlt bei alten Einträgen.
+    var parts: Int?
+    /// Wörter, die schon in den Gesamtzähler eingeflossen sind.
+    var countedWords: Int?
+
+    var partCount: Int { parts ?? 1 }
 
     var duration: TimeInterval { (end ?? Date()).timeIntervalSince(start) }
     var words: Int { WordCounter.count(transcript) }
@@ -76,8 +82,15 @@ final class MeetingStore: ObservableObject {
         recoverInterrupted()
     }
 
-    func audioURL(for id: UUID) -> URL {
-        directory.appendingPathComponent("\(id.uuidString).m4a")
+    /// Teil 1 heißt wie früher `<id>.m4a`, weitere Teile `<id>-2.m4a` usw.
+    func audioURL(for id: UUID, part: Int = 1) -> URL {
+        directory.appendingPathComponent(part == 1 ? "\(id.uuidString).m4a" : "\(id.uuidString)-\(part).m4a")
+    }
+
+    func audioURLs(for id: UUID) -> [URL] {
+        let count = meeting(id)?.partCount ?? 1
+        return (1...count).map { audioURL(for: id, part: $0) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     func meeting(_ id: UUID) -> Meeting? { meetings.first { $0.id == id } }
@@ -96,8 +109,9 @@ final class MeetingStore: ObservableObject {
     }
 
     func delete(_ id: UUID) {
+        let count = meeting(id)?.partCount ?? 1
+        for part in 1...count { try? FileManager.default.removeItem(at: audioURL(for: id, part: part)) }
         meetings.removeAll { $0.id == id }
-        try? FileManager.default.removeItem(at: audioURL(for: id))
         save()
     }
 

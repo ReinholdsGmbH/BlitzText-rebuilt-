@@ -9,8 +9,8 @@ struct MeetingDetailView: View {
 
     private enum Pane: String, CaseIterable { case notes = "Notizen", transcript = "Transkript" }
     @State private var pane: Pane = .notes
-    @State private var renaming = false
-    @State private var newTitle = ""
+    @State private var title = ""
+    @FocusState private var titleFocused: Bool
     @State private var confirmDelete = false
     @State private var toast: String?
 
@@ -26,9 +26,27 @@ struct MeetingDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(meeting.title).font(Theme.title).foregroundStyle(Theme.ink)
+                    TextField("Titel", text: $title)
+                        .font(Theme.title)
+                        .foregroundStyle(Theme.ink)
+                        .focused($titleFocused)
+                        .submitLabel(.done)
+                        .onAppear { title = meeting.title }
+                        .onChange(of: meeting.title) { _, new in if !titleFocused { title = new } }
+                        .onChange(of: titleFocused) { _, focused in if !focused { saveTitle(meeting) } }
+                        .onSubmit { titleFocused = false }
                     Text(meeting.timeRange).font(.subheadline).foregroundStyle(Theme.muted)
                     if meeting.status != .done { statusLine(meeting) }
+                }
+                if session.activeMeetingID == meeting.id {
+                    ActiveMeetingCard(meetingID: meeting.id)
+                } else if !meeting.status.isBusy {
+                    Button { session.resumeMeeting(meeting.id) } label: {
+                        Label("Fortsetzen", systemImage: "record.circle").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(session.state == .recording || session.state == .processing || session.state == .meeting)
                 }
                 Picker("Ansicht", selection: $pane) {
                     ForEach(Pane.allCases, id: \.self) { Text($0.rawValue) }
@@ -62,11 +80,6 @@ struct MeetingDetailView: View {
         .background(Theme.background)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar(meeting) }
-        .alert("Umbenennen", isPresented: $renaming) {
-            TextField("Titel", text: $newTitle)
-            Button("Speichern") { store.update(meeting.id) { $0.title = newTitle } }
-            Button("Abbrechen", role: .cancel) {}
-        }
         .confirmationDialog("Meeting löschen?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Löschen", role: .destructive) {
                 store.delete(meeting.id)
@@ -76,6 +89,12 @@ struct MeetingDetailView: View {
             Text("Audio, Transkript und Notizen werden entfernt.")
         }
         .toast($toast)
+    }
+
+    private func saveTitle(_ meeting: Meeting) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { title = meeting.title; return }
+        if trimmed != meeting.title { store.update(meeting.id) { $0.title = trimmed } }
     }
 
     private func statusLine(_ meeting: Meeting) -> some View {
@@ -102,7 +121,7 @@ struct MeetingDetailView: View {
                 .disabled(meeting.transcript.isEmpty)
                 ShareLink("Notizen teilen", item: meeting.notesForCopy)
                 Divider()
-                Button("Umbenennen …", systemImage: "pencil") { newTitle = meeting.title; renaming = true }
+                Button("Umbenennen", systemImage: "pencil") { titleFocused = true }
                 Button("Erneut verarbeiten", systemImage: "arrow.clockwise") { session.reprocess(meeting.id) }
                     .disabled(meeting.status.isBusy || meeting.status == .recording)
                 Button("Löschen", systemImage: "trash", role: .destructive) { confirmDelete = true }

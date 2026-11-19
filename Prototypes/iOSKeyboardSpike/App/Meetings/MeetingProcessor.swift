@@ -74,7 +74,6 @@ final class MeetingProcessor {
     private let diarizer = MeetingDiarizer()
     private let summarizer = MeetingSummarizer()
     private let log: (String) -> Void
-    private var counted: Set<UUID> = []
 
     init(store: MeetingStore, history: DictationHistory, parakeet: ParakeetEngine, log: @escaping (String) -> Void) {
         self.store = store
@@ -84,11 +83,17 @@ final class MeetingProcessor {
     }
 
     func process(_ id: UUID) async {
-        let url = store.audioURL(for: id)
+        let urls = store.audioURLs(for: id)
         store.update(id) { $0.status = .transcribing }
         do {
+            // Alle Teile (bei „Fortsetzen“) hintereinander, mit einer halben Sekunde Stille dazwischen.
             let samples = try await Task.detached(priority: .userInitiated) {
-                try AudioConverter().resampleAudioFile(url)
+                var all: [Float] = []
+                for (index, url) in urls.enumerated() {
+                    if index > 0 { all += [Float](repeating: 0, count: 8_000) }
+                    all += try AudioConverter().resampleAudioFile(url)
+                }
+                return all
             }.value
             guard samples.count >= 16_000 else {
                 store.update(id) { $0.status = .failed("Aufnahme zu kurz") }
@@ -110,10 +115,11 @@ final class MeetingProcessor {
             }
 
             store.update(id) { $0.transcript = transcript; $0.status = .summarizing }
-            if !counted.contains(id), store.meeting(id)?.summary.isEmpty ?? true {
-                history.addMeetingWords(WordCounter.count(transcript))
-                counted.insert(id)
-            }
+            // Nur den Zuwachs zählen: erneut verarbeiten oder fortsetzen zählt nichts doppelt.
+            let words = WordCounter.count(transcript)
+            let already = store.meeting(id)?.countedWords ?? 0
+            if words > already { history.addMeetingWords(words - already) }
+            store.update(id) { $0.countedWords = max(words, already) }
 
             let notes = await summarizer.notes(for: transcript)
             store.update(id) { meeting in

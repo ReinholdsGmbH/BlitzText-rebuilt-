@@ -13,6 +13,8 @@ final class SessionController: ObservableObject {
     @Published private(set) var appGroupOK = Spike.defaults != nil
     @Published private(set) var modelStatus = "nicht geladen"
     @Published private(set) var activeMeetingID: UUID?
+    /// Beginn des laufenden Aufnahmeteils (für die Uhr; bei „Fortsetzen“ ab dem neuen Teil).
+    @Published private(set) var meetingRecordingSince: Date?
 
     /// Auto-Stop nach so viel Leerlauf in Minuten; 0 = aus. Standard 5 min wie bei Wispr.
     @Published var idleLimitMinutes: Int = UserDefaults.standard.object(forKey: "idleLimitMinutes") as? Int ?? 5 {
@@ -177,23 +179,40 @@ final class SessionController: ObservableObject {
             return
         }
         let meeting = meetings.create()
+        beginMeetingPart(meeting.id, part: 1, format: inputFormat)
+    }
+
+    /// Nimmt ein beendetes Meeting wieder auf; der neue Teil wird bei der Verarbeitung angehängt.
+    func resumeMeeting(_ id: UUID) {
+        if state == .off { startSession() }
+        guard state == .idle, let inputFormat, let meeting = meetings.meeting(id), !meeting.status.isBusy else {
+            add("Fortsetzen nicht möglich, Zustand \(state.rawValue)")
+            return
+        }
+        let part = meeting.partCount + 1
+        meetings.update(id) { $0.parts = part; $0.status = .recording }
+        beginMeetingPart(id, part: part, format: inputFormat)
+    }
+
+    private func beginMeetingPart(_ id: UUID, part: Int, format: AVAudioFormat) {
         // AAC statt PCM: eine Stunde sind so rund 30 MB statt fast 700 MB.
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVSampleRateKey: inputFormat.sampleRate,
-            AVNumberOfChannelsKey: inputFormat.channelCount,
+            AVSampleRateKey: format.sampleRate,
+            AVNumberOfChannelsKey: format.channelCount,
             AVEncoderBitRateKey: 64_000,
         ]
         do {
-            try meter.begin(writingTo: meetings.audioURL(for: meeting.id), format: inputFormat, fileSettings: settings)
+            try meter.begin(writingTo: meetings.audioURL(for: id, part: part), format: format, fileSettings: settings)
         } catch {
-            meetings.update(meeting.id) { $0.status = .failed("Aufnahme nicht möglich"); $0.end = Date() }
+            meetings.update(id) { $0.status = .failed("Aufnahme nicht möglich"); $0.end = $0.end ?? Date() }
             add("Meeting-Aufnahme nicht anlegbar: \(error.localizedDescription)")
             return
         }
-        activeMeetingID = meeting.id
+        activeMeetingID = id
+        meetingRecordingSince = Date()
         state = .meeting
-        add("Meeting-Aufnahme läuft")
+        add(part == 1 ? "Meeting-Aufnahme läuft" : "Meeting fortgesetzt (Teil \(part))")
         publishState()
     }
 
@@ -201,6 +220,7 @@ final class SessionController: ObservableObject {
         guard state == .meeting, let id = activeMeetingID else { return }
         let (frames, _) = meter.end()
         activeMeetingID = nil
+        meetingRecordingSince = nil
         state = .idle
         lastActivity = Date()
         publishState()

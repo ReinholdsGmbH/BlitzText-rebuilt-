@@ -13,7 +13,9 @@ final class KeyboardViewController: UIInputViewController {
     private var layer: KeyboardLayer = .letters
     private var shift: ShiftState = .on
     private var lastShiftTap = Date.distantPast
-    private var lastSpace = Date.distantPast
+    private var spaceAfterWordAt: Date?
+    /// Letztes eigenes Zeichen war Buchstabe/Ziffer (unabhängig vom Textkontext der App).
+    private var lastCharWasWord = false
     /// Zuletzt per Swipe eingefügter Text (inkl. Leerzeichen davor); Löschen nimmt ihn ganz weg.
     private var lastSwipeInsert: String?
     private var swipeAlternatives: [String] = []
@@ -174,26 +176,32 @@ final class KeyboardViewController: UIInputViewController {
         textDocumentProxy.insertText(text)
         if shift == .on { shift = .off }
         afterEdit()
+        lastCharWasWord = text.last.map { $0.isLetter || $0.isNumber } ?? false
     }
 
-    /// Doppeltes Leerzeichen setzt einen Punkt.
+    /// Doppeltes Leerzeichen setzt einen Punkt. Merkt sich selbst, ob das letzte Zeichen ein
+    /// Leerzeichen nach einem Wort war: Der Textkontext der Ziel-App ist direkt nach dem
+    /// Einfügen nicht in jeder App aktuell.
     private func insertSpace() {
-        let before = textDocumentProxy.documentContextBeforeInput ?? ""
-        if Date().timeIntervalSince(lastSpace) < 0.5, before.hasSuffix(" "),
-           let previous = before.dropLast().last, previous.isLetter || previous.isNumber {
+        if let previous = spaceAfterWordAt, Date().timeIntervalSince(previous) < 0.8 {
             textDocumentProxy.deleteBackward()
             textDocumentProxy.insertText(". ")
-            lastSpace = .distantPast
-        } else {
-            textDocumentProxy.insertText(" ")
-            lastSpace = Date()
+            if layer != .letters { layer = .letters }
+            afterEdit()
+            return
         }
+        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+        let followsWord = lastCharWasWord || (before.last.map { $0.isLetter || $0.isNumber } ?? false)
+        textDocumentProxy.insertText(" ")
         if layer != .letters { layer = .letters }
         afterEdit()
+        if followsWord { spaceAfterWordAt = Date() }
     }
 
     private func afterEdit() {
         // Nach normaler Eingabe löscht die Rücktaste wieder Zeichen für Zeichen.
+        spaceAfterWordAt = nil
+        lastCharWasWord = false
         lastSwipeInsert = nil
         swipeAlternatives = []
         updateAutoShift()
@@ -220,7 +228,9 @@ final class KeyboardViewController: UIInputViewController {
     private func handleSwipe(path: [String], corners: [String]) {
         let candidates = words.swipeCandidates(path: path, corners: corners)
         guard let best = candidates.first else {
-            statusLabel.text = "Kein Wort erkannt"
+            statusLabel.text = "Kein Wort: \(words.lastDiagnosis)"
+            statusLabel.adjustsFontSizeToFitWidth = true
+            statusLabel.minimumScaleFactor = 0.6
             showStatusOnly()
             return
         }
@@ -239,6 +249,8 @@ final class KeyboardViewController: UIInputViewController {
         textDocumentProxy.insertText(insertion)
         if shift == .on { shift = .off }
         lastSwipeInsert = insertion
+        lastCharWasWord = true
+        spaceAfterWordAt = nil
         updateAutoShift()
         reloadKeys()
     }

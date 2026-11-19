@@ -31,26 +31,8 @@ struct MeetingsView: View {
 
     @ViewBuilder
     private var recorder: some View {
-        if let id = session.activeMeetingID, let meeting = store.meeting(id) {
-            Card("Aufnahme läuft") {
-                HStack {
-                    StatusDot(state: .meeting)
-                    TimelineView(.periodic(from: meeting.start, by: 1)) { context in
-                        Text(Duration.seconds(context.date.timeIntervalSince(meeting.start)),
-                             format: .time(pattern: .hourMinuteSecond))
-                            .font(.system(size: 34, weight: .semibold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(Theme.ink)
-                    }
-                    Spacer()
-                }
-                OwnNotesEditor(meetingID: id)
-                Button(role: .destructive) { session.stopMeeting() } label: {
-                    Label("Meeting beenden", systemImage: "stop.fill").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.recording)
-                .controlSize(.large)
-            }
+        if let id = session.activeMeetingID {
+            ActiveMeetingCard(meetingID: id)
         } else {
             Card {
                 Text("Neues Meeting").font(Theme.title).foregroundStyle(Theme.ink)
@@ -66,6 +48,41 @@ struct MeetingsView: View {
                     .font(.caption).foregroundStyle(Theme.muted)
             }
         }
+    }
+}
+
+/// Laufende Aufnahme: Uhr, eigene Notizen, Beenden. Auch im Detail eines fortgesetzten Meetings.
+struct ActiveMeetingCard: View {
+    @EnvironmentObject private var session: SessionController
+    @EnvironmentObject private var store: MeetingStore
+    let meetingID: UUID
+
+    var body: some View {
+        Card(title) {
+            HStack {
+                StatusDot(state: .meeting)
+                let since = session.meetingRecordingSince ?? Date()
+                TimelineView(.periodic(from: since, by: 1)) { context in
+                    Text(Duration.seconds(max(0, context.date.timeIntervalSince(since))),
+                         format: .time(pattern: .hourMinuteSecond))
+                        .font(.system(size: 34, weight: .semibold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(Theme.ink)
+                }
+                Spacer()
+            }
+            OwnNotesEditor(meetingID: meetingID)
+            Button(role: .destructive) { session.stopMeeting() } label: {
+                Label("Meeting beenden", systemImage: "stop.fill").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Theme.recording)
+            .controlSize(.large)
+        }
+    }
+
+    private var title: String {
+        let parts = store.meeting(meetingID)?.partCount ?? 1
+        return parts > 1 ? "Aufnahme läuft · Teil \(parts)" : "Aufnahme läuft"
     }
 }
 
