@@ -393,6 +393,7 @@ private struct SettingsPage: View {
         case .dictation:
             SettingsCard("Tastenkürzel") { HotkeysTab() }
             SettingsCard("Ausgabe") { OutputSection() }
+            SettingsCard("Sprecher im Diktat", footnote: "Sitzen mehrere Personen zusammen, ist meist ein Meeting die bessere Wahl.") { DiarizerStatusBlock() }
         case .style:
             SettingsCard(nil) { StyleSection() }
         case .dictionary:
