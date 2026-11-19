@@ -15,6 +15,7 @@ struct MeetingDetailView: View {
     @State private var confirmDelete = false
     @State private var toast: String?
     @State private var sharedFile: SharedFile?
+    @State private var shareResult: String?
 
     var body: some View {
         if let meeting = store.meeting(meetingID) {
@@ -95,6 +96,11 @@ struct MeetingDetailView: View {
             Text("Audio, Transkript und Notizen werden entfernt.")
         }
         .toast($toast)
+        .alert("Ablage", isPresented: Binding(get: { shareResult != nil }, set: { if !$0 { shareResult = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(shareResult ?? "")
+        }
         .sheet(item: $sharedFile) { ShareSheet(url: $0.url).presentationDetents([.medium, .large]) }
     }
 
@@ -143,7 +149,7 @@ struct MeetingDetailView: View {
                 Button("In gemeinsame Ablage legen", systemImage: "folder.badge.plus") {
                     Task {
                         await session.share(meeting.id)
-                        toast = sharedFolder.lastMessage
+                        shareResult = sharedFolder.lastMessage ?? "Keine Rückmeldung."
                     }
                 }
                 .disabled(!sharedFolder.isConfigured || meeting.status != .done)

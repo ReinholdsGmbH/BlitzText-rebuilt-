@@ -153,8 +153,11 @@ final class OneDriveSync: ObservableObject {
         let (body, response) = try await URLSession.shared.upload(for: request, from: data)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
-            let text = String(data: body, encoding: .utf8) ?? ""
-            throw OneDriveError.message("Upload \(status): \(text.prefix(200))")
+            // Microsoft liefert {"error":{"code":"…","message":"…"}}; beides vollständig zeigen.
+            let json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any]
+            let error = json?["error"] as? [String: Any]
+            let detail = [error?["code"] as? String, error?["message"] as? String].compactMap { $0 }.joined(separator: " – ")
+            throw OneDriveError.message("Upload \(status): \(detail.isEmpty ? (String(data: body, encoding: .utf8) ?? "") : detail)")
         }
     }
 
