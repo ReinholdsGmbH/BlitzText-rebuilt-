@@ -4,6 +4,7 @@ import SwiftUI
 struct MeetingDetailView: View {
     @EnvironmentObject private var store: MeetingStore
     @EnvironmentObject private var session: SessionController
+    @EnvironmentObject private var sharedFolder: SharedFolder
     @Environment(\.dismiss) private var dismiss
     let meetingID: UUID
 
@@ -37,6 +38,10 @@ struct MeetingDetailView: View {
                         .onChange(of: titleFocused) { _, focused in if !focused { saveTitle(meeting) } }
                         .onSubmit { titleFocused = false }
                     Text(meeting.timeRange).font(.subheadline).foregroundStyle(Theme.muted)
+                    if let shared = meeting.sharedAt {
+                        Label("In der Ablage seit \(shared.formatted(date: .abbreviated, time: .shortened))", systemImage: "checkmark.icloud")
+                            .font(.caption).foregroundStyle(Theme.success)
+                    }
                     if meeting.status != .done { statusLine(meeting) }
                 }
                 if session.activeMeetingID == meeting.id {
@@ -135,6 +140,13 @@ struct MeetingDetailView: View {
                     Clipboard.copy(meeting.transcript); toast = "Transkript kopiert"
                 }
                 .disabled(meeting.transcript.isEmpty)
+                Button("In gemeinsame Ablage legen", systemImage: "folder.badge.plus") {
+                    Task {
+                        await session.share(meeting.id)
+                        toast = sharedFolder.lastMessage
+                    }
+                }
+                .disabled(!sharedFolder.isConfigured || meeting.status != .done)
                 Button("An Mac senden (Audio)", systemImage: "laptopcomputer.and.arrow.down") { sendToMac(meeting) }
                     .disabled(meeting.status == .recording)
                 ShareLink("Notizen teilen", item: meeting.notesForCopy)

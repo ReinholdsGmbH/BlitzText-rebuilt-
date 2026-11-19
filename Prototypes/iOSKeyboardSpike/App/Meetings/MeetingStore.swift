@@ -27,6 +27,14 @@ enum MeetingStatus: Codable, Hashable {
     }
 }
 
+/// Ein Abschnitt des Transkripts mit Zeit (Sekunden ab Beginn) und Sprecher („1“, „2“ …, nil bei einer Stimme).
+struct TranscriptSegment: Codable, Hashable {
+    let speaker: String?
+    let start: Double
+    let end: Double
+    let text: String
+}
+
 struct Meeting: Codable, Identifiable, Hashable {
     let id: UUID
     var title: String
@@ -42,6 +50,10 @@ struct Meeting: Codable, Identifiable, Hashable {
     var parts: Int?
     /// Wörter, die schon in den Gesamtzähler eingeflossen sind.
     var countedWords: Int?
+    /// Transkript-Abschnitte mit Zeit und Sprecher, für den Mac.
+    var segments: [TranscriptSegment]?
+    /// Wann das Meeting zuletzt in die gemeinsame Ablage gelegt wurde.
+    var sharedAt: Date?
 
     var partCount: Int { parts ?? 1 }
 

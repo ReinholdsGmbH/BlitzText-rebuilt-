@@ -19,45 +19,77 @@ final class MeetingDiarizer: @unchecked Sendable {
     }
 }
 
-/// Ordnet die Wörter des Transkripts über ihre Zeitstempel den Sprechersegmenten zu.
-/// Ergebnis wie am Mac: Absätze „Sprecher 1: …“. Nur eine Stimme: nil (Text bleibt ohne Sprecher).
-enum SpeakerLabeler {
-    static func label(asr: ASRResult, segments: [TimedSpeakerSegment]) -> String? {
-        guard let timings = asr.tokenTimings, !timings.isEmpty,
-              Set(segments.map(\.speakerId)).count >= 2 else { return nil }
+/// Baut aus den Wort-Zeitstempeln Abschnitte mit Zeit und Sprecher, wie sie der Mac als
+/// Protokollzeilen kennt. Neuer Abschnitt bei Sprecherwechsel, nach einer Pause oder wenn ein
+/// Abschnitt lang wird. Text: bei mehreren Stimmen „Sprecher N: …“-Absätze, sonst Fließtext.
+enum TranscriptBuilder {
+    static let pauseBreak: TimeInterval = 1.5
+    static let maxWords = 60
+
+    static func build(asr: ASRResult, speakers: [TimedSpeakerSegment]) -> (text: String, segments: [TranscriptSegment]) {
+        let plain = asr.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let timings = asr.tokenTimings, !timings.isEmpty else {
+            return (plain, plain.isEmpty ? [] : [TranscriptSegment(speaker: nil, start: 0, end: asr.duration, text: plain)])
+        }
+        let multiple = Set(speakers.map(\.speakerId)).count >= 2
 
         func speaker(at time: TimeInterval) -> String? {
-            if let hit = segments.first(where: { Double($0.startTimeSeconds) <= time && time <= Double($0.endTimeSeconds) }) {
+            guard multiple else { return nil }
+            if let hit = speakers.first(where: { Double($0.startTimeSeconds) <= time && time <= Double($0.endTimeSeconds) }) {
                 return hit.speakerId
             }
-            return segments.min(by: { distance($0, time) < distance($1, time) })?.speakerId
+            return speakers.min(by: { distance($0, time) < distance($1, time) })?.speakerId
         }
+
+        var raw: [(speaker: String?, start: TimeInterval, end: TimeInterval, text: String)] = []
+        var current: (speaker: String?, start: TimeInterval, end: TimeInterval, text: String)?
+        for timing in timings {
+            let startsWord = timing.token.hasPrefix(" ") || current == nil
+            if startsWord, var open = current {
+                let next = speaker(at: timing.startTime)
+                let words = open.text.split(separator: " ").count
+                let pause = timing.startTime - open.end
+                if next != open.speaker || pause >= pauseBreak || words >= maxWords {
+                    open.text = open.text.trimmingCharacters(in: .whitespaces)
+                    if !open.text.isEmpty { raw.append(open) }
+                    current = (next, timing.startTime, timing.endTime, timing.token)
+                    continue
+                }
+                open.text += timing.token
+                open.end = timing.endTime
+                current = open
+            } else if var open = current {
+                open.text += timing.token
+                open.end = timing.endTime
+                current = open
+            } else {
+                current = (speaker(at: timing.startTime), timing.startTime, timing.endTime, timing.token)
+            }
+        }
+        if var open = current {
+            open.text = open.text.trimmingCharacters(in: .whitespaces)
+            if !open.text.isEmpty { raw.append(open) }
+        }
+
+        // Sprecher in Reihenfolge des ersten Auftretens durchnummerieren: „1“, „2“, …
+        var numbers: [String: Int] = [:]
+        for part in raw { if let id = part.speaker, numbers[id] == nil { numbers[id] = numbers.count + 1 } }
+        let segments = raw.map { part in
+            TranscriptSegment(speaker: part.speaker.flatMap { numbers[$0] }.map(String.init),
+                              start: part.start, end: part.end, text: part.text)
+        }
+        guard multiple else { return (plain, segments) }
 
         var paragraphs: [(speaker: String, text: String)] = []
-        var currentSpeaker: String?
-        var currentText = ""
-        for timing in timings {
-            let startsWord = timing.token.hasPrefix(" ") || currentText.isEmpty
-            if startsWord, let next = speaker(at: timing.startTime), next != currentSpeaker {
-                if let currentSpeaker, !currentText.trimmingCharacters(in: .whitespaces).isEmpty {
-                    paragraphs.append((currentSpeaker, currentText))
-                    currentText = ""
-                }
-                currentSpeaker = next
+        for segment in segments {
+            let label = "Sprecher \(segment.speaker ?? "?")"
+            if paragraphs.last?.speaker == label {
+                paragraphs[paragraphs.count - 1].text += " " + segment.text
+            } else {
+                paragraphs.append((label, segment.text))
             }
-            currentText += timing.token
         }
-        if let currentSpeaker, !currentText.trimmingCharacters(in: .whitespaces).isEmpty {
-            paragraphs.append((currentSpeaker, currentText))
-        }
-
-        var numbers: [String: Int] = [:]
-        for paragraph in paragraphs where numbers[paragraph.speaker] == nil {
-            numbers[paragraph.speaker] = numbers.count + 1
-        }
-        return paragraphs
-            .map { "Sprecher \(numbers[$0.speaker] ?? 0): \($0.text.trimmingCharacters(in: .whitespaces))" }
-            .joined(separator: "\n\n")
+        return (paragraphs.map { "\($0.speaker): \($0.text)" }.joined(separator: "\n\n"), segments)
     }
 
     private static func distance(_ segment: TimedSpeakerSegment, _ time: TimeInterval) -> Double {
@@ -74,8 +106,11 @@ final class MeetingProcessor {
     private let diarizer = MeetingDiarizer()
     private let summarizer = MeetingSummarizer()
     private let log: (String) -> Void
+    private let sharedFolder: SharedFolder
 
-    init(store: MeetingStore, history: DictationHistory, parakeet: ParakeetEngine, log: @escaping (String) -> Void) {
+    init(store: MeetingStore, history: DictationHistory, parakeet: ParakeetEngine, sharedFolder: SharedFolder,
+         log: @escaping (String) -> Void) {
+        self.sharedFolder = sharedFolder
         self.store = store
         self.history = history
         self.parakeet = parakeet
@@ -103,18 +138,18 @@ final class MeetingProcessor {
             let asr = try await parakeet.transcribe(samples: samples)
             log(String(format: "Meeting: Parakeet %.1f s für %.0f s Audio", Date().timeIntervalSince(started),
                        Double(samples.count) / 16_000))
-            var transcript = asr.text.trimmingCharacters(in: .whitespacesAndNewlines)
-
             store.update(id) { $0.status = .diarizing }
+            var speakers: [TimedSpeakerSegment] = []
             do {
-                let segments = try await diarizer.segments(for: samples)
-                if let labeled = SpeakerLabeler.label(asr: asr, segments: segments) { transcript = labeled }
-                log("Meeting: \(Set(segments.map(\.speakerId)).count) Stimmen erkannt")
+                speakers = try await diarizer.segments(for: samples)
+                log("Meeting: \(Set(speakers.map(\.speakerId)).count) Stimmen erkannt")
             } catch {
                 log("Meeting: Sprechertrennung fehlgeschlagen, Text ohne Sprecher (\(error.localizedDescription))")
             }
+            let built = TranscriptBuilder.build(asr: asr, speakers: speakers)
+            let transcript = built.text
 
-            store.update(id) { $0.transcript = transcript; $0.status = .summarizing }
+            store.update(id) { $0.transcript = transcript; $0.segments = built.segments; $0.status = .summarizing }
             // Nur den Zuwachs zählen: erneut verarbeiten oder fortsetzen zählt nichts doppelt.
             let words = WordCounter.count(transcript)
             let already = store.meeting(id)?.countedWords ?? 0
@@ -126,6 +161,9 @@ final class MeetingProcessor {
                 if let title = notes.title, !title.isEmpty { meeting.title = title }
                 meeting.summary = notes.markdown
                 meeting.status = .done
+            }
+            if sharedFolder.autoDeliver, sharedFolder.isConfigured {
+                await sharedFolder.deliver(id, store: store, log: log)
             }
         } catch {
             store.update(id) { $0.status = .failed(error.localizedDescription) }

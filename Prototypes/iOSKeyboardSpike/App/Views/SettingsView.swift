@@ -2,6 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var session: SessionController
+    @EnvironmentObject private var sharedFolder: SharedFolder
+    @EnvironmentObject private var meetings: MeetingStore
+    @State private var choosingFolder = false
     @State private var swipeEnabled = Spike.isSwipeEnabled
     @State private var digitsMode = Spike.digitsMode
     @State private var micOnRight = Spike.isMicOnRight
@@ -48,6 +51,28 @@ struct SettingsView: View {
                     Text("Ziffern: „Langer Druck“ (Standard) legt sie auf q bis p, „Leiste“ zeigt 1 bis 0 als flache Reihe. Rücktaste 2 s halten löscht ganze Wörter.\n\nEinrichten: Einstellungen › Allgemein › Tastatur › Tastaturen › Tastatur hinzufügen › BlitzSpike, danach „Vollen Zugriff erlauben“. Den vollen Zugriff braucht das Mikro in der Tastatur.")
                 }
 
+                Section {
+                    LabeledContent("Ordner", value: sharedFolder.folderName ?? "keiner")
+                    Button(sharedFolder.isConfigured ? "Anderen Ordner wählen …" : "Ordner wählen …") { choosingFolder = true }
+                    Toggle("Fertige Meetings automatisch ablegen", isOn: $sharedFolder.autoDeliver)
+                        .disabled(!sharedFolder.isConfigured)
+                    Button("Alle fertigen Meetings jetzt ablegen") {
+                        Task {
+                            for meeting in meetings.meetings where meeting.status == .done {
+                                await session.share(meeting.id)
+                            }
+                        }
+                    }
+                    .disabled(!sharedFolder.isConfigured)
+                    if let message = sharedFolder.lastMessage {
+                        Text(message).font(.footnote).foregroundStyle(Theme.muted)
+                    }
+                } header: {
+                    Text("Gemeinsame Ablage")
+                } footer: {
+                    Text("Ein Ordner in iCloud Drive oder OneDrive. Fertige Meetings landen dort unter „BlitzText iPhone“ mit Transkript, Notizen und Audio. Am Mac denselben Ordner unter Einstellungen › iPhone-Ablage wählen; die Mac-App übernimmt alles unverändert und legt das Protokoll im Wissensordner ab.")
+                }
+
                 Section("Status") {
                     LabeledContent("App Group", value: session.appGroupOK ? "ok" : "fehlt")
                     LabeledContent("Spracherkennung", value: session.modelStatus)
@@ -61,6 +86,9 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.background)
             .navigationTitle("Einstellungen")
+            .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
+                if case .success(let url) = result { sharedFolder.choose(url) }
+            }
         }
     }
 }

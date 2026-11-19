@@ -23,8 +23,10 @@ final class SessionController: ObservableObject {
 
     let history: DictationHistory
     let meetings: MeetingStore
+    let sharedFolder: SharedFolder
     private let parakeet = ParakeetEngine()
-    private lazy var processor = MeetingProcessor(store: meetings, history: history, parakeet: parakeet) { [weak self] in
+    private lazy var processor = MeetingProcessor(store: meetings, history: history, parakeet: parakeet,
+                                                  sharedFolder: sharedFolder) { [weak self] in
         self?.add($0)
     }
 
@@ -37,9 +39,10 @@ final class SessionController: ObservableObject {
     private var sampleRate: Double = 48_000
     private var observers: [DarwinObserver] = []
 
-    init(history: DictationHistory, meetings: MeetingStore) {
+    init(history: DictationHistory, meetings: MeetingStore, sharedFolder: SharedFolder) {
         self.history = history
         self.meetings = meetings
+        self.sharedFolder = sharedFolder
         UIDevice.current.isBatteryMonitoringEnabled = true
         observers = [
             DarwinObserver(Spike.Note.start) { [weak self] in self?.startRecording() },
@@ -227,6 +230,11 @@ final class SessionController: ObservableObject {
         meetings.update(id) { $0.end = Date(); $0.status = .transcribing }
         add(String(format: "Meeting beendet: %.0f s Audio", Double(frames) / sampleRate))
         Task { await processor.process(id) }
+    }
+
+    /// Meeting von Hand in die gemeinsame Ablage legen.
+    func share(_ id: UUID) async {
+        await sharedFolder.deliver(id, store: meetings) { [weak self] in self?.add($0) }
     }
 
     func reprocess(_ id: UUID) {

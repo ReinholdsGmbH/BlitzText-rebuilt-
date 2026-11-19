@@ -5,13 +5,16 @@ struct SpikeApp: App {
     @StateObject private var history: DictationHistory
     @StateObject private var meetings: MeetingStore
     @StateObject private var session: SessionController
+    @StateObject private var sharedFolder: SharedFolder
 
     init() {
         let history = DictationHistory()
         let meetings = MeetingStore()
+        let sharedFolder = SharedFolder()
         _history = StateObject(wrappedValue: history)
         _meetings = StateObject(wrappedValue: meetings)
-        _session = StateObject(wrappedValue: SessionController(history: history, meetings: meetings))
+        _sharedFolder = StateObject(wrappedValue: sharedFolder)
+        _session = StateObject(wrappedValue: SessionController(history: history, meetings: meetings, sharedFolder: sharedFolder))
     }
 
     var body: some Scene {
@@ -20,6 +23,7 @@ struct SpikeApp: App {
                 .environmentObject(session)
                 .environmentObject(history)
                 .environmentObject(meetings)
+                .environmentObject(sharedFolder)
                 .onOpenURL { session.handle(url: $0) }
                 .tint(Theme.accent)
         }
