@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var meetingController: MeetingController!
     private var meetingPill: MeetingPillController!
     private var meetingLibrary: MeetingLibrary!
+    private var phoneInbox: PhoneInboxImporter!
     private var meetingWindow: AppWindowController!
     private var didBecomeActiveObserver: NSObjectProtocol?
 
@@ -192,6 +193,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingController.onOpenLive = { [weak self] in self?.meetingWindow.show(section: .meetings) }
         updateWindow.onClose = { [weak self] in self?.meetingWindow.applyDockPolicy() }
         meetingController.onMeetingSaved = { [weak self] _ in self?.meetingLibrary.reload() }
+        // Gemeinsame Ablage mit der iPhone-App: Pakete regelmäßig abholen, ohne neu zu transkribieren.
+        phoneInbox = PhoneInboxImporter(
+            archive: meetingController.archive,
+            makeExporter: { settings.makeVaultExporter() },
+            rootPath: { settings.phoneInboxPath }
+        ) { [weak self] _ in self?.meetingLibrary.reload() }
+        phoneInbox.start()
+        settings.$phoneInboxPath
+            .dropFirst()
+            .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in Task { await self?.phoneInbox.poll() } }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: PhoneInboxImporter.pollNow)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in Task { await self?.phoneInbox.poll() } }
+            .store(in: &cancellables)
         meetingPill = MeetingPillController(controller: meetingController)
         meetingController.startMonitoring()
 

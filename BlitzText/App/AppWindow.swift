@@ -412,6 +412,7 @@ private struct SettingsPage: View {
         case .system:
             SettingsCard("Darstellung") { AppearanceSection() }
             SettingsCard("Ablage im Wissensordner") { VaultSection() }
+            SettingsCard("iPhone-Ablage") { PhoneInboxSection() }
             SettingsCard("Berechtigungen und Autostart") { PermissionsSection() }
             SettingsCard("Updates und Version") { UeberTab() }
         }

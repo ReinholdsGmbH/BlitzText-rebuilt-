@@ -41,6 +41,42 @@ struct VaultSection: View {
     }
 }
 
+/// Gemeinsame Ablage mit der iPhone-App (Ordner in iCloud Drive oder OneDrive).
+struct PhoneInboxSection: View {
+    @EnvironmentObject var settings: SettingsStore
+
+    private var path: String { (settings.phoneInboxPath as NSString).expandingTildeInPath }
+    private var exists: Bool { !path.isEmpty && FileManager.default.fileExists(atPath: path) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                TextField("Ordner, z. B. in iCloud Drive", text: $settings.phoneInboxPath)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+                Button("Wählen …", action: choose)
+                Button("Jetzt abholen") { NotificationCenter.default.post(name: PhoneInboxImporter.pollNow, object: nil) }
+                    .disabled(!exists)
+            }
+            if !settings.phoneInboxPath.isEmpty, !exists {
+                Label("Ordner nicht gefunden.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            Text("Derselbe Ordner wie in der iPhone-App unter „Gemeinsame Ablage“. BlitzText holt neue Meetings aus „BlitzText iPhone“ beim Start und alle zwei Minuten ab und übernimmt Transkript, Notizen und eigene Notizen unverändert, ohne neu zu transkribieren. Danach landen sie wie jedes Meeting im Wissensordner. Ein auf dem iPhone geändertes Meeting wird aktualisiert; Sprechernamen und Bereich, die du am Mac vergeben hast, bleiben.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        if exists { panel.directoryURL = URL(fileURLWithPath: path) }
+        if panel.runModal() == .OK, let url = panel.url { settings.phoneInboxPath = url.path }
+    }
+}
+
 /// Darstellung: Dock-Symbol.
 struct AppearanceSection: View {
     @EnvironmentObject var settings: SettingsStore

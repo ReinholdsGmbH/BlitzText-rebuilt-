@@ -45,6 +45,8 @@ final class SettingsStore: ObservableObject {
     /// Meetings sofort in den Wissensordner (Baalda-Vault) spiegeln, nach mw-route-Regeln.
     @Published var vaultExportEnabled: Bool = true
     @Published var vaultRootPath: String = VaultExporter.defaultRoot.path
+    /// Gemeinsame Ablage mit der iPhone-App (iCloud Drive, OneDrive …); leer = aus.
+    @Published var phoneInboxPath: String = ""
     /// Wann BlitzText im Dock erscheint. Standard: solange das App-Fenster offen ist.
     @Published var dockIconMode: DockIconMode = .whileWindowOpen
     /// Welches Stimmprofil man selbst ist; erscheint in Meetings als „Ich“.
@@ -249,6 +251,7 @@ final class SettingsStore: ObservableObject {
         var requestyModel: String?
         var vaultExportEnabled: Bool?
         var vaultRootPath: String?
+        var phoneInboxPath: String?
         var dockIconMode: DockIconMode?
         var selfSpeakerName: String?
     }
@@ -295,6 +298,7 @@ final class SettingsStore: ObservableObject {
         requestyModel = snap.requestyModel ?? SummaryProvider.requesty.defaultModel
         vaultExportEnabled = snap.vaultExportEnabled ?? true
         vaultRootPath = snap.vaultRootPath ?? VaultExporter.defaultRoot.path
+        phoneInboxPath = snap.phoneInboxPath ?? ""
         dockIconMode = snap.dockIconMode ?? .whileWindowOpen
         selfSpeakerName = snap.selfSpeakerName ?? ""
     }
@@ -384,6 +388,7 @@ final class SettingsStore: ObservableObject {
             requestyModel: requestyModel,
             vaultExportEnabled: vaultExportEnabled,
             vaultRootPath: vaultRootPath,
+            phoneInboxPath: phoneInboxPath,
             dockIconMode: dockIconMode,
             selfSpeakerName: selfSpeakerName
         )
