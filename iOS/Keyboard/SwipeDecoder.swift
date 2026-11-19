@@ -48,7 +48,7 @@ final class SwipeDecoder: @unchecked Sendable {
         known = Set(best.keys)
     }
 
-    /// Eigene Wörter und Kontaktnamen zur Laufzeit ergänzen (z. B. „Brigitte“, das Apples
+    /// Eigene Wörter und Kontaktnamen zur Laufzeit ergänzen (etwa Namen, die Apples
     /// Wörterbuch nicht kennt). Gewicht wie eigene Wörter beim Laden: mittlere Häufigkeit.
     func add(words: [String]) {
         for word in words {
