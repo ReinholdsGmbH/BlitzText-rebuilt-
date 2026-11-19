@@ -19,6 +19,14 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
+                    Toggle("Intelligente Formatierung", isOn: $session.aiFormatting)
+                } header: {
+                    Text("Diktat")
+                } footer: {
+                    Text("Gesprochene Satzzeichen („Ausrufezeichen“, „neue Zeile“), Emojis („Herz Emoji“) und „erstens, zweitens …“ als Liste gelten immer. Eingeschaltet formatiert Apple Intelligence auf dem Gerät zusätzlich Listen und Absätze, ohne Wörter zu ändern; weicht das Ergebnis ab oder dauert es länger als 4 s, bleibt der Text ohne KI.")
+                }
+
+                Section {
                     Picker("Auto-Stop bei Leerlauf", selection: $session.idleLimitMinutes) {
                         Text("5 min").tag(5)
                         Text("30 min").tag(30)

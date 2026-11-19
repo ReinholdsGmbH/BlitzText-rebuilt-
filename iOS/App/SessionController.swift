@@ -16,6 +16,11 @@ final class SessionController: ObservableObject {
     /// Beginn des laufenden Aufnahmeteils (für die Uhr; bei „Fortsetzen“ ab dem neuen Teil).
     @Published private(set) var meetingRecordingSince: Date?
 
+    /// Diktat nach den Regeln zusätzlich mit Apple Intelligence formatieren (Listen, Absätze).
+    @Published var aiFormatting: Bool = UserDefaults.standard.object(forKey: "aiFormatting") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(aiFormatting, forKey: "aiFormatting") }
+    }
+
     /// Auto-Stop nach so viel Leerlauf in Minuten; 0 = aus. Standard 5 min wie bei Wispr.
     @Published var idleLimitMinutes: Int = UserDefaults.standard.object(forKey: "idleLimitMinutes") as? Int ?? 5 {
         didSet { UserDefaults.standard.set(idleLimitMinutes, forKey: "idleLimitMinutes") }
@@ -154,11 +159,24 @@ final class SessionController: ObservableObject {
         let started = Date()
         let text: String
         do {
-            let raw = EmojiReplacer.apply(try await parakeet.transcribe(recordingURL))
-            text = raw.isEmpty ? "" : raw + " "
+            let transcript = try await parakeet.transcribe(recordingURL)
+            let asrSeconds = Date().timeIntervalSince(started)
+            // Regeln (Satzzeichen, Emojis, Listen), danach optional Apple Intelligence.
+            var raw = DictationFormatter.apply(transcript)
+            if aiFormatting {
+                let aiStarted = Date()
+                if let formatted = await DictationAI.format(raw) {
+                    raw = formatted
+                    add(String(format: "KI-Formatierung übernommen (%.1f s)", Date().timeIntervalSince(aiStarted)))
+                } else if DictationAI.isAvailable, raw.split(separator: " ").count >= DictationAI.minimumWords {
+                    add(String(format: "KI-Formatierung verworfen oder zu langsam (%.1f s)", Date().timeIntervalSince(aiStarted)))
+                }
+            }
+            // Listen beginnen mit einem Umbruch, sonst klebt der erste Punkt am Text davor.
+            text = raw.isEmpty ? "" : raw + (raw.contains("\n") ? "\n" : " ")
             if !raw.isEmpty { history.add(text: raw, seconds: seconds) }
             add(String(format: "Parakeet: %.1f s für %.1f s Audio (%@), %d Zeichen",
-                       Date().timeIntervalSince(started), seconds,
+                       asrSeconds, seconds,
                        background ? "Hintergrund" : "Vordergrund", raw.count))
         } catch {
             text = "[Fehler: \(error.localizedDescription)] "
