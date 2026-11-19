@@ -72,7 +72,7 @@ struct SettingsView: View {
                 } header: {
                     Text("OneDrive")
                 } footer: {
-                    Text("Fertige Meetings landen direkt in OneDrive unter „Apps/BlitzText iPhone“, ohne Dateien-App. BlitzText darf nur in diesen Ordner schreiben. Am Mac unter Einstellungen › iPhone-Ablage den Ordner „OneDrive-Persönlich/Apps/BlitzText iPhone“ wählen.")
+                    Text("Fertige Meetings landen direkt in OneDrive unter „Anwendungen/BlitzText iPhone“ (englisch „Apps“), ohne Dateien-App. BlitzText darf nur in diesen Ordner schreiben. Am Mac unter Einstellungen › iPhone-Ablage den Ordner „OneDrive-Persönlich/Anwendungen/BlitzText iPhone“ wählen.")
                 }
 
                 Section {

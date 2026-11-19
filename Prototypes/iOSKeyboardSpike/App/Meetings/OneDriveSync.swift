@@ -140,9 +140,35 @@ final class OneDriveSync: ObservableObject {
 
     // MARK: - Upload
 
-    /// Lädt eine Datei nach `Apps/BlitzText iPhone/<pfad>`. Ordner legt OneDrive dabei an.
+    private var appRootReady = false
+
+    /// OneDrive legt den App-Ordner erst beim ersten Zugriff auf `special/approot` an.
+    /// Ohne diesen Schritt kam beim allerersten Upload eine 403.
+    private func ensureAppRoot(token: String) async {
+        guard !appRootReady else { return }
+        var request = URLRequest(url: URL(string: "https://graph.microsoft.com/v1.0/me/drive/special/approot")!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let (_, response) = try? await URLSession.shared.data(for: request),
+           (response as? HTTPURLResponse)?.statusCode == 200 {
+            appRootReady = true
+        }
+    }
+
+    /// Lädt eine Datei nach `Apps/BlitzText iPhone/<pfad>` (deutsch: „Anwendungen“).
+    /// Ordner legt OneDrive dabei an. Eine 403 wird nach Anlegen des App-Ordners einmal wiederholt.
     func upload(_ data: Data, to path: String) async throws {
+        do {
+            try await uploadOnce(data, to: path)
+        } catch OneDriveError.forbidden {
+            appRootReady = false
+            try await Task.sleep(for: .seconds(2))
+            try await uploadOnce(data, to: path)
+        }
+    }
+
+    private func uploadOnce(_ data: Data, to path: String) async throws {
         let token = try await validToken()
+        await ensureAppRoot(token: token)
         let encoded = path.split(separator: "/").map {
             String($0).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/:"))) ?? String($0)
         }.joined(separator: "/")
@@ -157,6 +183,7 @@ final class OneDriveSync: ObservableObject {
             let json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any]
             let error = json?["error"] as? [String: Any]
             let detail = [error?["code"] as? String, error?["message"] as? String].compactMap { $0 }.joined(separator: " – ")
+            if status == 403 { throw OneDriveError.forbidden(detail) }
             throw OneDriveError.message("Upload \(status): \(detail.isEmpty ? (String(data: body, encoding: .utf8) ?? "") : detail)")
         }
     }
@@ -187,8 +214,12 @@ final class OneDriveSync: ObservableObject {
 
 enum OneDriveError: LocalizedError {
     case message(String)
+    case forbidden(String)
     var errorDescription: String? {
-        switch self { case .message(let text): text }
+        switch self {
+        case .message(let text): text
+        case .forbidden(let text): "Upload 403: \(text)"
+        }
     }
 }
 
