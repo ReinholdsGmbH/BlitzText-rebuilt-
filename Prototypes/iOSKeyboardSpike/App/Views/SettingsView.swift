@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject private var meetings: MeetingStore
     @State private var choosingFolder = false
     @State private var folderAlert: String?
+    @State private var pickedFolder: URL?
     @State private var swipeEnabled = Spike.isSwipeEnabled
     @State private var digitsMode = Spike.digitsMode
     @State private var micOnRight = Spike.isMicOnRight
@@ -88,10 +89,17 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.background)
             .navigationTitle("Einstellungen")
-            .sheet(isPresented: $choosingFolder) {
+            // Ordner erst nach dem Schließen des Dialogs übernehmen; das Ergebnis erscheint nur
+            // dann als Hinweis, nicht bei jedem späteren Wechsel in die Einstellungen.
+            .sheet(isPresented: $choosingFolder, onDismiss: {
+                guard let url = pickedFolder else { return }
+                pickedFolder = nil
+                sharedFolder.choose(url)
+                folderAlert = sharedFolder.lastMessage
+            }) {
                 FolderPicker { url in
+                    pickedFolder = url
                     choosingFolder = false
-                    if let url { sharedFolder.choose(url) }
                 }
                 .ignoresSafeArea()
             }
@@ -101,14 +109,6 @@ struct SettingsView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(folderAlert ?? "")
-            }
-            .onChange(of: sharedFolder.lastMessage) { _, message in
-                // Erst nach dem Schließen des Ordner-Dialogs zeigen, sonst blockieren sich beide.
-                guard let message else { return }
-                Task {
-                    try? await Task.sleep(for: .milliseconds(700))
-                    folderAlert = message
-                }
             }
         }
     }
