@@ -134,6 +134,18 @@ struct MeetingImportTests {
         #expect(try MeetingImport.plan(for: [mic, app]) == .init(microphone: mic, others: app))
     }
 
+    @Test("Beginn aus dem Dateinamen einer iPhone-Aufnahme")
+    func startDateFromFileName() throws {
+        let berlin = try #require(TimeZone(identifier: "Europe/Berlin"))
+        let date = try #require(MeetingImport.startDate(fromFileName: "19.11.26_10.07_Koalition und Reformpaket.m4a", timeZone: berlin))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = berlin
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        #expect(parts == DateComponents(year: 2026, month: 11, day: 19, hour: 10, minute: 7))
+        #expect(MeetingImport.startDate(fromFileName: "meeting.m4a") == nil)
+        #expect(MeetingImport.startDate(fromFileName: "31.02.26_10.07_x.m4a") == nil)
+    }
+
     @Test("Eine Datei ist eine Mischspur, drei sind zu viele")
     func singleAndTooMany() throws {
         let one = URL(fileURLWithPath: "/x/meeting.m4a")

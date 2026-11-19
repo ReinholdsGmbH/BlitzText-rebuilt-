@@ -293,13 +293,17 @@ final class MeetingController: ObservableObject {
         let archive = self.archive
         Task { [weak self] in
             do {
-                let created = (try? plan.others.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date()
+                // Vom iPhone gesendete Dateien tragen Beginn, Titel und eigene Notizen mit;
+                // ohne diese Angaben gilt wie bisher das Erstelldatum der Datei.
+                let info = await MeetingImport.sourceInfo(for: plan.others)
+                let created = info.startedAt
+                    ?? (try? plan.others.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date()
                 let name = plan.others.deletingPathExtension().lastPathComponent
                 let result = try await Task.detached(priority: .userInitiated) {
                     try archive.storeImport(plan, startedAt: created, label: "Import")
                 }.value
                 Log.write("MeetingController: Import \(plan.isMixed ? "Mischspur" : "Spurpaar") — \(String(format: "%.0f", result.duration)) s")
-                let document = MeetingDocument(
+                var document = MeetingDocument(
                     startedAt: created,
                     duration: result.duration,
                     sourceNames: ["Import"],
@@ -308,6 +312,8 @@ final class MeetingController: ObservableObject {
                     notes: ["Importiert aus „\(name)“."],
                     diarizedTrack: plan.isMixed ? MeetingArchive.mixedTrackFile : MeetingArchive.othersTrackFile
                 )
+                document.userNotes = info.userNotes
+                if let title = info.title, title != "Meeting" { document.aiTitle = title }
                 self?.runPipeline(
                     document: document, folder: result.folder,
                     microphone: result.microphone, others: result.others,
