@@ -33,10 +33,12 @@ final class KeyboardViewController: UIInputViewController {
         buildKeyboard()
         lastInsertedID = Spike.defaults?.string(forKey: Spike.Key.resultID)
         // Kontaktnamen, die iOS der Tastatur bereitstellt (Einträge, bei denen Kürzel und Text gleich sind).
-        requestSupplementaryLexicon { [weak self] lexicon in
-            let names = lexicon.entries.filter { $0.userInput == $0.documentText }.map(\.documentText)
-            DispatchQueue.main.async { self?.words.lexiconWords = names }
-        }
+        // Die Antwort kommt auf einem XPC-Thread; der Closure darf deshalb nicht MainActor-isoliert sein.
+        requestSupplementaryLexicon(completion: Self.lexiconHandler { [weak self] lexicon in
+            self?.words.lexiconWords = lexicon.entries
+                .filter { $0.userInput == $0.documentText }
+                .map { $0.documentText }
+        })
         observers = [DarwinObserver(Spike.Note.resultReady) { [weak self] in self?.insertDictation() }]
         let height = view.heightAnchor.constraint(equalToConstant: Self.barHeight + Self.keysHeight)
         height.priority = .init(999)
@@ -66,6 +68,15 @@ final class KeyboardViewController: UIInputViewController {
         super.textDidChange(textInput)
         reloadKeys()
         updateSuggestions()
+    }
+
+    /// Baut den Lexikon-Callback außerhalb des MainActors und reicht das Lexikon auf die Main-Queue
+    /// weiter; die Einträge dürfen nur dort gelesen werden.
+    nonisolated private static func lexiconHandler(_ deliver: @escaping @MainActor (UILexicon) -> Void) -> (UILexicon) -> Void {
+        { lexicon in
+            let box = LexiconBox(lexicon: lexicon)
+            DispatchQueue.main.async { MainActor.assumeIsolated { deliver(box.lexicon) } }
+        }
     }
 
     // MARK: - Aufbau
@@ -407,4 +418,9 @@ final class KeyboardViewController: UIInputViewController {
         }
         return false
     }
+}
+
+/// Trägt das Lexikon vom XPC-Thread zur Main-Queue; gelesen wird es erst dort.
+private struct LexiconBox: @unchecked Sendable {
+    let lexicon: UILexicon
 }
