@@ -62,12 +62,16 @@ enum PhoneInbox {
         return document
     }
 
-    /// Paketordner, deren meeting.json vorliegt. Liegt eine Datei bei iCloud Drive nur in der
-    /// Cloud („.meeting.json.icloud“), wird der Download angestoßen und das Paket später geholt.
+    /// Paketordner, deren meeting.json vorliegt. Gesucht wird in „<Ablage>/BlitzText iPhone“
+    /// und direkt in der Ablage; Letzteres für den OneDrive-App-Ordner „Apps/BlitzText iPhone“,
+    /// den man direkt wählt. Liegt eine Datei bei iCloud Drive nur in der Cloud
+    /// („.meeting.json.icloud“), wird der Download angestoßen und das Paket später geholt.
     static func packageFolders(in root: URL) -> [URL] {
         let fm = FileManager.default
-        let base = root.appendingPathComponent(PhoneMeetingPackage.folderName, isDirectory: true)
-        let folders = (try? fm.contentsOfDirectory(at: base, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
+        let nested = root.appendingPathComponent(PhoneMeetingPackage.folderName, isDirectory: true)
+        let folders = [nested, root].flatMap { base in
+            (try? fm.contentsOfDirectory(at: base, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
+        }
         return folders.filter { folder in
             let json = folder.appendingPathComponent(PhoneMeetingPackage.fileName)
             if fm.fileExists(atPath: json.path) { return true }

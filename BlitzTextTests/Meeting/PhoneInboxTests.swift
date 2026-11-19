@@ -44,6 +44,18 @@ struct PhoneInboxTests {
         #expect(abs(document.duration - 600) < 0.5)
     }
 
+    @Test("Pakete direkt im gewählten Ordner (OneDrive-App-Ordner) werden auch gefunden")
+    func findsPackagesDirectlyInRoot() throws {
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-inbox-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let direct = temp.appendingPathComponent("2026-11-18 09-30 iPhone B", isDirectory: true)
+        try FileManager.default.createDirectory(at: direct, withIntermediateDirectories: true)
+        try packageJSON(id: "B", sharedAt: "2026-11-18T09:00:00Z").write(to: direct.appendingPathComponent("meeting.json"))
+        try write(packageJSON(id: "C", sharedAt: "2026-11-18T09:00:00Z"), into: temp, folder: "2026-11-18 10-00 iPhone C")
+        let found = PhoneInbox.packageFolders(in: temp).map(\.lastPathComponent).sorted()
+        #expect(found == ["2026-11-18 09-30 iPhone B", "2026-11-18 10-00 iPhone C"])
+    }
+
     @Test("Abholen übernimmt einmal und aktualisiert bei neuerem Stand im selben Ordner")
     func pollImportsAndUpdates() async throws {
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent("blitztext-inbox-\(UUID())")
