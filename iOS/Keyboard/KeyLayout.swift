@@ -12,6 +12,8 @@ enum KeyAction: Equatable {
     case deleteWord
     /// Leertaste lange gehalten und gezogen: Cursor um so viele Zeichen verschieben.
     case moveCursor(Int)
+    /// Leertaste gehalten und nach oben/unten gezogen: eine Zeile hoch (-1) oder runter (+1).
+    case moveCursorLine(Int)
     case space
     case returnKey
     case globe
