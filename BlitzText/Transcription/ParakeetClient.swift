@@ -118,11 +118,18 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
     /// - Returns: Der neu angelegte `Speaker` mit `isPermanent = true`.
     /// - Throws: `EnrollmentError.diarizerNotReady`, `.tooShort` oder `.tooQuiet`.
     func enrollSpeaker(audioURL: URL, name: String) async throws -> Speaker {
-        // 1. Diarizer sicherstellen
-        if diarizer == nil {
+        // 1. Diarizer sicherstellen. Ist „Sprecher im Diktat kennzeichnen“ aus, lädt der
+        //    Diktatpfad keinen Diarizer; Profile braucht aber auch das Meeting. Deshalb hier
+        //    ein eigener Diarizer aus dem installierten Modell (ohne Download, ohne ASR).
+        if diarizer == nil, settings.parakeetDiarization {
             await ensureLoaded()
         }
-        guard let diarizer else {
+        let diarizer: DiarizerManager
+        if let loaded = self.diarizer {
+            diarizer = loaded
+        } else if let models = await diarizerManager.modelsIfInstalled {
+            diarizer = makeDiarizer(models: models)
+        } else {
             throw EnrollmentError.diarizerNotReady
         }
 
@@ -316,6 +323,12 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
         }
     }
 
+    private func makeDiarizer(models: DiarizerModels) -> DiarizerManager {
+        let diar = DiarizerManager(config: .default)
+        diar.initialize(models: models)
+        return diar
+    }
+
     private func ensureLoaded() async {
         // Genau EINE Load-Task erzeugen, auch bei parallelen Aufrufen. Der Lock schützt nur
         // das synchrone Check-and-Set — das eigentliche Warten passiert lockfrei via `await`.
@@ -336,8 +349,7 @@ final class ParakeetClient: TranscriptionService, @unchecked Sendable {
                     let installed = await self.diarizerManager.ensureInstalled()
                     let cachedModels = await self.diarizerManager.modelsIfInstalled
                     if installed, let models = cachedModels {
-                        let diar = DiarizerManager(config: .default)
-                        diar.initialize(models: models)
+                        let diar = self.makeDiarizer(models: models)
                         if let store = self.speakerStore {
                             // Nur permanente (enrollte) Sprecher laden — anonyme Session-Sprecher
                             // aus alten Sessions würden den Matcher verwirren.

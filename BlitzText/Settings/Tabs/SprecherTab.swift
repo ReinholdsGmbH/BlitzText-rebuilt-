@@ -17,7 +17,6 @@ struct SprecherTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            DiarizerStatusBlock()
             if settings.backend != .parakeet {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -67,7 +66,7 @@ struct SprecherTab: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("ALLE SPRECHER").font(.caption).foregroundStyle(.secondary).bold()
             if speakerVM.speakers.isEmpty {
-                Text("Noch keine Sprecher-Profile vorhanden. Starte eine Aufnahme mit aktivierter Diarization (Parakeet-Backend, Sprechererkennung an).")
+                Text("Noch keine Sprecher-Profile vorhanden. Nimm ein Meeting auf oder lege unten ein Profil an.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 ForEach(speakerVM.speakers) { speaker in
@@ -115,9 +114,9 @@ struct SprecherTab: View {
             Text("ENROLLMENT").font(.caption).foregroundStyle(.secondary).bold()
             Button("Neues Profil aufnehmen") { showEnrollmentSheet = true }
                 .buttonStyle(.borderedProminent)
-                .disabled(!diarizerManager.isInstalled || !settings.parakeetDiarization)
+                .disabled(!diarizerManager.isInstalled)
             if !diarizerManager.isInstalled {
-                Text("Diarizer-Modell nicht installiert. Lade es im Backend-Tab herunter.")
+                Text("Diarizer-Modell nicht installiert. Es lädt beim ersten Meeting oder unter Diktat mit „Sprecher im Diktat kennzeichnen“.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -279,7 +278,7 @@ private struct SpeakerRow: View {
 /// Vier-State-Block für den Diarizer-Modell-Lifecycle.
 /// Spec: 03-UI-SPEC.md § State-by-State Visual Spec.
 /// Strings sind LOCKED durch UI-SPEC § Copywriting Contract — NICHT paraphrasieren.
-private struct DiarizerStatusBlock: View {
+struct DiarizerStatusBlock: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var diarizerManager: DiarizerModelManager
 
@@ -297,10 +296,10 @@ private struct DiarizerStatusBlock: View {
         case .downloading(let progress, let eta):
             downloadingView(progress: progress, eta: eta)
             // Subtitle bleibt sichtbar (UI-SPEC: "darf während Download sichtbar bleiben")
-            Text("Aktiviert Sprecher-Annotationen (\"Sprecher 1: …\"). Lädt zusätzlich ein Diarizer-Modell (~80 MB).")
+            Text("Schreibt bei mehreren Stimmen „Sprecher 1: …“ in den Diktat-Text. Meetings trennen Sprecher immer, unabhängig von diesem Schalter. Lädt beim ersten Einschalten ein Diarizer-Modell (~80 MB).")
                 .font(.caption2).foregroundStyle(.tertiary)
         case .installed:
-            Toggle("Sprechererkennung (Diarization)", isOn: $settings.parakeetDiarization)
+            Toggle("Sprecher im Diktat kennzeichnen", isOn: $settings.parakeetDiarization)
             if settings.parakeetDiarization {
                 if settings.backend == .parakeet {
                     HStack(spacing: 4) {
@@ -315,7 +314,7 @@ private struct DiarizerStatusBlock: View {
                     }
                 }
             }
-            Text("Aktiviert Sprecher-Annotationen (\"Sprecher 1: …\"). Lädt zusätzlich ein Diarizer-Modell (~80 MB).")
+            Text("Schreibt bei mehreren Stimmen „Sprecher 1: …“ in den Diktat-Text. Meetings trennen Sprecher immer, unabhängig von diesem Schalter. Lädt beim ersten Einschalten ein Diarizer-Modell (~80 MB).")
                 .font(.caption2).foregroundStyle(.tertiary)
         case .failed(let message):
             errorView(message: message)
@@ -324,8 +323,8 @@ private struct DiarizerStatusBlock: View {
 
     @ViewBuilder
     private var toggleAndSubtitle: some View {
-        Toggle("Sprechererkennung (Diarization)", isOn: $settings.parakeetDiarization)
-        Text("Aktiviert Sprecher-Annotationen (\"Sprecher 1: …\"). Lädt zusätzlich ein Diarizer-Modell (~80 MB).")
+        Toggle("Sprecher im Diktat kennzeichnen", isOn: $settings.parakeetDiarization)
+        Text("Schreibt bei mehreren Stimmen „Sprecher 1: …“ in den Diktat-Text. Meetings trennen Sprecher immer, unabhängig von diesem Schalter. Lädt beim ersten Einschalten ein Diarizer-Modell (~80 MB).")
             .font(.caption2).foregroundStyle(.tertiary)
     }
 
