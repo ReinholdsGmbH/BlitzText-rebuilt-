@@ -30,7 +30,7 @@ final class KeyboardViewController: UIInputViewController {
     /// Zusätzliche Höhe der Ziffernleiste (flacher als eine Buchstabenreihe).
     private static let digitRowHeight: CGFloat = 40
     private var heightConstraint: NSLayoutConstraint?
-    private var digits: Spike.DigitsMode = .row
+    private var digits: Spike.DigitsMode = .longPress
 
     override func viewDidLoad() {
         super.viewDidLoad()

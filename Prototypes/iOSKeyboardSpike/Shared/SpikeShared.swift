@@ -65,7 +65,7 @@ enum Spike {
     }
 
     static var digitsMode: DigitsMode {
-        get { defaults?.string(forKey: Key.digitsMode).flatMap(DigitsMode.init) ?? .row }
+        get { defaults?.string(forKey: Key.digitsMode).flatMap(DigitsMode.init) ?? .longPress }
         set { defaults?.set(newValue.rawValue, forKey: Key.digitsMode) }
     }
 

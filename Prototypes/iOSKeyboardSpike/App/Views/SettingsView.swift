@@ -45,7 +45,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Tastatur")
                 } footer: {
-                    Text("Ziffern: „Leiste“ zeigt 1 bis 0 als flache Reihe, „Langer Druck“ legt sie auf q bis p. Rücktaste 2 s halten löscht ganze Wörter.\n\nEinrichten: Einstellungen › Allgemein › Tastatur › Tastaturen › Tastatur hinzufügen › BlitzSpike, danach „Vollen Zugriff erlauben“. Den vollen Zugriff braucht das Mikro in der Tastatur.")
+                    Text("Ziffern: „Langer Druck“ (Standard) legt sie auf q bis p, „Leiste“ zeigt 1 bis 0 als flache Reihe. Rücktaste 2 s halten löscht ganze Wörter.\n\nEinrichten: Einstellungen › Allgemein › Tastatur › Tastaturen › Tastatur hinzufügen › BlitzSpike, danach „Vollen Zugriff erlauben“. Den vollen Zugriff braucht das Mikro in der Tastatur.")
                 }
 
                 Section("Status") {
