@@ -33,41 +33,71 @@ final class SharedFolder: ObservableObject {
     }
 
     private let bookmarkKey = "sharedFolderBookmark"
+    /// Das Lesezeichen zeigt direkt auf „BlitzText iPhone“ statt auf den gewählten Ordner.
+    private let bookmarkIsInboxKey = "sharedFolderBookmarkIsInbox"
+    private let displayNameKey = "sharedFolderName"
 
     init() {
-        folderName = resolve()?.lastPathComponent
+        if resolve() != nil {
+            folderName = UserDefaults.standard.string(forKey: displayNameKey) ?? resolve()?.lastPathComponent
+        }
+    }
+
+    /// Ordner, in den die Pakete kommen („…/BlitzText iPhone“).
+    private func packageRoot(from resolved: URL) -> URL {
+        UserDefaults.standard.bool(forKey: bookmarkIsInboxKey)
+            ? resolved
+            : resolved.appendingPathComponent(PhoneMeetingPackage.folderName, isDirectory: true)
     }
 
     var isConfigured: Bool { folderName != nil }
 
-    /// Übernimmt den gewählten Ordner. Manche Anbieter (z. B. Nextcloud) liefern kein volles
-    /// Lesezeichen; dann wird ein minimales versucht. Danach ein Probeschreiben, damit ein
-    /// Ordner ohne Schreibrecht sofort auffällt statt erst beim ersten Meeting.
+    /// Übernimmt den gewählten Ordner. Anbieter wie Nextcloud liefern zunächst nur einen
+    /// Platzhalter, für den iOS kein Lesezeichen anlegen kann („existiert nicht“). Deshalb legt
+    /// die App zuerst koordiniert den Unterordner „BlitzText iPhone“ an und merkt sich diesen;
+    /// erst wenn das nicht geht, den gewählten Ordner selbst.
     func choose(_ url: URL) {
         lastMessage = nil
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        let data: Data
-        do {
-            data = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
-        } catch {
+
+        var coordinationError: NSError?
+        var createError: Error?
+        var inbox: URL?
+        NSFileCoordinator().coordinate(
+            writingItemAt: url.appendingPathComponent(PhoneMeetingPackage.folderName, isDirectory: true),
+            options: [], error: &coordinationError
+        ) { target in
             do {
-                data = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
-            } catch let fallbackError {
-                lastMessage = "„\(url.lastPathComponent)“ nicht übernommen: \(fallbackError.localizedDescription) (Zugriff beim Start: \(scoped ? "ja" : "nein"))"
-                return
+                try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+                inbox = target
+            } catch {
+                createError = error
             }
         }
-        let probe = url.appendingPathComponent(PhoneMeetingPackage.folderName, isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: probe, withIntermediateDirectories: true)
-        } catch {
-            lastMessage = "„\(url.lastPathComponent)“ gewählt, aber nicht beschreibbar: \(error.localizedDescription)"
+        guard let inbox else {
+            let reason = (coordinationError ?? createError).map { $0.localizedDescription } ?? "unbekannt"
+            lastMessage = "„\(url.lastPathComponent)“ nicht beschreibbar: \(reason)"
             return
         }
-        UserDefaults.standard.set(data, forKey: bookmarkKey)
-        folderName = url.lastPathComponent
-        lastMessage = "Ordner „\(url.lastPathComponent)“ gewählt."
+
+        var lastError: Error?
+        for (candidate, isInbox) in [(inbox, true), (url, false)] {
+            for options in [URL.BookmarkCreationOptions(), .minimalBookmark] {
+                do {
+                    let data = try candidate.bookmarkData(options: options, includingResourceValuesForKeys: nil, relativeTo: nil)
+                    UserDefaults.standard.set(data, forKey: bookmarkKey)
+                    UserDefaults.standard.set(isInbox, forKey: bookmarkIsInboxKey)
+                    UserDefaults.standard.set(url.lastPathComponent, forKey: displayNameKey)
+                    folderName = url.lastPathComponent
+                    lastMessage = "Ordner „\(url.lastPathComponent)“ gewählt."
+                    return
+                } catch {
+                    lastError = error
+                }
+            }
+        }
+        lastMessage = "„\(url.lastPathComponent)“ nicht übernommen: \(lastError?.localizedDescription ?? "unbekannt")"
     }
 
     func report(_ error: Error) {
@@ -110,7 +140,7 @@ final class SharedFolder: ObservableObject {
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let json = try encoder.encode(package)
-            let target = root.appendingPathComponent(PhoneMeetingPackage.folderName, isDirectory: true)
+            let target = packageRoot(from: root)
                 .appendingPathComponent(Self.packageFolderName(for: meeting), isDirectory: true)
             try write(json: json, audio: audio, to: target)
             store.update(id) { $0.sharedAt = package.sharedAt }
