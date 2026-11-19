@@ -15,6 +15,9 @@ final class MeetingLibrary: ObservableObject {
 
     @Published private(set) var entries: [Entry] = []
     @Published var selection: URL?
+    /// Während einer Aufnahme zeigt das Fenster das Live-Meeting. Klickt man in der Liste
+    /// ein gespeichertes Meeting an, wird dieses gezeigt, bis man zurückschaltet.
+    @Published var showsArchiveWhileRecording = false
     /// Laufende Aktion für die Anzeige, z. B. „Lerne Stimme …".
     @Published private(set) var busy: String?
     @Published var lastError: String?
