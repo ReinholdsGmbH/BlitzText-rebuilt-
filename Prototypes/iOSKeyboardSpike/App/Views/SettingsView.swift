@@ -6,6 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject private var sharedFolder: SharedFolder
     @EnvironmentObject private var oneDrive: OneDriveSync
     @EnvironmentObject private var lexicon: SwipeLexiconBuilder
+    @EnvironmentObject private var dictionary: DictionarySync
     @EnvironmentObject private var meetings: MeetingStore
     @State private var choosingFolder = false
     @State private var folderAlert: String?
@@ -64,6 +65,10 @@ struct SettingsView: View {
                 Section {
                     if oneDrive.isConnected {
                         LabeledContent("Verbunden", value: oneDrive.accountName ?? "ja")
+                        Button("Wörterbuch jetzt abgleichen") { Task { await dictionary.sync() } }
+                        if !dictionary.status.isEmpty {
+                            Text(dictionary.status).font(.footnote).foregroundStyle(Theme.muted)
+                        }
                         Button("Von OneDrive trennen", role: .destructive) { oneDrive.disconnect() }
                     } else {
                         Button {

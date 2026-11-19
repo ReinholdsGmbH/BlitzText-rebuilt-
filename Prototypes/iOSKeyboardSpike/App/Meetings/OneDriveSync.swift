@@ -188,6 +188,20 @@ final class OneDriveSync: ObservableObject {
         }
     }
 
+    /// Lädt eine Datei aus dem App-Ordner; nil, wenn es sie (noch) nicht gibt.
+    func download(_ path: String) async throws -> Data? {
+        let token = try await validToken()
+        await ensureAppRoot(token: token)
+        let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: ":"))) ?? path
+        var request = URLRequest(url: URL(string: "https://graph.microsoft.com/v1.0/me/drive/special/approot:/\(encoded):/content")!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 404 { return nil }
+        guard (200..<300).contains(status) else { throw OneDriveError.message("Download \(status)") }
+        return data
+    }
+
     // MARK: - Hilfen
 
     private static func randomVerifier() -> String {

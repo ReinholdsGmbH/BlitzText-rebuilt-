@@ -8,6 +8,8 @@ struct SpikeApp: App {
     @StateObject private var sharedFolder: SharedFolder
     @StateObject private var oneDrive: OneDriveSync
     @StateObject private var lexicon = SwipeLexiconBuilder()
+    @StateObject private var dictionary: DictionarySync
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         let history = DictationHistory()
@@ -15,6 +17,7 @@ struct SpikeApp: App {
         let oneDrive = OneDriveSync()
         let sharedFolder = SharedFolder(oneDrive: oneDrive)
         _oneDrive = StateObject(wrappedValue: oneDrive)
+        _dictionary = StateObject(wrappedValue: DictionarySync(oneDrive: oneDrive))
         _history = StateObject(wrappedValue: history)
         _meetings = StateObject(wrappedValue: meetings)
         _sharedFolder = StateObject(wrappedValue: sharedFolder)
@@ -30,7 +33,11 @@ struct SpikeApp: App {
                 .environmentObject(sharedFolder)
                 .environmentObject(oneDrive)
                 .environmentObject(lexicon)
+                .environmentObject(dictionary)
                 .task { lexicon.buildIfNeeded() }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { Task { await dictionary.sync() } }
+                }
                 .onOpenURL { session.handle(url: $0) }
                 .tint(Theme.accent)
         }
