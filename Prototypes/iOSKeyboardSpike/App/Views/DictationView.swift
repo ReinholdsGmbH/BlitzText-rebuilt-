@@ -112,12 +112,11 @@ struct SessionToggle: View {
     @EnvironmentObject private var session: SessionController
 
     var body: some View {
-        Toggle(isOn: Binding(
+        Toggle("Session", isOn: Binding(
             get: { session.state != .off },
             set: { on in on ? session.startSession() : session.endSession(reason: "manuell") }
-        )) {
-            Text(session.state.headline).font(.footnote.weight(.semibold))
-        }
+        ))
+        .labelsHidden()
         .toggleStyle(.switch)
         .tint(session.state == .meeting || session.state == .recording ? Theme.recording : Theme.success)
         .fixedSize()

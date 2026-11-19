@@ -20,6 +20,11 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        UserWordsView()
+                    } label: {
+                        LabeledContent("Eigene Wörter", value: "\(Spike.userWords.count)")
+                    }
                     Toggle("Swipe-Eingabe", isOn: $swipeEnabled)
                         .onChange(of: swipeEnabled) { _, value in Spike.defaults?.set(value, forKey: Spike.Key.swipeEnabled) }
                 } header: {
@@ -56,5 +61,45 @@ struct LogView: View {
         .toolbar {
             ShareLink(item: session.log.joined(separator: "\n"))
         }
+    }
+}
+
+/// Eigene Wörter der Tastatur: Namen und Fachbegriffe für Vorschläge und Swipe.
+struct UserWordsView: View {
+    @State private var words: [String] = Spike.userWords
+    @State private var newWord = ""
+
+    var body: some View {
+        List {
+            Section {
+                HStack {
+                    TextField("Neues Wort, z. B. ein Name", text: $newWord)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onSubmit(add)
+                    Button("Hinzufügen", action: add)
+                        .disabled(newWord.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            } footer: {
+                Text("In der Tastatur: unbekanntes Wort tippen, dann den Vorschlag in „…“ antippen. Es landet hier.")
+            }
+            Section("\(words.count) Wörter") {
+                ForEach(words, id: \.self) { Text($0) }
+                    .onDelete { offsets in
+                        words.remove(atOffsets: offsets)
+                        Spike.userWords = words
+                    }
+            }
+        }
+        .navigationTitle("Eigene Wörter")
+        .onAppear { words = Spike.userWords }
+    }
+
+    private func add() {
+        let word = newWord.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !word.isEmpty else { return }
+        Spike.userWords = words + [word]
+        words = Spike.userWords
+        newWord = ""
     }
 }

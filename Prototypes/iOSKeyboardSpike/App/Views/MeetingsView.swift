@@ -40,7 +40,7 @@ struct MeetingsView: View {
                 Text("Nimmt über das Mikrofon auf, auch wenn du die App verlässt. Transkript, Sprecher und Notizen entstehen danach auf dem Gerät.")
                     .font(.subheadline).foregroundStyle(Theme.muted)
                 Button { session.startMeeting() } label: {
-                    Label("Meeting aufnehmen", systemImage: "record.circle").frame(maxWidth: .infinity)
+                    CenteredLabel("Meeting aufnehmen", systemImage: "record.circle")
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
@@ -73,7 +73,7 @@ struct ActiveMeetingCard: View {
             }
             OwnNotesEditor(meetingID: meetingID)
             Button(role: .destructive) { session.stopMeeting() } label: {
-                Label("Meeting beenden", systemImage: "stop.fill").frame(maxWidth: .infinity)
+                CenteredLabel("Meeting beenden", systemImage: "stop.fill")
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.recording)

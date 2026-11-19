@@ -42,7 +42,7 @@ struct MeetingDetailView: View {
                     ActiveMeetingCard(meetingID: meeting.id)
                 } else if !meeting.status.isBusy {
                     Button { session.resumeMeeting(meeting.id) } label: {
-                        Label("Fortsetzen", systemImage: "record.circle").frame(maxWidth: .infinity)
+                        CenteredLabel("Fortsetzen", systemImage: "record.circle")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.large)

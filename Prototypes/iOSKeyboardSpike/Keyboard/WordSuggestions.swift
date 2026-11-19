@@ -1,23 +1,54 @@
 import UIKit
 
 /// Wortvorschläge und Swipe-Auflösung über Apples Rechtschreibprüfung (UITextChecker, Deutsch).
-/// Kein eigenes Wörterbuch, keine Netzverbindung.
+/// Dazu eigene Wörter und Kontaktnamen. Keine Netzverbindung.
 @MainActor
 final class WordSuggestions {
     private let checker = UITextChecker()
     let language: String = UITextChecker.availableLanguages.first { $0.hasPrefix("de") } ?? "de_DE"
 
-    /// Bis zu drei Vorschläge für das angefangene Wort.
-    func suggestions(for partial: String) -> [String] {
-        guard partial.count >= 1 else { return [] }
+    /// Eigene Wörter aus der App Group (Tastatur und App teilen sie).
+    var userWords: [String] = []
+    /// Namen aus den Kontakten, die iOS der Tastatur bereitstellt.
+    var lexiconWords: [String] = []
+
+    private var extraWords: [String] { userWords + lexiconWords }
+
+    struct Result {
+        /// Das getippte Wort, falls es unbekannt ist: erscheint wie bei Apple in „…“ an erster Stelle.
+        let typed: String?
+        let words: [String]
+    }
+
+    func isKnown(_ word: String) -> Bool {
+        if extraWords.contains(where: { $0.caseInsensitiveCompare(word) == .orderedSame }) { return true }
+        let range = NSRange(location: 0, length: (word as NSString).length)
+        return checker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0, wrap: false, language: language).location == NSNotFound
+    }
+
+    /// Vorschläge für das angefangene Wort: eigene Wörter zuerst, dann Korrekturen und Vervollständigungen.
+    func suggestions(for partial: String) -> Result {
+        guard !partial.isEmpty else { return Result(typed: nil, words: []) }
+        let typed = partial.count >= 2 && !isKnown(partial) ? partial : nil
         let range = NSRange(location: 0, length: (partial as NSString).length)
-        var result: [String] = []
-        let misspelled = checker.rangeOfMisspelledWord(in: partial, range: range, startingAt: 0, wrap: false, language: language)
-        if misspelled.location != NSNotFound {
+        var result = extraWords.filter {
+            $0.count > partial.count && $0.lowercased().hasPrefix(partial.lowercased())
+        }
+        if typed != nil {
             result += checker.guesses(forWordRange: range, in: partial, language: language) ?? []
         }
-        result += checker.completions(forPartialWordRange: range, in: partial, language: language) ?? []
-        return Self.unique(result.map { Self.matchCase($0, to: partial) }.filter { $0 != partial }, limit: 3)
+        result += (checker.completions(forPartialWordRange: range, in: partial, language: language) ?? [])
+            .map { Self.matchCase($0, to: partial) }
+        let words = Self.unique(result.filter { $0 != partial }, limit: typed == nil ? 3 : 2)
+        return Result(typed: typed, words: words)
+    }
+
+    /// Wort dauerhaft merken (App Group, auch in der App unter Einstellungen sichtbar).
+    func learn(_ word: String) {
+        guard !word.isEmpty, !userWords.contains(where: { $0.caseInsensitiveCompare(word) == .orderedSame }) else { return }
+        userWords.append(word)
+        Spike.userWords = userWords
+        UITextChecker.learnWord(word)
     }
 
     /// Was die letzte Swipe-Auflösung gesehen hat (für die Anzeige, wenn nichts passt).
@@ -33,7 +64,7 @@ final class WordSuggestions {
         let firsts = Set(letters.prefix(2))
         let lasts = Set(letters.suffix(2))
 
-        var pool: [String] = []
+        var pool: [String] = extraWords
         func complete(_ prefix: String) {
             for variant in [prefix, prefix.prefix(1).uppercased() + prefix.dropFirst()] {
                 let range = NSRange(location: 0, length: (variant as NSString).length)

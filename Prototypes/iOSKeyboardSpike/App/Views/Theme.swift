@@ -95,3 +95,23 @@ extension Int {
     /// 67109 → „67.109“
     var grouped: String { formatted(.number.grouping(.automatic).locale(Locale(identifier: "de_DE"))) }
 }
+
+/// Symbol und Text als eine Einheit mittig im Knopf (Label richtet sich in breiten Knöpfen nicht sauber mittig aus).
+struct CenteredLabel: View {
+    let title: String
+    let systemImage: String
+
+    init(_ title: String, systemImage: String) {
+        self.title = title
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+            Text(title)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .multilineTextAlignment(.center)
+    }
+}

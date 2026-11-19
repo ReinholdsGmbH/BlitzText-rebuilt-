@@ -16,6 +16,8 @@ enum Spike {
         static let resultID = "resultID"
         /// Swipe-Eingabe in der Tastatur an/aus (Standard an).
         static let swipeEnabled = "swipeEnabled"
+        /// Eigene Wörter (Namen, Fachbegriffe), von Tastatur und App gemeinsam gepflegt.
+        static let userWords = "userWords"
     }
 
     enum State: String {
@@ -45,6 +47,16 @@ enum Spike {
 
     static var isSwipeEnabled: Bool {
         defaults?.object(forKey: Key.swipeEnabled) as? Bool ?? true
+    }
+
+    static var userWords: [String] {
+        get { defaults?.stringArray(forKey: Key.userWords) ?? [] }
+        set {
+            var seen = Set<String>()
+            let cleaned = newValue.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+            defaults?.set(cleaned.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }, forKey: Key.userWords)
+        }
     }
 
     static func post(_ name: String) {

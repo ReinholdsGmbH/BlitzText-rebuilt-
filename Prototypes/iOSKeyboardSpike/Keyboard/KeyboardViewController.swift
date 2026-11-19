@@ -32,6 +32,11 @@ final class KeyboardViewController: UIInputViewController {
         buildBar()
         buildKeyboard()
         lastInsertedID = Spike.defaults?.string(forKey: Spike.Key.resultID)
+        // Kontaktnamen, die iOS der Tastatur bereitstellt (Einträge, bei denen Kürzel und Text gleich sind).
+        requestSupplementaryLexicon { [weak self] lexicon in
+            let names = lexicon.entries.filter { $0.userInput == $0.documentText }.map(\.documentText)
+            DispatchQueue.main.async { self?.words.lexiconWords = names }
+        }
         observers = [DarwinObserver(Spike.Note.resultReady) { [weak self] in self?.insertDictation() }]
         let height = view.heightAnchor.constraint(equalToConstant: Self.barHeight + Self.keysHeight)
         height.priority = .init(999)
@@ -41,6 +46,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         keyboard.swipeEnabled = Spike.isSwipeEnabled
+        words.userWords = Spike.userWords
         updateAutoShift()
         reloadKeys()
         refreshMic()
@@ -264,25 +270,43 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func updateSuggestions() {
+        var typed: String?
         let items: [String]
         if lastSwipeInsert != nil, !swipeAlternatives.isEmpty {
             items = swipeAlternatives
         } else {
             swipeAlternatives = []
-            let partial = partialWord
-            items = partial.isEmpty ? [] : words.suggestions(for: partial)
+            let result = words.suggestions(for: partialWord)
+            typed = result.typed
+            items = result.words
         }
         suggestionStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        guard !items.isEmpty else { showStatusOnly(); return }
-        for word in items.prefix(3) {
-            let button = UIButton(type: .system)
-            button.setTitle(word, for: .normal)
-            button.titleLabel?.font = .systemFont(ofSize: 16)
-            button.titleLabel?.lineBreakMode = .byTruncatingTail
-            button.tintColor = .label
-            button.addAction(UIAction { [weak self] _ in self?.applySuggestion(word) }, for: .touchUpInside)
-            suggestionStack.addArrangedSubview(button)
+        guard typed != nil || !items.isEmpty else { showStatusOnly(); return }
+        if let typed {
+            // Wie bei Apple: das Getippte in Anführungszeichen; antippen behält und merkt es.
+            addSuggestionButton(title: "„\(typed)“") { [weak self] in self?.keepAndLearn(typed) }
         }
+        for word in items.prefix(3) {
+            addSuggestionButton(title: word) { [weak self] in self?.applySuggestion(word) }
+        }
+    }
+
+    private func addSuggestionButton(title: String, action: @escaping () -> Void) {
+        let button = UIButton(type: .system)
+        button.setTitle(title, for: .normal)
+        button.titleLabel?.font = .systemFont(ofSize: 16)
+        button.titleLabel?.lineBreakMode = .byTruncatingTail
+        button.tintColor = .label
+        button.addAction(UIAction { _ in action() }, for: .touchUpInside)
+        suggestionStack.addArrangedSubview(button)
+    }
+
+    private func keepAndLearn(_ word: String) {
+        words.learn(word)
+        textDocumentProxy.insertText(" ")
+        afterEdit()
+        statusLabel.text = "„\(word)“ gemerkt"
+        showStatusOnly()
     }
 
     private func showStatusOnly() {
