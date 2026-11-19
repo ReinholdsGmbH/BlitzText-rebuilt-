@@ -242,6 +242,11 @@ final class KeyboardViewController: UIInputViewController {
             afterEdit()
         case .deleteWord:
             deleteWordBackward()
+        case .moveCursorLine(let direction):
+            moveCursorLine(direction)
+            lastSwipeInsert = nil
+            spaceAfterWordAt = nil
+            updateSuggestions()
         case .moveCursor(let offset):
             textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
             lastSwipeInsert = nil
@@ -268,6 +273,42 @@ final class KeyboardViewController: UIInputViewController {
         if shift == .on { shift = .off }
         afterEdit()
         lastCharWasWord = text.last.map { $0.isLetter || $0.isNumber } ?? false
+    }
+
+    /// Ungefähre Zeichen je sichtbarer Zeile; lange Absätze ohne Umbruch springen um so viel.
+    private static let charactersPerLine = 38
+
+    /// Eine Zeile hoch oder runter, möglichst in derselben Spalte. iOS gibt der Tastatur nur
+    /// Zeichen-Verschiebungen; Zeilen ergeben sich aus Umbrüchen im Text, sonst aus der Schätzung.
+    private func moveCursorLine(_ direction: Int) {
+        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+        let after = textDocumentProxy.documentContextAfterInput ?? ""
+        let lineStart = before.lastIndex(of: "\n").map { before.index(after: $0) } ?? before.startIndex
+        let column = before.distance(from: lineStart, to: before.endIndex)
+        let perLine = Self.charactersPerLine
+        var offset = 0
+        if direction < 0 {
+            if column >= perLine || lineStart == before.startIndex {
+                // Innerhalb eines langen Absatzes eine sichtbare Zeile zurück.
+                offset = -min(perLine, column > 0 ? column : before.count)
+            } else {
+                let previousEnd = before.index(before: lineStart)
+                let previousStart = before[..<previousEnd].lastIndex(of: "\n").map { before.index(after: $0) } ?? before.startIndex
+                let previousLength = before.distance(from: previousStart, to: previousEnd)
+                offset = -(column + 1 + max(0, previousLength - column))
+            }
+        } else {
+            let restOfLine = after.firstIndex(of: "\n").map { after.distance(from: after.startIndex, to: $0) }
+            if let rest = restOfLine, rest < perLine {
+                let nextStart = after.index(after: after.index(after.startIndex, offsetBy: rest))
+                let nextLength = after[nextStart...].firstIndex(of: "\n").map { after.distance(from: nextStart, to: $0) }
+                    ?? after.distance(from: nextStart, to: after.endIndex)
+                offset = rest + 1 + min(column, nextLength)
+            } else {
+                offset = min(perLine, after.count)
+            }
+        }
+        if offset != 0 { textDocumentProxy.adjustTextPosition(byCharacterOffset: offset) }
     }
 
     private func setEmojiPanel(visible: Bool) {

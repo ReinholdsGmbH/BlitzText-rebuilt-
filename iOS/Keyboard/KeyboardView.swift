@@ -98,7 +98,9 @@ final class KeyboardView: UIView {
     /// Leertaste lange gedrückt: Ziehen verschiebt den Cursor wie ein Trackpad.
     private var cursorMode = false
     private var cursorAnchorX: CGFloat = 0
+    private var cursorAnchorY: CGFloat = 0
     private static let cursorStep: CGFloat = 9
+    private static let cursorLineStep: CGFloat = 28
     private var longPressTimer: Timer?
     private var repeatTimer: Timer?
 
@@ -182,6 +184,7 @@ final class KeyboardView: UIView {
                     guard let self else { return }
                     self.cursorMode = true
                     self.cursorAnchorX = self.points.last?.x ?? self.startPoint.x
+                    self.cursorAnchorY = self.points.last?.y ?? self.startPoint.y
                     self.activeCap?.setHighlighted(false)
                     self.caps.flatMap { $0 }.forEach { $0.alpha = 0.35 }
                 }
@@ -203,6 +206,14 @@ final class KeyboardView: UIView {
         guard let point = touches.first?.location(in: self) else { return }
         points.append(point)
         if cursorMode {
+            // Senkrecht hat Vorrang: eine Zeile je Schritt, waagerecht zeichenweise.
+            let lines = Int((point.y - cursorAnchorY) / Self.cursorLineStep)
+            if lines != 0 {
+                for _ in 0..<abs(lines) { onAction?(.moveCursorLine(lines > 0 ? 1 : -1)) }
+                cursorAnchorY += CGFloat(lines) * Self.cursorLineStep
+                cursorAnchorX = point.x
+                return
+            }
             let steps = Int((point.x - cursorAnchorX) / Self.cursorStep)
             if steps != 0 {
                 onAction?(.moveCursor(steps))
