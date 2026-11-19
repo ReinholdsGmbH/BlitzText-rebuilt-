@@ -42,7 +42,10 @@ final class SharedFolder: ObservableObject {
     private let bookmarkIsInboxKey = "sharedFolderBookmarkIsInbox"
     private let displayNameKey = "sharedFolderName"
 
-    init() {
+    let oneDrive: OneDriveSync
+
+    init(oneDrive: OneDriveSync) {
+        self.oneDrive = oneDrive
         if resolve() != nil {
             folderName = UserDefaults.standard.string(forKey: displayNameKey) ?? resolve()?.lastPathComponent
         }
@@ -55,7 +58,7 @@ final class SharedFolder: ObservableObject {
             : resolved.appendingPathComponent(PhoneMeetingPackage.folderName, isDirectory: true)
     }
 
-    var isConfigured: Bool { folderName != nil }
+    var isConfigured: Bool { folderName != nil || oneDrive.isConnected }
 
     /// Übernimmt den gewählten Ordner. Anbieter wie Nextcloud liefern zunächst nur einen
     /// Platzhalter, für den iOS kein Lesezeichen anlegen kann („existiert nicht“). Deshalb legt
@@ -144,6 +147,51 @@ final class SharedFolder: ObservableObject {
     /// Der Ordnername hängt nur an Beginn und ID, damit Umbenennen kein zweites Paket erzeugt.
     func deliver(_ id: UUID, store: MeetingStore, log: (String) -> Void) async {
         guard let meeting = store.meeting(id), meeting.status == .done else { return }
+        let toFolder = folderName != nil
+        let toCloud = oneDrive.isConnected
+        guard toFolder || toCloud else {
+            lastMessage = "Keine Ablage eingerichtet: Ordner wählen oder mit OneDrive verbinden."
+            return
+        }
+        let audio = try? await MeetingExport.audioFile(for: meeting, parts: store.audioURLs(for: id))
+        let package = PhoneMeetingPackage(
+            id: meeting.id.uuidString, title: meeting.title, start: meeting.start, end: meeting.end,
+            sharedAt: Date(), transcript: meeting.transcript, segments: meeting.segments ?? [],
+            summary: meeting.summary, ownNotes: meeting.ownNotes,
+            audioFile: audio == nil ? nil : PhoneMeetingPackage.audioName)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let json = try? encoder.encode(package) else { return }
+        let packageName = Self.packageFolderName(for: meeting)
+
+        var targets: [String] = []
+        var problems: [String] = []
+        if toFolder {
+            do {
+                try writeToFolder(json: json, audio: audio, packageName: packageName)
+                targets.append("Ordner")
+            } catch {
+                problems.append("Ordner: \(error.localizedDescription)")
+            }
+        }
+        if toCloud {
+            do {
+                // Audio zuerst, JSON zuletzt: Der Mac holt ein Paket erst, wenn meeting.json da ist.
+                if let audio { try await oneDrive.upload(Data(contentsOf: audio), to: "\(packageName)/\(PhoneMeetingPackage.audioName)") }
+                try await oneDrive.upload(json, to: "\(packageName)/\(PhoneMeetingPackage.fileName)")
+                targets.append("OneDrive")
+            } catch {
+                problems.append("OneDrive: \(error.localizedDescription)")
+            }
+        }
+        if !targets.isEmpty { store.update(id) { $0.sharedAt = package.sharedAt } }
+        let done = targets.isEmpty ? "" : "„\(meeting.title)“ abgelegt (\(targets.joined(separator: ", ")))."
+        lastMessage = ([done] + problems).filter { !$0.isEmpty }.joined(separator: " ")
+        log("Ablage: \(meeting.title) → \(targets.joined(separator: ", "))\(problems.isEmpty ? "" : " | " + problems.joined(separator: "; "))")
+    }
+
+    private func writeToFolder(json: Data, audio: URL?, packageName: String) throws {
         let base: URL
         var scopedRoot: URL?
         if let liveInbox {
@@ -152,31 +200,10 @@ final class SharedFolder: ObservableObject {
             if root.startAccessingSecurityScopedResource() { scopedRoot = root }
             base = packageRoot(from: root)
         } else {
-            lastMessage = "Ablage nicht erreichbar (\(resolveError ?? "unbekannt")). Bitte den Ordner in den Einstellungen neu wählen."
-            log("Ablage: Lesezeichen nicht auflösbar — \(resolveError ?? "unbekannt")")
-            return
+            throw OneDriveError.message("nicht erreichbar (\(resolveError ?? "unbekannt")), bitte neu wählen")
         }
         defer { scopedRoot?.stopAccessingSecurityScopedResource() }
-        do {
-            let audio = try? await MeetingExport.audioFile(for: meeting, parts: store.audioURLs(for: id))
-            let package = PhoneMeetingPackage(
-                id: meeting.id.uuidString, title: meeting.title, start: meeting.start, end: meeting.end,
-                sharedAt: Date(), transcript: meeting.transcript, segments: meeting.segments ?? [],
-                summary: meeting.summary, ownNotes: meeting.ownNotes,
-                audioFile: audio == nil ? nil : PhoneMeetingPackage.audioName)
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let json = try encoder.encode(package)
-            let target = base.appendingPathComponent(Self.packageFolderName(for: meeting), isDirectory: true)
-            try write(json: json, audio: audio, to: target)
-            store.update(id) { $0.sharedAt = package.sharedAt }
-            lastMessage = "„\(meeting.title)“ abgelegt."
-            log("Ablage: \(meeting.title) → \(target.lastPathComponent)")
-        } catch {
-            lastMessage = "Ablegen fehlgeschlagen: \(error.localizedDescription)"
-            log("Ablage-Fehler: \(error.localizedDescription)")
-        }
+        try write(json: json, audio: audio, to: base.appendingPathComponent(packageName, isDirectory: true))
     }
 
     /// „2026-11-19 10-07 iPhone 1A2B3C4D“

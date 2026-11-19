@@ -6,11 +6,14 @@ struct SpikeApp: App {
     @StateObject private var meetings: MeetingStore
     @StateObject private var session: SessionController
     @StateObject private var sharedFolder: SharedFolder
+    @StateObject private var oneDrive: OneDriveSync
 
     init() {
         let history = DictationHistory()
         let meetings = MeetingStore()
-        let sharedFolder = SharedFolder()
+        let oneDrive = OneDriveSync()
+        let sharedFolder = SharedFolder(oneDrive: oneDrive)
+        _oneDrive = StateObject(wrappedValue: oneDrive)
         _history = StateObject(wrappedValue: history)
         _meetings = StateObject(wrappedValue: meetings)
         _sharedFolder = StateObject(wrappedValue: sharedFolder)
@@ -24,6 +27,7 @@ struct SpikeApp: App {
                 .environmentObject(history)
                 .environmentObject(meetings)
                 .environmentObject(sharedFolder)
+                .environmentObject(oneDrive)
                 .onOpenURL { session.handle(url: $0) }
                 .tint(Theme.accent)
         }

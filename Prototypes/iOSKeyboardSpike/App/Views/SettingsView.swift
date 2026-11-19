@@ -4,6 +4,7 @@ import UIKit
 struct SettingsView: View {
     @EnvironmentObject private var session: SessionController
     @EnvironmentObject private var sharedFolder: SharedFolder
+    @EnvironmentObject private var oneDrive: OneDriveSync
     @EnvironmentObject private var meetings: MeetingStore
     @State private var choosingFolder = false
     @State private var folderAlert: String?
@@ -55,10 +56,29 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    if oneDrive.isConnected {
+                        LabeledContent("Verbunden", value: oneDrive.accountName ?? "ja")
+                        Button("Von OneDrive trennen", role: .destructive) { oneDrive.disconnect() }
+                    } else {
+                        Button {
+                            Task { await oneDrive.connect() }
+                        } label: {
+                            if oneDrive.busy { ProgressView() } else { Text("Mit OneDrive verbinden …") }
+                        }
+                    }
+                    if let message = oneDrive.lastMessage {
+                        Text(message).font(.footnote).foregroundStyle(Theme.muted)
+                    }
+                } header: {
+                    Text("OneDrive")
+                } footer: {
+                    Text("Fertige Meetings landen direkt in OneDrive unter „Apps/BlitzText iPhone“, ohne Dateien-App. BlitzText darf nur in diesen Ordner schreiben. Am Mac unter Einstellungen › iPhone-Ablage den Ordner „OneDrive-Persönlich/Apps/BlitzText iPhone“ wählen.")
+                }
+
+                Section {
                     LabeledContent("Ordner", value: sharedFolder.folderName ?? "keiner")
                     Button(sharedFolder.isConfigured ? "Anderen Ordner wählen …" : "Ordner wählen …") { choosingFolder = true }
                     Toggle("Fertige Meetings automatisch ablegen", isOn: $sharedFolder.autoDeliver)
-                        .disabled(!sharedFolder.isConfigured)
                     Button("Alle fertigen Meetings jetzt ablegen") {
                         Task {
                             for meeting in meetings.meetings where meeting.status == .done {
