@@ -167,7 +167,7 @@ final class SessionController: ObservableObject {
             if aiFormatting {
                 let aiStarted = Date()
                 if let formatted = await DictationAI.format(raw) {
-                    raw = formatted
+                    raw = DictationFormatter.fixListStart(formatted)
                     add(String(format: "KI-Formatierung übernommen (%.1f s)", Date().timeIntervalSince(aiStarted)))
                 } else if DictationAI.isAvailable, raw.split(separator: " ").count >= DictationAI.minimumWords {
                     add(String(format: "KI-Formatierung verworfen oder zu langsam (%.1f s)", Date().timeIntervalSince(aiStarted)))

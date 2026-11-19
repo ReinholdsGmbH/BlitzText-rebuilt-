@@ -8,7 +8,7 @@ enum DictationFormatter {
         var result = spokenPunctuation(text)
         result = EmojiReplacer.apply(result)
         result = ordinalList(result)
-        return tidy(result)
+        return fixListStart(tidy(result))
     }
 
     // MARK: - Gesprochene Satzzeichen
@@ -117,6 +117,23 @@ enum DictationFormatter {
     }
 
     // MARK: - Aufräumen
+
+    /// Hängt „1. …“ noch am Satz davor („… sprechen. 1. Test“), obwohl ab „2.“ eine Liste folgt,
+    /// bekommt der erste Punkt eine eigene Zeile und der Satz davor einen Doppelpunkt.
+    static func fixListStart(_ text: String) -> String {
+        guard text.contains("\n2. ") || text.contains("\n2.\t") else { return text }
+        var lines = text.components(separatedBy: "\n")
+        guard let index = lines.firstIndex(where: { $0.range(of: #"\S\s+1\.\s"#, options: .regularExpression) != nil }),
+              index + 1 < lines.count, lines[index + 1].hasPrefix("2.") else { return text }
+        let line = lines[index]
+        guard let match = line.range(of: #"\s+1\.\s"#, options: .regularExpression) else { return text }
+        var intro = String(line[..<match.lowerBound]).trimmingCharacters(in: .whitespaces)
+        while let last = intro.last, ".,;".contains(last) { intro.removeLast() }
+        if let last = intro.last, !":!?".contains(last) { intro += ":" }
+        let first = "1. " + line[match.upperBound...].trimmingCharacters(in: .whitespaces)
+        lines.replaceSubrange(index...index, with: [intro, first])
+        return lines.joined(separator: "\n")
+    }
 
     /// Leerzeichen um Umbrüche, doppelte Leerzeichen, Großschreibung nach Satzende.
     static func tidy(_ text: String) -> String {

@@ -391,7 +391,7 @@ final class KeyboardViewController: UIInputViewController {
             items = result.words
         }
         suggestionStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        guard typed != nil || !items.isEmpty else { showStatusOnly(); return }
+        guard typed != nil || !items.isEmpty else { showIdleBar(); return }
         if let typed {
             // Wie bei Apple: das Getippte in Anführungszeichen; antippen behält und merkt es.
             addSuggestionButton(title: "„\(typed)“") { [weak self] in self?.keepAndLearn(typed) }
@@ -418,6 +418,55 @@ final class KeyboardViewController: UIInputViewController {
         afterEdit()
         statusLabel.text = "„\(word)“ gemerkt"
         showStatusOnly()
+    }
+
+    // MARK: - Zwischenablage
+
+    /// Wie lange neu Kopiertes als „Einfügen“ angeboten wird.
+    private static let clipboardOfferDuration: TimeInterval = 180
+    private static let clipboardSeenKey = "clipboardSeen"
+    private static let clipboardUsedKey = "clipboardUsed"
+
+    /// Neu kopierter Text, der noch nicht eingefügt wurde. Gelesen wird erst beim Antippen,
+    /// weil Lesen bei iOS die Rückfrage „Einfügen erlauben?“ auslösen kann.
+    private var clipboardOffer: Bool {
+        guard hasFullAccess else { return false }
+        let pasteboard = UIPasteboard.general
+        guard pasteboard.hasStrings else { return false }
+        let count = pasteboard.changeCount
+        let defaults = Blitz.defaults
+        guard defaults?.integer(forKey: Self.clipboardUsedKey) != count else { return false }
+        var seen = defaults?.dictionary(forKey: Self.clipboardSeenKey) as? [String: Double] ?? [:]
+        let firstSeen = seen[String(count)] ?? Date().timeIntervalSince1970
+        if seen[String(count)] == nil {
+            seen = [String(count): firstSeen]
+            defaults?.set(seen, forKey: Self.clipboardSeenKey)
+        }
+        return Date().timeIntervalSince1970 - firstSeen < Self.clipboardOfferDuration
+    }
+
+    /// Leere Leiste: Einfügen-Knopf für neu Kopiertes, sonst der Status.
+    private func showIdleBar() {
+        let state: Blitz.State = hasFullAccess ? Blitz.state : .off
+        guard state != .recording, state != .processing, clipboardOffer else { showStatusOnly(); return }
+        suggestionStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        let button = UIButton(type: .system)
+        var config = UIButton.Configuration.plain()
+        config.image = UIImage(systemName: "doc.on.clipboard")
+        config.imagePadding = 6
+        config.title = "Einfügen"
+        config.baseForegroundColor = .label
+        button.configuration = config
+        button.addAction(UIAction { [weak self] _ in self?.pasteClipboard() }, for: .touchUpInside)
+        suggestionStack.addArrangedSubview(button)
+    }
+
+    private func pasteClipboard() {
+        let pasteboard = UIPasteboard.general
+        Blitz.defaults?.set(pasteboard.changeCount, forKey: Self.clipboardUsedKey)
+        guard let text = pasteboard.string, !text.isEmpty else { showStatusOnly(); return }
+        textDocumentProxy.insertText(text)
+        afterEdit()
     }
 
     private func showStatusOnly() {
