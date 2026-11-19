@@ -445,16 +445,38 @@ final class KeyboardViewController: UIInputViewController {
         return Date().timeIntervalSince1970 - firstSeen < Self.clipboardOfferDuration
     }
 
-    /// Leere Leiste: Einfügen-Knopf für neu Kopiertes, sonst der Status.
+    /// Gelesener Text der aktuellen Kopie (je Kopie nur einmal lesen, damit iOS nicht erneut fragt).
+    private var clipboardCache: (count: Int, text: String?)?
+
+    /// Liest die Zwischenablage einmal je Kopie. Kann bei iOS die Rückfrage „Einfügen erlauben?“
+    /// auslösen; mit „Erlauben“ in den iPhone-Einstellungen bleibt es still.
+    /// Auch ein „Nein“ wird je Kopie gemerkt; neu gefragt wird nur beim Antippen (`retry`).
+    private func clipboardText(retry: Bool = false) -> String? {
+        let pasteboard = UIPasteboard.general
+        if let cache = clipboardCache, cache.count == pasteboard.changeCount, cache.text != nil || !retry {
+            return cache.text
+        }
+        let text = pasteboard.string.flatMap { $0.isEmpty ? nil : $0 }
+        clipboardCache = (pasteboard.changeCount, text)
+        return text
+    }
+
+    /// Leere Leiste: neu Kopiertes mit Vorschau zum Einfügen, sonst der Status.
     private func showIdleBar() {
         let state: Blitz.State = hasFullAccess ? Blitz.state : .off
         guard state != .recording, state != .processing, clipboardOffer else { showStatusOnly(); return }
         suggestionStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        var title = "Einfügen"
+        if Blitz.isClipboardPreviewEnabled, let text = clipboardText() {
+            let flat = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+            title = flat.count > 28 ? String(flat.prefix(26)) + "…" : flat
+        }
         let button = UIButton(type: .system)
         var config = UIButton.Configuration.plain()
         config.image = UIImage(systemName: "doc.on.clipboard")
         config.imagePadding = 6
-        config.title = "Einfügen"
+        config.title = title
+        config.titleLineBreakMode = .byTruncatingTail
         config.baseForegroundColor = .label
         button.configuration = config
         button.addAction(UIAction { [weak self] _ in self?.pasteClipboard() }, for: .touchUpInside)
@@ -462,11 +484,19 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func pasteClipboard() {
-        let pasteboard = UIPasteboard.general
-        Blitz.defaults?.set(pasteboard.changeCount, forKey: Self.clipboardUsedKey)
-        guard let text = pasteboard.string, !text.isEmpty else { showStatusOnly(); return }
-        textDocumentProxy.insertText(text)
-        afterEdit()
+        guard let text = clipboardText(retry: true) else {
+            statusLabel.text = "Einfügen nicht erlaubt oder leer"
+            showStatusOnly()
+            return
+        }
+        let count = UIPasteboard.general.changeCount
+        // Nach der Rückfrage von iOS ist das Textfeld kurz nicht erreichbar; deshalb leicht verzögert.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self else { return }
+            self.textDocumentProxy.insertText(text)
+            Blitz.defaults?.set(count, forKey: Self.clipboardUsedKey)
+            self.afterEdit()
+        }
     }
 
     private func showStatusOnly() {

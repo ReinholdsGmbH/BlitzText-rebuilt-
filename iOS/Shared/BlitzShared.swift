@@ -20,6 +20,7 @@ enum Blitz {
         static let userWords = "userWords"
         static let digitsMode = "digitsMode"
         static let micOnRight = "micOnRight"
+        static let clipboardPreview = "clipboardPreview"
     }
 
     enum State: String {
@@ -74,6 +75,12 @@ enum Blitz {
     static var digitsMode: DigitsMode {
         get { defaults?.string(forKey: Key.digitsMode).flatMap(DigitsMode.init) ?? .longPress }
         set { defaults?.set(newValue.rawValue, forKey: Key.digitsMode) }
+    }
+
+    /// Vorschau der Zwischenablage in der Leiste (liest jede neue Kopie einmal).
+    static var isClipboardPreviewEnabled: Bool {
+        get { defaults?.object(forKey: Key.clipboardPreview) as? Bool ?? true }
+        set { defaults?.set(newValue, forKey: Key.clipboardPreview) }
     }
 
     /// Mikro-Knopf rechts (Standard) oder links neben den Vorschlägen.

@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var swipeEnabled = Blitz.isSwipeEnabled
     @State private var digitsMode = Blitz.digitsMode
     @State private var micOnRight = Blitz.isMicOnRight
+    @State private var clipboardPreview = Blitz.isClipboardPreviewEnabled
 
     var body: some View {
         NavigationStack {
@@ -58,6 +59,8 @@ struct SettingsView: View {
                         Text("Rechts").tag(true)
                     }
                     .onChange(of: micOnRight) { _, value in Blitz.isMicOnRight = value }
+                    Toggle("Vorschau der Zwischenablage", isOn: $clipboardPreview)
+                        .onChange(of: clipboardPreview) { _, value in Blitz.isClipboardPreviewEnabled = value }
                     Toggle("Swipe-Eingabe", isOn: $swipeEnabled)
                     LabeledContent("Swipe-Wörterbuch", value: lexicon.status.isEmpty ? "fehlt" : lexicon.status)
                     Button(lexicon.running ? "Wird aufgebaut …" : "Swipe-Wörterbuch neu aufbauen") {
@@ -68,7 +71,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Tastatur")
                 } footer: {
-                    Text("Ziffern: „Langer Druck“ (Standard) legt sie auf q bis p, „Leiste“ zeigt 1 bis 0 als flache Reihe. Rücktaste 2 s halten löscht ganze Wörter.\n\nEinrichten: Einstellungen › Allgemein › Tastatur › Tastaturen › Tastatur hinzufügen › BlitzText, danach „Vollen Zugriff erlauben“. Den vollen Zugriff braucht das Mikro in der Tastatur.")
+                    Text("Ziffern: „Langer Druck“ (Standard) legt sie auf q bis p, „Leiste“ zeigt 1 bis 0 als flache Reihe. Rücktaste 2 s halten löscht ganze Wörter. Für die Vorschau der Zwischenablage ohne Rückfrage einmal in den iPhone-Einstellungen unter Apps › BlitzText › „Aus anderen Apps einfügen“ auf „Erlauben“ stellen.\n\nEinrichten: Einstellungen › Allgemein › Tastatur › Tastaturen › Tastatur hinzufügen › BlitzText, danach „Vollen Zugriff erlauben“. Den vollen Zugriff braucht das Mikro in der Tastatur.")
                 }
 
                 Section {
