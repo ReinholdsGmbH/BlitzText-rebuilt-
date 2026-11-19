@@ -35,6 +35,11 @@ final class KeyboardViewController: UIInputViewController {
     private static let digitRowHeight: CGFloat = 40
     private var heightConstraint: NSLayoutConstraint?
     private var digits: Blitz.DigitsMode = .longPress
+    /// Reines Ziffernfeld (Zahl, Dezimalzahl, Einmalcode) erkannt: Ziffernblock statt Buchstaben.
+    private var numericField: KeyboardLayer?
+    /// Mit „ABC“ verlassen; gilt bis zum nächsten anderen Feld.
+    private var numberPadDismissed = false
+    private var fieldSignature = ""
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -67,6 +72,8 @@ final class KeyboardViewController: UIInputViewController {
         words.usage = usage
         loadSwipeDecoderIfNeeded()
         digits = Blitz.digitsMode
+        fieldSignature = ""
+        detectNumericField()
         placeMic(onRight: Blitz.isMicOnRight)
         updateAutoShift()
         reloadKeys()
@@ -86,6 +93,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
+        detectNumericField()
         reloadKeys()
         updateSuggestions()
     }
@@ -192,8 +200,30 @@ final class KeyboardViewController: UIInputViewController {
 
     private var layoutSignature = ""
 
+    /// Erkennt Zahlenfelder am Tastaturtyp der App. Wechselt das Feld, gilt ein „ABC“ nicht mehr.
+    private func detectNumericField() {
+        let type = textDocumentProxy.keyboardType ?? .default
+        let content = textDocumentProxy.textContentType ?? nil
+        let signature = "\(type.rawValue)|\(content?.rawValue ?? "")"
+        guard signature != fieldSignature else { return }
+        fieldSignature = signature
+        numberPadDismissed = false
+        switch type {
+        case .numberPad, .asciiCapableNumberPad: numericField = .numberPad(decimal: false)
+        case .decimalPad: numericField = .numberPad(decimal: true)
+        default: numericField = content == .oneTimeCode ? .numberPad(decimal: false) : nil
+        }
+    }
+
+    /// Ebene, die gerade zu sehen ist: im Zahlenfeld der Ziffernblock, solange nicht verlassen.
+    private var visibleLayer: KeyboardLayer {
+        if let numericField, !numberPadDismissed { return numericField }
+        return layer
+    }
+
     /// Baut die Tasten nur neu, wenn sich Ebene, Umschalt-Zustand oder Return-Beschriftung ändern.
     private func reloadKeys() {
+        let layer = visibleLayer
         let signature = "\(layer)|\(shift)|\(returnLabel)|\(needsInputModeSwitchKey)|\(digits)"
         guard signature != layoutSignature else { return }
         layoutSignature = signature
@@ -262,6 +292,7 @@ final class KeyboardViewController: UIInputViewController {
         case .emoji:
             setEmojiPanel(visible: true)
         case .layer(let target):
+            if numericField != nil, !numberPadDismissed { numberPadDismissed = true }
             layer = target
             reloadKeys()
         }

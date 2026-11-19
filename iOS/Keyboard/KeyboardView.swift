@@ -30,7 +30,7 @@ final class KeyCap: UIView {
             label.textColor = .label
             label.adjustsFontSizeToFitWidth = true
             label.minimumScaleFactor = 0.6
-            label.font = spec.isSpecial || spec.action == .space ? .systemFont(ofSize: 16) : .systemFont(ofSize: 24)
+            label.font = spec.large ? .systemFont(ofSize: 28) : (spec.isSpecial || spec.action == .space ? .systemFont(ofSize: 16) : .systemFont(ofSize: 24))
             addSubview(label)
         }
         if let hint = spec.hint {

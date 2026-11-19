@@ -1,6 +1,10 @@
 import UIKit
 
-enum KeyboardLayer { case letters, numbers, symbols }
+enum KeyboardLayer: Equatable {
+    case letters, numbers, symbols
+    /// Großer Ziffernblock für reine Zahlenfelder; `decimal` mit Komma statt ABC-Taste.
+    case numberPad(decimal: Bool)
+}
 
 enum ShiftState { case off, on, locked }
 
@@ -30,6 +34,8 @@ struct KeySpec {
     var width: CGFloat
     /// Langer Druck fügt diesen Text ein (z. B. s → ß).
     var alternate: String?
+    /// Große Beschriftung (Ziffernblock).
+    var large = false
 
     /// Kleiner Hinweis oben rechts auf der Taste: die Ziffer beim langen Druck.
     var hint: String? {
@@ -67,6 +73,7 @@ enum KeyLayout {
         case .letters: letters(shift: shift, returnLabel: returnLabel, showGlobe: showGlobe, digits: digits)
         case .numbers: numbers(returnLabel: returnLabel, showGlobe: showGlobe)
         case .symbols: symbols(returnLabel: returnLabel, showGlobe: showGlobe)
+        case .numberPad(let decimal): numberPad(decimal: decimal)
         }
     }
 
@@ -117,6 +124,17 @@ enum KeyLayout {
                 + [.special(.backspace, symbol: "delete.left", width: 1.5)],
             bottomRow(switchLabel: "ABC", switchTo: .letters, returnLabel: returnLabel, showGlobe: showGlobe),
         ].map(widen)
+    }
+
+    /// 3 × 4 wie die iOS-Zahlentastatur. Links unten bei Dezimalfeldern das Dezimalzeichen,
+    /// sonst „ABC“ zurück zu den Buchstaben (etwa für Codes mit Buchstaben).
+    private static func numberPad(decimal: Bool) -> [[KeySpec]] {
+        let width = unitsPerRow / 3
+        func digit(_ text: String) -> KeySpec { var key = KeySpec.char(text); key.width = width; key.large = true; return key }
+        let separator = Locale.current.decimalSeparator ?? ","
+        let left: KeySpec = decimal ? digit(separator) : .special(.layer(.letters), label: "ABC", width: width)
+        return ["123", "456", "789"].map { $0.map { digit(String($0)) } }
+            + [[left, digit("0"), .special(.backspace, symbol: "delete.left", width: width)]]
     }
 
     /// Ziffern- und Zeichenreihen haben 10 statt 11 Tasten: auf volle Breite ziehen.
