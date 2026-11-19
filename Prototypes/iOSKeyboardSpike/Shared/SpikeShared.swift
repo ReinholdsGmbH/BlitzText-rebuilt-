@@ -18,6 +18,7 @@ enum Spike {
         static let swipeEnabled = "swipeEnabled"
         /// Eigene Wörter (Namen, Fachbegriffe), von Tastatur und App gemeinsam gepflegt.
         static let userWords = "userWords"
+        static let digitsMode = "digitsMode"
     }
 
     enum State: String {
@@ -47,6 +48,24 @@ enum Spike {
 
     static var isSwipeEnabled: Bool {
         defaults?.object(forKey: Key.swipeEnabled) as? Bool ?? true
+    }
+
+    /// Wie die Tastatur Ziffern auf der Buchstabenebene anbietet.
+    enum DigitsMode: String, CaseIterable {
+        case off, row, longPress
+
+        var label: String {
+            switch self {
+            case .off: "Aus"
+            case .row: "Leiste"
+            case .longPress: "Langer Druck"
+            }
+        }
+    }
+
+    static var digitsMode: DigitsMode {
+        get { defaults?.string(forKey: Key.digitsMode).flatMap(DigitsMode.init) ?? .row }
+        set { defaults?.set(newValue.rawValue, forKey: Key.digitsMode) }
     }
 
     static var userWords: [String] {

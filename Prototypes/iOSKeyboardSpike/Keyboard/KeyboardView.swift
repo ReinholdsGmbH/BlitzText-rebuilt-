@@ -5,6 +5,7 @@ final class KeyCap: UIView {
     let spec: KeySpec
     private let label = UILabel()
     private let icon = UIImageView()
+    private let hintLabel = UILabel()
 
     private static let letterColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.42, alpha: 1) : .white }
     private static let specialColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.27, alpha: 1) : UIColor(red: 0.68, green: 0.70, blue: 0.74, alpha: 1) }
@@ -32,6 +33,12 @@ final class KeyCap: UIView {
             label.font = spec.isSpecial || spec.action == .space ? .systemFont(ofSize: 16) : .systemFont(ofSize: 24)
             addSubview(label)
         }
+        if let hint = spec.hint {
+            hintLabel.text = hint
+            hintLabel.font = .systemFont(ofSize: 10, weight: .medium)
+            hintLabel.textColor = .secondaryLabel
+            addSubview(hintLabel)
+        }
         setHighlighted(false)
     }
 
@@ -41,6 +48,7 @@ final class KeyCap: UIView {
         super.layoutSubviews()
         label.frame = bounds.insetBy(dx: 2, dy: 0)
         icon.frame = bounds
+        hintLabel.frame = CGRect(x: bounds.width - 10, y: 2, width: 8, height: 12)
     }
 
     func setHighlighted(_ highlighted: Bool) {
@@ -60,6 +68,9 @@ final class KeyboardView: UIView {
 
     var rows: [[KeySpec]] = [] { didSet { rebuild() } }
     var layer_: KeyboardLayer = .letters
+    /// Erste Reihe flacher (Ziffernleiste über den Buchstaben).
+    var compactFirstRow = false { didSet { setNeedsLayout() } }
+    private static let compactWeight: CGFloat = 0.72
 
     private var caps: [[KeyCap]] = []
     private let trail = CAShapeLayer()
@@ -100,25 +111,36 @@ final class KeyboardView: UIView {
         guard !caps.isEmpty else { return }
         let side: CGFloat = 3
         let slot = (bounds.width - 2 * side) / KeyLayout.unitsPerRow
-        let rowHeight = bounds.height / CGFloat(caps.count)
+        let bands = rowBands()
         for (rowIndex, row) in caps.enumerated() {
             let rowUnits = row.reduce(0) { $0 + $1.spec.width }
             var x = (bounds.width - rowUnits * slot) / 2
-            let y = CGFloat(rowIndex) * rowHeight + rowGap / 2
+            let band = bands[rowIndex]
             for cap in row {
                 let width = cap.spec.width * slot
-                cap.frame = CGRect(x: x + gap / 2, y: y, width: width - gap, height: rowHeight - rowGap)
+                cap.frame = CGRect(x: x + gap / 2, y: band.minY + rowGap / 2, width: width - gap, height: band.height - rowGap)
                 x += width
             }
         }
         trail.frame = bounds
     }
 
+    /// Senkrechte Bereiche der Reihen; bei Ziffernleiste ist die erste flacher.
+    private func rowBands() -> [(minY: CGFloat, height: CGFloat)] {
+        let weights = caps.indices.map { $0 == 0 && compactFirstRow ? Self.compactWeight : 1 }
+        let unit = bounds.height / weights.reduce(0, +)
+        var y: CGFloat = 0
+        return weights.map { weight in
+            defer { y += weight * unit }
+            return (y, weight * unit)
+        }
+    }
+
     /// Taste unter dem Finger; zwischen Tasten zählt die nächstgelegene in der Reihe.
     private func cap(at point: CGPoint) -> KeyCap? {
         guard !caps.isEmpty, bounds.height > 0 else { return nil }
-        let rowHeight = bounds.height / CGFloat(caps.count)
-        let rowIndex = min(max(Int(point.y / rowHeight), 0), caps.count - 1)
+        let bands = rowBands()
+        let rowIndex = bands.firstIndex { point.y < $0.minY + $0.height } ?? caps.count - 1
         return caps[rowIndex].min { abs($0.frame.midX - point.x) < abs($1.frame.midX - point.x) }
     }
 
@@ -190,9 +212,22 @@ final class KeyboardView: UIView {
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { reset() }
 
+    /// Löschen wiederholt Zeichen für Zeichen; nach 2 s Halten ganze Wörter, wie bei Apple.
     private func startRepeating() {
+        let pressedAt = Date().addingTimeInterval(-0.45)
         repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.onAction?(.backspace) }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if Date().timeIntervalSince(pressedAt) >= 2 {
+                    self.repeatTimer?.invalidate()
+                    self.onAction?(.deleteWord)
+                    self.repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
+                        MainActor.assumeIsolated { self?.onAction?(.deleteWord) }
+                    }
+                } else {
+                    self.onAction?(.backspace)
+                }
+            }
         }
     }
 

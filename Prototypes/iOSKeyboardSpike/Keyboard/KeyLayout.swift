@@ -8,6 +8,8 @@ enum KeyAction: Equatable {
     case character(String)
     case shift
     case backspace
+    /// Rücktaste lange gehalten: ganzes Wort löschen.
+    case deleteWord
     case space
     case returnKey
     case globe
@@ -22,6 +24,12 @@ struct KeySpec {
     var width: CGFloat
     /// Langer Druck fügt diesen Text ein (z. B. s → ß).
     var alternate: String?
+
+    /// Kleiner Hinweis oben rechts auf der Taste: die Ziffer beim langen Druck.
+    var hint: String? {
+        guard let alternate, alternate.count == 1, alternate.first?.isNumber == true else { return nil }
+        return alternate
+    }
 
     var isSpecial: Bool {
         if case .character = action { return false }
@@ -47,29 +55,37 @@ struct KeySpec {
 enum KeyLayout {
     static let unitsPerRow: CGFloat = 11
 
-    static func rows(layer: KeyboardLayer, shift: ShiftState, returnLabel: String, showGlobe: Bool) -> [[KeySpec]] {
+    static func rows(layer: KeyboardLayer, shift: ShiftState, returnLabel: String, showGlobe: Bool,
+                     digits: Spike.DigitsMode = .off) -> [[KeySpec]] {
         switch layer {
-        case .letters: letters(shift: shift, returnLabel: returnLabel, showGlobe: showGlobe)
+        case .letters: letters(shift: shift, returnLabel: returnLabel, showGlobe: showGlobe, digits: digits)
         case .numbers: numbers(returnLabel: returnLabel, showGlobe: showGlobe)
         case .symbols: symbols(returnLabel: returnLabel, showGlobe: showGlobe)
         }
     }
 
-    private static func letters(shift: ShiftState, returnLabel: String, showGlobe: Bool) -> [[KeySpec]] {
+    /// Ziffern beim langen Druck auf die obere Reihe, wie auf vielen Android-Tastaturen.
+    static let digitAlternates: [Character: String] = [
+        "q": "1", "w": "2", "e": "3", "r": "4", "t": "5", "z": "6", "u": "7", "i": "8", "o": "9", "p": "0",
+    ]
+
+    private static func letters(shift: ShiftState, returnLabel: String, showGlobe: Bool, digits: Spike.DigitsMode) -> [[KeySpec]] {
         let upper = shift != .off
         func keys(_ string: String) -> [KeySpec] {
             string.map { character in
                 let text = upper ? String(character).uppercased() : String(character)
-                let alternate = character == "s" ? (upper ? "SS" : "ß") : nil
+                var alternate = character == "s" ? (upper ? "SS" : "ß") : nil
+                if digits == .longPress, let digit = digitAlternates[character] { alternate = digit }
                 return .char(text, alternate: alternate)
             }
         }
+        let digitRow = digits == .row ? [widen("1234567890".map { KeySpec.char(String($0)) })] : []
         let shiftSymbol = switch shift {
         case .off: "shift"
         case .on: "shift.fill"
         case .locked: "capslock.fill"
         }
-        return [
+        return digitRow + [
             keys("qwertzuiopü"),
             keys("asdfghjklöä"),
             [.special(.shift, symbol: shiftSymbol, width: 2)] + keys("yxcvbnm") + [.special(.backspace, symbol: "delete.left", width: 2)],

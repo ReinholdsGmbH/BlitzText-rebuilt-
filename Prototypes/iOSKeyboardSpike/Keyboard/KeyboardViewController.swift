@@ -26,6 +26,10 @@ final class KeyboardViewController: UIInputViewController {
 
     private static let barHeight: CGFloat = 46
     private static let keysHeight: CGFloat = 216
+    /// Zusätzliche Höhe der Ziffernleiste (flacher als eine Buchstabenreihe).
+    private static let digitRowHeight: CGFloat = 40
+    private var heightConstraint: NSLayoutConstraint?
+    private var digits: Spike.DigitsMode = .row
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -43,12 +47,14 @@ final class KeyboardViewController: UIInputViewController {
         let height = view.heightAnchor.constraint(equalToConstant: Self.barHeight + Self.keysHeight)
         height.priority = .init(999)
         height.isActive = true
+        heightConstraint = height
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         keyboard.swipeEnabled = Spike.isSwipeEnabled
         words.userWords = Spike.userWords
+        digits = Spike.digitsMode
         updateAutoShift()
         reloadKeys()
         refreshMic()
@@ -134,11 +140,15 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Baut die Tasten nur neu, wenn sich Ebene, Umschalt-Zustand oder Return-Beschriftung ändern.
     private func reloadKeys() {
-        let signature = "\(layer)|\(shift)|\(returnLabel)|\(needsInputModeSwitchKey)"
+        let signature = "\(layer)|\(shift)|\(returnLabel)|\(needsInputModeSwitchKey)|\(digits)"
         guard signature != layoutSignature else { return }
         layoutSignature = signature
         keyboard.layer_ = layer
-        keyboard.rows = KeyLayout.rows(layer: layer, shift: shift, returnLabel: returnLabel, showGlobe: needsInputModeSwitchKey)
+        let digitRow = layer == .letters && digits == .row
+        keyboard.compactFirstRow = digitRow
+        heightConstraint?.constant = Self.barHeight + Self.keysHeight + (digitRow ? Self.digitRowHeight : 0)
+        keyboard.rows = KeyLayout.rows(layer: layer, shift: shift, returnLabel: returnLabel,
+                                       showGlobe: needsInputModeSwitchKey, digits: digits)
     }
 
     private var returnLabel: String {
@@ -176,6 +186,8 @@ final class KeyboardViewController: UIInputViewController {
                 textDocumentProxy.deleteBackward()
             }
             afterEdit()
+        case .deleteWord:
+            deleteWordBackward()
         case .space:
             insertSpace()
         case .returnKey:
@@ -194,6 +206,20 @@ final class KeyboardViewController: UIInputViewController {
         if shift == .on { shift = .off }
         afterEdit()
         lastCharWasWord = text.last.map { $0.isLetter || $0.isNumber } ?? false
+    }
+
+    /// Löscht das Wort vor dem Cursor samt folgender Leerzeichen; vor Satzzeichen nur ein Zeichen.
+    private func deleteWordBackward() {
+        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+        var count = 0
+        var rest = Substring(before)
+        while let last = rest.last, last == " " { count += 1; rest = rest.dropLast() }
+        let wordLength = rest.reversed().prefix { $0.isLetter || $0.isNumber }.count
+        count += max(wordLength, rest.isEmpty ? 0 : (wordLength == 0 ? 1 : 0))
+        if count == 0 { count = 1 }
+        for _ in 0..<count { textDocumentProxy.deleteBackward() }
+        lastSwipeInsert = nil
+        afterEdit()
     }
 
     /// Doppeltes Leerzeichen setzt einen Punkt. Merkt sich selbst, ob das letzte Zeichen ein

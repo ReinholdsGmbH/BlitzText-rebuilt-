@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var session: SessionController
     @State private var swipeEnabled = Spike.isSwipeEnabled
+    @State private var digitsMode = Spike.digitsMode
 
     var body: some View {
         NavigationStack {
@@ -25,12 +26,20 @@ struct SettingsView: View {
                     } label: {
                         LabeledContent("Eigene Wörter", value: "\(Spike.userWords.count)")
                     }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Ziffern über den Buchstaben")
+                        Picker("Ziffern", selection: $digitsMode) {
+                            ForEach(Spike.DigitsMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: digitsMode) { _, value in Spike.digitsMode = value }
+                    }
                     Toggle("Swipe-Eingabe", isOn: $swipeEnabled)
                         .onChange(of: swipeEnabled) { _, value in Spike.defaults?.set(value, forKey: Spike.Key.swipeEnabled) }
                 } header: {
                     Text("Tastatur")
                 } footer: {
-                    Text("Einrichten: Einstellungen › Allgemein › Tastatur › Tastaturen › Tastatur hinzufügen › BlitzSpike, danach „Vollen Zugriff erlauben“. Den vollen Zugriff braucht das Mikro in der Tastatur.")
+                    Text("Ziffern: „Leiste“ zeigt 1 bis 0 als flache Reihe, „Langer Druck“ legt sie auf q bis p. Rücktaste 2 s halten löscht ganze Wörter.\n\nEinrichten: Einstellungen › Allgemein › Tastatur › Tastaturen › Tastatur hinzufügen › BlitzSpike, danach „Vollen Zugriff erlauben“. Den vollen Zugriff braucht das Mikro in der Tastatur.")
                 }
 
                 Section("Status") {
