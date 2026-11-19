@@ -82,6 +82,10 @@ final class KeyboardViewController: UIInputViewController {
         case .recording:
             statusLabel.text = "Aufnahme läuft …"
             micButton.setTitle("Fertig", for: .normal)
+        case .processing:
+            statusLabel.text = "Wird transkribiert …"
+            micButton.setTitle("…", for: .normal)
+            micButton.isEnabled = false
         }
     }
 
@@ -95,6 +99,8 @@ final class KeyboardViewController: UIInputViewController {
             Spike.post(Spike.Note.start)
         case .recording:
             Spike.post(Spike.Note.stop)
+        case .processing:
+            break
         }
     }
 

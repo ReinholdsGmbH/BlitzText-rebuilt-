@@ -22,6 +22,7 @@ struct ContentView: View {
                 Section("Status") {
                     LabeledContent("Session", value: session.state.rawValue)
                     LabeledContent("App Group", value: session.appGroupOK ? "ok" : "FEHLT")
+                    LabeledContent("Parakeet", value: session.modelStatus)
                     if let start = session.sessionStart, session.state != .off {
                         LabeledContent("Seit", value: start.formatted(date: .omitted, time: .shortened))
                     }
@@ -29,6 +30,14 @@ struct ContentView: View {
                         LabeledContent("Akku Start/jetzt",
                                        value: "\(Int(start * 100)) % / \(Int(session.batteryNow * 100)) %")
                     }
+                }
+                Section("Auto-Stop bei Leerlauf") {
+                    Picker("Auto-Stop", selection: $session.idleLimitMinutes) {
+                        Text("5 min").tag(5)
+                        Text("30 min").tag(30)
+                        Text("aus").tag(0)
+                    }
+                    .pickerStyle(.segmented)
                 }
                 Section {
                     if session.state == .off {

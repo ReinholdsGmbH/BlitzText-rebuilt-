@@ -17,7 +17,7 @@ enum Spike {
     }
 
     enum State: String {
-        case off, idle, recording
+        case off, idle, recording, processing
     }
 
     enum Note {

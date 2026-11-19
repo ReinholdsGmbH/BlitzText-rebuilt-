@@ -7,11 +7,18 @@ final class LevelMeter: @unchecked Sendable {
     private var isRecording = false
     private var frames: Int = 0
     private var peak: Float = 0
+    private var file: AVAudioFile?
 
-    func begin() { lock.withLock { isRecording = true; frames = 0; peak = 0 } }
+    /// Startet die Aufnahme in eine Datei im Format des Mikrofons.
+    func begin(writingTo url: URL, format: AVAudioFormat) throws {
+        let newFile = try AVAudioFile(forWriting: url, settings: format.settings,
+                                      commonFormat: format.commonFormat, interleaved: format.isInterleaved)
+        lock.withLock { isRecording = true; frames = 0; peak = 0; file = newFile }
+    }
 
+    /// Beendet die Aufnahme; die Datei wird mit dem Freigeben geschlossen.
     func end() -> (frames: Int, peak: Float) {
-        lock.withLock { isRecording = false; return (frames, peak) }
+        lock.withLock { isRecording = false; file = nil; return (frames, peak) }
     }
 
     func process(_ buffer: AVAudioPCMBuffer) {
@@ -23,6 +30,7 @@ final class LevelMeter: @unchecked Sendable {
             guard isRecording else { return }
             frames += count
             peak = max(peak, localPeak)
+            try? file?.write(from: buffer)
         }
     }
 }
@@ -37,11 +45,18 @@ final class SessionController: ObservableObject {
     @Published private(set) var sessionStart: Date?
     @Published private(set) var appGroupOK = Spike.defaults != nil
 
-    /// Auto-Stop nach so viel Leerlauf, wie bei Wispr (Standard 5 min).
-    let idleLimit: TimeInterval = 5 * 60
+    /// Auto-Stop nach so viel Leerlauf in Minuten; 0 = aus. Standard 5 min wie bei Wispr.
+    @Published var idleLimitMinutes: Int = UserDefaults.standard.object(forKey: "idleLimitMinutes") as? Int ?? 5 {
+        didSet { UserDefaults.standard.set(idleLimitMinutes, forKey: "idleLimitMinutes") }
+    }
+
+    @Published private(set) var modelStatus = "nicht geladen"
 
     private let engine = AVAudioEngine()
     private let meter = LevelMeter()
+    private let parakeet = ParakeetEngine()
+    private var inputFormat: AVAudioFormat?
+    private let recordingURL = FileManager.default.temporaryDirectory.appendingPathComponent("diktat.caf")
     private var heartbeat: Timer?
     private var lastActivity = Date()
     private var sampleRate: Double = 48_000
@@ -80,6 +95,7 @@ final class SessionController: ObservableObject {
             let input = engine.inputNode
             let format = input.outputFormat(forBus: 0)
             sampleRate = format.sampleRate
+            inputFormat = format
             // Der Tap läuft im Audio-Thread. Closure darf nicht MainActor-isoliert sein,
             // sonst bricht Swift 6 zur Laufzeit ab (dispatch_assert_queue).
             input.installTap(onBus: 0, bufferSize: 4096, format: format, block: Self.makeTap(meter))
@@ -92,8 +108,10 @@ final class SessionController: ObservableObject {
         sessionStart = Date()
         batteryAtStart = batteryNow
         lastActivity = Date()
+        lastBatteryLog = Date()
         state = .idle
         add("Session gestartet, Akku \(percent(batteryNow))")
+        preloadModel()
         heartbeat = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -121,7 +139,13 @@ final class SessionController: ObservableObject {
             add("Start ignoriert, Zustand \(state.rawValue)")
             return
         }
-        meter.begin()
+        guard let inputFormat else { return }
+        do {
+            try meter.begin(writingTo: recordingURL, format: inputFormat)
+        } catch {
+            add("Aufnahmedatei nicht anlegbar: \(error.localizedDescription)")
+            return
+        }
         state = .recording
         lastActivity = Date()
         add("Aufnahme läuft")
@@ -131,22 +155,73 @@ final class SessionController: ObservableObject {
     private func stopRecording() {
         guard state == .recording else { return }
         let (frames, peak) = meter.end()
-        state = .idle
+        state = .processing
         lastActivity = Date()
+        publishState()
         let seconds = Double(frames) / sampleRate
         let db = peak > 0 ? 20 * log10(peak) : -160
-        let text = String(format: "[Spike %.1f s, Spitze %.0f dB] ", seconds, db)
+        add(String(format: "Aufnahme fertig: %.1f s, Spitze %.0f dB", seconds, db))
+        Task { await transcribeRecording(seconds: seconds) }
+    }
+
+    private func transcribeRecording(seconds: Double) async {
+        let background = UIApplication.shared.applicationState != .active
+        let started = Date()
+        let text: String
+        do {
+            let raw = try await parakeet.transcribe(recordingURL)
+            text = raw.isEmpty ? "" : raw + " "
+            add(String(format: "Parakeet: %.1f s für %.1f s Audio (%@), %d Zeichen",
+                       Date().timeIntervalSince(started), seconds,
+                       background ? "Hintergrund" : "Vordergrund", raw.count))
+        } catch {
+            text = "[Fehler: \(error.localizedDescription)] "
+            add("Parakeet-Fehler (\(background ? "Hintergrund" : "Vordergrund")): \(error.localizedDescription)")
+        }
+        try? FileManager.default.removeItem(at: recordingURL)
         Spike.defaults?.set(text, forKey: Spike.Key.result)
         Spike.defaults?.set(UUID().uuidString, forKey: Spike.Key.resultID)
-        add("Aufnahme fertig: \(text)")
+        if state == .processing { state = .idle }
+        lastActivity = Date()
         publishState()
         Spike.post(Spike.Note.resultReady)
     }
 
+    private func preloadModel() {
+        modelStatus = "lädt …"
+        let started = Date()
+        Task {
+            do {
+                _ = try await parakeet.load()
+                let secs = Date().timeIntervalSince(started)
+                modelStatus = String(format: "bereit (%.1f s)", secs)
+                add(String(format: "Parakeet-Modell geladen in %.1f s", secs))
+            } catch {
+                modelStatus = "Fehler"
+                add("Parakeet-Modell nicht ladbar: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Alle 10 min Akkustand ins Protokoll, mit Hinweis, ob das Kabel steckt.
+    private let batteryLogInterval: TimeInterval = 10 * 60
+    private var lastBatteryLog = Date()
+
+    private func logBatteryIfDue() {
+        guard let start = sessionStart, Date().timeIntervalSince(lastBatteryLog) >= batteryLogInterval else { return }
+        lastBatteryLog = Date()
+        let minutes = Int(Date().timeIntervalSince(start) / 60)
+        let plugged = UIDevice.current.batteryState == .unplugged ? "ohne Kabel" : "am Kabel"
+        let startText = batteryAtStart.map(percent) ?? "?"
+        add("Akku nach \(minutes) min: \(percent(batteryNow)) (Start \(startText), \(plugged))")
+    }
+
     private func tick() {
         publishState()
-        if state == .idle, Date().timeIntervalSince(lastActivity) > idleLimit {
-            endSession(reason: "Auto-Stop nach \(Int(idleLimit / 60)) min")
+        logBatteryIfDue()
+        guard idleLimitMinutes > 0 else { return }
+        if state == .idle, Date().timeIntervalSince(lastActivity) > TimeInterval(idleLimitMinutes * 60) {
+            endSession(reason: "Auto-Stop nach \(idleLimitMinutes) min")
         }
     }
 

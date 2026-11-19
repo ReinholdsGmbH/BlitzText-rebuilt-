@@ -7,6 +7,10 @@ options:
   deploymentTarget:
     iOS: "26.0"
   developmentLanguage: de
+packages:
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio
+    exactVersion: "0.14.3"
 configFiles:
   Debug: Spike.xcconfig
   Release: Spike.xcconfig
@@ -41,6 +45,8 @@ targets:
         com.apple.security.application-groups: [group.de.reinholds.blitzspike]
     dependencies:
       - target: BlitzSpikeKeyboard
+      - package: FluidAudio
+        product: FluidAudio
   BlitzSpikeKeyboard:
     type: app-extension
     platform: iOS
