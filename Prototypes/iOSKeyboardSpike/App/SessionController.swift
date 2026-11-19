@@ -154,7 +154,7 @@ final class SessionController: ObservableObject {
         let started = Date()
         let text: String
         do {
-            let raw = try await parakeet.transcribe(recordingURL)
+            let raw = EmojiReplacer.apply(try await parakeet.transcribe(recordingURL))
             text = raw.isEmpty ? "" : raw + " "
             if !raw.isEmpty { history.add(text: raw, seconds: seconds) }
             add(String(format: "Parakeet: %.1f s für %.1f s Audio (%@), %d Zeichen",

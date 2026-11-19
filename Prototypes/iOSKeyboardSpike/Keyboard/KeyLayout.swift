@@ -10,6 +10,8 @@ enum KeyAction: Equatable {
     case backspace
     /// Rücktaste lange gehalten: ganzes Wort löschen.
     case deleteWord
+    /// Leertaste lange gehalten und gezogen: Cursor um so viele Zeichen verschieben.
+    case moveCursor(Int)
     case space
     case returnKey
     case globe

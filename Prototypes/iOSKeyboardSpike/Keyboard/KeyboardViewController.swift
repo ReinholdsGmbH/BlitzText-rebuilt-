@@ -197,6 +197,11 @@ final class KeyboardViewController: UIInputViewController {
             afterEdit()
         case .deleteWord:
             deleteWordBackward()
+        case .moveCursor(let offset):
+            textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+            lastSwipeInsert = nil
+            spaceAfterWordAt = nil
+            updateSuggestions()
         case .space:
             insertSpace()
         case .returnKey:

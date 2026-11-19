@@ -83,6 +83,10 @@ final class KeyboardView: UIView {
     private var swipeLetters: [String] = []
     private var isSwiping = false
     private var longPressFired = false
+    /// Leertaste lange gedrückt: Ziehen verschiebt den Cursor wie ein Trackpad.
+    private var cursorMode = false
+    private var cursorAnchorX: CGFloat = 0
+    private static let cursorStep: CGFloat = 9
     private var longPressTimer: Timer?
     private var repeatTimer: Timer?
 
@@ -160,6 +164,16 @@ final class KeyboardView: UIView {
             repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: false) { [weak self] _ in
                 MainActor.assumeIsolated { self?.startRepeating() }
             }
+        case .space:
+            longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.cursorMode = true
+                    self.cursorAnchorX = self.points.last?.x ?? self.startPoint.x
+                    self.activeCap?.setHighlighted(false)
+                    self.caps.flatMap { $0 }.forEach { $0.alpha = 0.35 }
+                }
+            }
         default:
             if let alternate = cap.spec.alternate {
                 longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: false) { [weak self] _ in
@@ -176,6 +190,14 @@ final class KeyboardView: UIView {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let point = touches.first?.location(in: self) else { return }
         points.append(point)
+        if cursorMode {
+            let steps = Int((point.x - cursorAnchorX) / Self.cursorStep)
+            if steps != 0 {
+                onAction?(.moveCursor(steps))
+                cursorAnchorX += CGFloat(steps) * Self.cursorStep
+            }
+            return
+        }
         let slot = bounds.width / KeyLayout.unitsPerRow
         if !isSwiping, !longPressFired, swipeEnabled, layer_ == .letters, activeCap?.spec.letter != nil,
            hypot(point.x - startPoint.x, point.y - startPoint.y) > slot * 0.9 {
@@ -198,6 +220,10 @@ final class KeyboardView: UIView {
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if cursorMode {
+            reset()
+            return
+        }
         if isSwiping {
             if swipeLetters.count >= 2 {
                 onSwipe?(swipeLetters, corners())
@@ -238,6 +264,8 @@ final class KeyboardView: UIView {
         activeCap = nil
         isSwiping = false
         longPressFired = false
+        if cursorMode { caps.flatMap { $0 }.forEach { $0.alpha = 1 } }
+        cursorMode = false
         swipeLetters = []
         points = []
         trail.path = nil
