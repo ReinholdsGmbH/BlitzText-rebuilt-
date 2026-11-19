@@ -62,7 +62,7 @@ struct PhoneInboxSection: View {
                 Label("Ordner nicht gefunden.", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption).foregroundStyle(.orange)
             }
-            Text("Mit OneDrive in der iPhone-App: hier „OneDrive-Persönlich/Apps/BlitzText iPhone“ wählen. Sonst derselbe Ordner wie in der iPhone-App unter „Gemeinsame Ablage“. BlitzText holt neue Meetings aus „BlitzText iPhone“ beim Start und alle zwei Minuten ab und übernimmt Transkript, Notizen und eigene Notizen unverändert, ohne neu zu transkribieren. Danach landen sie wie jedes Meeting im Wissensordner. Ein auf dem iPhone geändertes Meeting wird aktualisiert; Sprechernamen und Bereich, die du am Mac vergeben hast, bleiben.")
+            Text("Mit OneDrive in der iPhone-App: hier „OneDrive-Persönlich/Anwendungen/BlitzText iPhone“ wählen (englisch „Apps“). Dort liegt auch das gemeinsame Wörterbuch: Eigennamen gleichen sich in beide Richtungen ab, Löschen nicht. Sonst derselbe Ordner wie in der iPhone-App unter „Gemeinsame Ablage“. BlitzText holt neue Meetings aus „BlitzText iPhone“ beim Start und alle zwei Minuten ab und übernimmt Transkript, Notizen und eigene Notizen unverändert, ohne neu zu transkribieren. Danach landen sie wie jedes Meeting im Wissensordner. Ein auf dem iPhone geändertes Meeting wird aktualisiert; Sprechernamen und Bereich, die du am Mac vergeben hast, bleiben.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

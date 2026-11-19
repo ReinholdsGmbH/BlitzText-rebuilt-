@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var meetingPill: MeetingPillController!
     private var meetingLibrary: MeetingLibrary!
     private var phoneInbox: PhoneInboxImporter!
+    private var phoneDictionary: PhoneDictionarySync!
     private var meetingWindow: AppWindowController!
     private var didBecomeActiveObserver: NSObjectProtocol?
 
@@ -200,14 +201,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             rootPath: { settings.phoneInboxPath }
         ) { [weak self] _ in self?.meetingLibrary.reload() }
         phoneInbox.start()
+        // Eigennamen mit dem Wörterbuch der iPhone-App abgleichen (woerterbuch.json in der Ablage).
+        phoneDictionary = PhoneDictionarySync(
+            rootPath: { settings.phoneInboxPath },
+            nouns: { settings.properNouns },
+            setNouns: { settings.properNouns = $0 }
+        )
+        phoneDictionary.start()
         settings.$phoneInboxPath
             .dropFirst()
             .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
-            .sink { [weak self] _ in Task { await self?.phoneInbox.poll() } }
+            .sink { [weak self] _ in
+                Task { await self?.phoneInbox.poll() }
+                self?.phoneDictionary.sync()
+            }
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: PhoneInboxImporter.pollNow)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in Task { await self?.phoneInbox.poll() } }
+            .sink { [weak self] _ in
+                Task { await self?.phoneInbox.poll() }
+                self?.phoneDictionary.sync()
+            }
             .store(in: &cancellables)
         meetingPill = MeetingPillController(controller: meetingController)
         meetingController.startMonitoring()
