@@ -23,7 +23,7 @@ final class KeyboardViewController: UIInputViewController {
     private var observers: [DarwinObserver] = []
     private var refreshTimer: Timer?
     private var lastInsertedID: String?
-    private var lastState: Spike.State?
+    private var lastState: Blitz.State?
     /// Formvergleich-Decoder; lädt das von der App gebaute Wörterbuch im Hintergrund.
     private var swipeDecoder: SwipeDecoder?
 
@@ -32,13 +32,13 @@ final class KeyboardViewController: UIInputViewController {
     /// Zusätzliche Höhe der Ziffernleiste (flacher als eine Buchstabenreihe).
     private static let digitRowHeight: CGFloat = 40
     private var heightConstraint: NSLayoutConstraint?
-    private var digits: Spike.DigitsMode = .longPress
+    private var digits: Blitz.DigitsMode = .longPress
 
     override func viewDidLoad() {
         super.viewDidLoad()
         buildBar()
         buildKeyboard()
-        lastInsertedID = Spike.defaults?.string(forKey: Spike.Key.resultID)
+        lastInsertedID = Blitz.defaults?.string(forKey: Blitz.Key.resultID)
         // Kontaktnamen, die iOS der Tastatur bereitstellt (Einträge, bei denen Kürzel und Text gleich sind).
         // Die Antwort kommt auf einem XPC-Thread; der Closure darf deshalb nicht MainActor-isoliert sein.
         requestSupplementaryLexicon(completion: Self.lexiconHandler { [weak self] lexicon in
@@ -46,7 +46,7 @@ final class KeyboardViewController: UIInputViewController {
                 .filter { $0.userInput == $0.documentText }
                 .map { $0.documentText }
         })
-        observers = [DarwinObserver(Spike.Note.resultReady) { [weak self] in self?.insertDictation() }]
+        observers = [DarwinObserver(Blitz.Note.resultReady) { [weak self] in self?.insertDictation() }]
         let height = view.heightAnchor.constraint(equalToConstant: Self.barHeight + Self.keysHeight)
         height.priority = .init(999)
         height.isActive = true
@@ -55,11 +55,11 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        keyboard.swipeEnabled = Spike.isSwipeEnabled
-        words.userWords = Spike.userWords
+        keyboard.swipeEnabled = Blitz.isSwipeEnabled
+        words.userWords = Blitz.userWords
         loadSwipeDecoderIfNeeded()
-        digits = Spike.digitsMode
-        placeMic(onRight: Spike.isMicOnRight)
+        digits = Blitz.digitsMode
+        placeMic(onRight: Blitz.isMicOnRight)
         updateAutoShift()
         reloadKeys()
         refreshMic()
@@ -93,9 +93,9 @@ final class KeyboardViewController: UIInputViewController {
     private var decoderLoading = false
 
     private func loadSwipeDecoderIfNeeded() {
-        guard swipeDecoder == nil, !decoderLoading, let url = Spike.swipeLexiconURL else { return }
+        guard swipeDecoder == nil, !decoderLoading, let url = Blitz.swipeLexiconURL else { return }
         decoderLoading = true
-        let extra = Spike.userWords + words.lexiconWords
+        let extra = Blitz.userWords + words.lexiconWords
         Task.detached(priority: .utility) { [weak self] in
             let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
             let decoder = text.isEmpty ? nil : SwipeDecoder(lexicon: text, extraWords: extra)
@@ -406,7 +406,7 @@ final class KeyboardViewController: UIInputViewController {
     // MARK: - Diktat
 
     private func refreshMic() {
-        let state: Spike.State = hasFullAccess ? Spike.state : .off
+        let state: Blitz.State = hasFullAccess ? Blitz.state : .off
         guard state != lastState || micButton.currentImage == nil else { return }
         lastState = state
         let config = UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
@@ -439,13 +439,13 @@ final class KeyboardViewController: UIInputViewController {
 
     @objc private func micTapped() {
         guard hasFullAccess else { return }
-        switch Spike.state {
+        switch Blitz.state {
         case .off:
-            if !openContainingApp(Spike.sessionURL) { statusLabel.text = "App konnte nicht geöffnet werden" }
+            if !openContainingApp(Blitz.sessionURL) { statusLabel.text = "App konnte nicht geöffnet werden" }
         case .idle:
-            Spike.post(Spike.Note.start)
+            Blitz.post(Blitz.Note.start)
         case .recording:
-            Spike.post(Spike.Note.stop)
+            Blitz.post(Blitz.Note.stop)
         case .processing, .meeting:
             break
         }
@@ -454,8 +454,8 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func insertDictation() {
-        guard let id = Spike.defaults?.string(forKey: Spike.Key.resultID), id != lastInsertedID,
-              let text = Spike.defaults?.string(forKey: Spike.Key.result) else { return }
+        guard let id = Blitz.defaults?.string(forKey: Blitz.Key.resultID), id != lastInsertedID,
+              let text = Blitz.defaults?.string(forKey: Blitz.Key.result) else { return }
         lastInsertedID = id
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
         let needsSpace = !(before.isEmpty || before.hasSuffix(" ") || before.hasSuffix("\n"))

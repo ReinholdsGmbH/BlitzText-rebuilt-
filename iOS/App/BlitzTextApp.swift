@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct SpikeApp: App {
+struct BlitzTextApp: App {
     @StateObject private var history: DictationHistory
     @StateObject private var meetings: MeetingStore
     @StateObject private var session: SessionController

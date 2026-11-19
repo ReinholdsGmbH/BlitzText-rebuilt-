@@ -56,12 +56,12 @@ final class DictionarySync: ObservableObject {
             decoder.dateDecodingStrategy = .iso8601
             let remote = try await oneDrive.download(SharedDictionary.fileName)
                 .flatMap { try? decoder.decode(SharedDictionary.self, from: $0) }
-            let local = Spike.userWords
+            let local = Blitz.userWords
             let merged = SharedDictionary.merge(remote?.entries ?? [], words: local)
 
             let mergedWords = merged.map(\.text)
             let added = mergedWords.filter { word in !local.contains { $0.caseInsensitiveCompare(word) == .orderedSame } }
-            if !added.isEmpty { Spike.userWords = local + added }
+            if !added.isEmpty { Blitz.userWords = local + added }
 
             if merged != remote?.entries {
                 let encoder = JSONEncoder()

@@ -37,7 +37,7 @@ final class DictationHistory: ObservableObject {
     private let fileURL: URL
 
     init() {
-        let base = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Spike.appGroup)
+        let base = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Blitz.appGroup)
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         fileURL = base.appendingPathComponent("history.json")

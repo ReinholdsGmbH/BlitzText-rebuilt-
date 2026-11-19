@@ -6,11 +6,11 @@ import UIKit
 /// Dieselbe Engine nimmt auch Meetings auf.
 @MainActor
 final class SessionController: ObservableObject {
-    @Published private(set) var state: Spike.State = .off
+    @Published private(set) var state: Blitz.State = .off
     @Published private(set) var log: [String] = []
     @Published private(set) var batteryAtStart: Float?
     @Published private(set) var sessionStart: Date?
-    @Published private(set) var appGroupOK = Spike.defaults != nil
+    @Published private(set) var appGroupOK = Blitz.defaults != nil
     @Published private(set) var modelStatus = "nicht geladen"
     @Published private(set) var activeMeetingID: UUID?
     /// Beginn des laufenden Aufnahmeteils (für die Uhr; bei „Fortsetzen“ ab dem neuen Teil).
@@ -45,8 +45,8 @@ final class SessionController: ObservableObject {
         self.sharedFolder = sharedFolder
         UIDevice.current.isBatteryMonitoringEnabled = true
         observers = [
-            DarwinObserver(Spike.Note.start) { [weak self] in self?.startRecording() },
-            DarwinObserver(Spike.Note.stop) { [weak self] in self?.stopRecording() },
+            DarwinObserver(Blitz.Note.start) { [weak self] in self?.startRecording() },
+            DarwinObserver(Blitz.Note.stop) { [weak self] in self?.stopRecording() },
         ]
         NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
@@ -165,12 +165,12 @@ final class SessionController: ObservableObject {
             add("Parakeet-Fehler (\(background ? "Hintergrund" : "Vordergrund")): \(error.localizedDescription)")
         }
         try? FileManager.default.removeItem(at: recordingURL)
-        Spike.defaults?.set(text, forKey: Spike.Key.result)
-        Spike.defaults?.set(UUID().uuidString, forKey: Spike.Key.resultID)
+        Blitz.defaults?.set(text, forKey: Blitz.Key.result)
+        Blitz.defaults?.set(UUID().uuidString, forKey: Blitz.Key.resultID)
         if state == .processing { state = .idle }
         lastActivity = Date()
         publishState()
-        Spike.post(Spike.Note.resultReady)
+        Blitz.post(Blitz.Note.resultReady)
     }
 
     // MARK: - Meeting
@@ -300,9 +300,9 @@ final class SessionController: ObservableObject {
     }
 
     private func publishState() {
-        guard let defaults = Spike.defaults else { return }
-        defaults.set(state.rawValue, forKey: Spike.Key.state)
-        defaults.set(state == .off ? 0 : Date().timeIntervalSince1970, forKey: Spike.Key.heartbeat)
+        guard let defaults = Blitz.defaults else { return }
+        defaults.set(state.rawValue, forKey: Blitz.Key.state)
+        defaults.set(state == .off ? 0 : Date().timeIntervalSince1970, forKey: Blitz.Key.heartbeat)
     }
 
     private func add(_ line: String) {

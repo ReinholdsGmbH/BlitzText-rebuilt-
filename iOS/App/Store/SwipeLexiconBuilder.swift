@@ -20,7 +20,7 @@ final class SwipeLexiconBuilder: ObservableObject {
 
     static func existingWordCount() -> Int? {
         guard UserDefaults.standard.integer(forKey: versionKey) == version,
-              let url = Spike.swipeLexiconURL,
+              let url = Blitz.swipeLexiconURL,
               let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
         return text.reduce(0) { $1 == "\n" ? $0 + 1 : $0 }
     }
@@ -31,7 +31,7 @@ final class SwipeLexiconBuilder: ObservableObject {
     }
 
     func build() async {
-        guard !running, let url = Spike.swipeLexiconURL else { return }
+        guard !running, let url = Blitz.swipeLexiconURL else { return }
         running = true
         defer { running = false }
         let checker = UITextChecker()

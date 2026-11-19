@@ -263,7 +263,7 @@ Eingeplante Initiativen für künftige Milestones — werden bei Bedarf via `/gs
 **Depends on**: macOS-Version stabil
 **Requirements**: BL-IOS
 **Context**: 999.1-MACHBARKEIT.md (Machbarkeit 2026-11-19: Session-App + Tastatur + App Group mit Personal Team geprüft; FluidAudio/Parakeet unterstützt iOS)
-**Notes**: Erst Akku-Messung und Parakeet im Spike (`Prototypes/iOSKeyboardSpike`), dann `BlitzTextCore`-Package; weitere Trigger (Action-Button, Share-Sheet, Kontrollzentrum) später
+**Notes**: Erst Akku-Messung und Parakeet im Spike (`iOS`), dann `BlitzTextCore`-Package; weitere Trigger (Action-Button, Share-Sheet, Kontrollzentrum) später
 
 ### Phase 999.2: Meeting-Transkription
 **Goal**: Längere Aufnahmen mit Diarization, dedizierte UI/Workflow (kein Auto-Paste, Speichern + Anzeigen mit Sprecher-Annotationen)

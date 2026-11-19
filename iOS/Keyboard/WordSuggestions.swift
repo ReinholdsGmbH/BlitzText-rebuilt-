@@ -50,7 +50,7 @@ final class WordSuggestions {
     func learn(_ word: String) {
         guard !word.isEmpty, !userWords.contains(where: { $0.caseInsensitiveCompare(word) == .orderedSame }) else { return }
         userWords.append(word)
-        Spike.userWords = userWords
+        Blitz.userWords = userWords
         UITextChecker.learnWord(word)
     }
 

@@ -126,7 +126,7 @@ struct SessionToggle: View {
 
 /// Farbiger Punkt für den Session-Zustand; pulsiert bei Aufnahme.
 struct StatusDot: View {
-    let state: Spike.State
+    let state: Blitz.State
     @State private var pulse = false
 
     var body: some View {
@@ -151,7 +151,7 @@ struct StatusDot: View {
     }
 }
 
-extension Spike.State {
+extension Blitz.State {
     var headline: String {
         switch self {
         case .off: "Aus"

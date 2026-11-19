@@ -58,7 +58,7 @@ enum KeyLayout {
     static let unitsPerRow: CGFloat = 11
 
     static func rows(layer: KeyboardLayer, shift: ShiftState, returnLabel: String, showGlobe: Bool,
-                     digits: Spike.DigitsMode = .off) -> [[KeySpec]] {
+                     digits: Blitz.DigitsMode = .off) -> [[KeySpec]] {
         switch layer {
         case .letters: letters(shift: shift, returnLabel: returnLabel, showGlobe: showGlobe, digits: digits)
         case .numbers: numbers(returnLabel: returnLabel, showGlobe: showGlobe)
@@ -71,7 +71,7 @@ enum KeyLayout {
         "q": "1", "w": "2", "e": "3", "r": "4", "t": "5", "z": "6", "u": "7", "i": "8", "o": "9", "p": "0",
     ]
 
-    private static func letters(shift: ShiftState, returnLabel: String, showGlobe: Bool, digits: Spike.DigitsMode) -> [[KeySpec]] {
+    private static func letters(shift: ShiftState, returnLabel: String, showGlobe: Bool, digits: Blitz.DigitsMode) -> [[KeySpec]] {
         let upper = shift != .off
         func keys(_ string: String) -> [KeySpec] {
             string.map { character in

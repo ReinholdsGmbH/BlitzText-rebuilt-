@@ -2,9 +2,9 @@ import Foundation
 
 /// Gemeinsamer Kanal zwischen Haupt-App und Tastatur: App-Group-UserDefaults für Zustand,
 /// Darwin Notifications als Weckruf. Darwin Notifications tragen keine Nutzdaten.
-enum Spike {
-    static let appGroup = "group.de.reinholds.blitzspike"
-    static let sessionURL = URL(string: "blitzspike://session?record=1")!
+enum Blitz {
+    static let appGroup = "group.de.reinholds.blitztext"
+    static let sessionURL = URL(string: "blitztext://session?record=1")!
 
     /// Heartbeat älter als das gilt als "Session aus".
     static let heartbeatTimeout: TimeInterval = 3
@@ -27,9 +27,9 @@ enum Spike {
     }
 
     enum Note {
-        static let start = "de.reinholds.blitzspike.start"
-        static let stop = "de.reinholds.blitzspike.stop"
-        static let resultReady = "de.reinholds.blitzspike.resultReady"
+        static let start = "de.reinholds.blitztext.start"
+        static let stop = "de.reinholds.blitztext.stop"
+        static let resultReady = "de.reinholds.blitztext.resultReady"
     }
 
     /// Gemeinsamer Ordner von App und Tastatur (App Group), z. B. für das Swipe-Wörterbuch.

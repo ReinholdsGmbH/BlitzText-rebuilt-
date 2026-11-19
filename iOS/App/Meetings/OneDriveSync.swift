@@ -11,7 +11,7 @@ import UIKit
 final class OneDriveSync: ObservableObject {
     /// Öffentliche Kennung der App-Registrierung (kein Geheimnis).
     static let clientID = "13450a13-c7bc-4ed4-bf47-3529049cafbb"
-    static let redirectScheme = "msauth.de.reinholds.blitzspike"
+    static let redirectScheme = "msauth.de.reinholds.blitztext.ios"
     static let redirectURI = "\(redirectScheme)://auth"
     static let scopes = "Files.ReadWrite.AppFolder offline_access User.Read"
     private static let authority = "https://login.microsoftonline.com/consumers/oauth2/v2.0"
@@ -248,7 +248,7 @@ final class PresentationAnchor: NSObject, ASWebAuthenticationPresentationContext
 
 /// Refresh-Token im Schlüsselbund des Geräts, nur diese App.
 enum Keychain {
-    private static let service = "de.reinholds.blitzspike.onedrive"
+    private static let service = "de.reinholds.blitztext.ios.onedrive"
 
     static func write(_ key: String, _ value: String) {
         delete(key)

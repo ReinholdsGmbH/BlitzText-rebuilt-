@@ -11,9 +11,9 @@ struct SettingsView: View {
     @State private var choosingFolder = false
     @State private var folderAlert: String?
     @State private var pickedFolder: URL?
-    @State private var swipeEnabled = Spike.isSwipeEnabled
-    @State private var digitsMode = Spike.digitsMode
-    @State private var micOnRight = Spike.isMicOnRight
+    @State private var swipeEnabled = Blitz.isSwipeEnabled
+    @State private var digitsMode = Blitz.digitsMode
+    @State private var micOnRight = Blitz.isMicOnRight
 
     var body: some View {
         NavigationStack {
@@ -34,32 +34,32 @@ struct SettingsView: View {
                     NavigationLink {
                         UserWordsView()
                     } label: {
-                        LabeledContent("Eigene Wörter", value: "\(Spike.userWords.count)")
+                        LabeledContent("Eigene Wörter", value: "\(Blitz.userWords.count)")
                     }
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Ziffern über den Buchstaben")
                         Picker("Ziffern", selection: $digitsMode) {
-                            ForEach(Spike.DigitsMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                            ForEach(Blitz.DigitsMode.allCases, id: \.self) { Text($0.label).tag($0) }
                         }
                         .pickerStyle(.segmented)
-                        .onChange(of: digitsMode) { _, value in Spike.digitsMode = value }
+                        .onChange(of: digitsMode) { _, value in Blitz.digitsMode = value }
                     }
                     Picker("Mikro-Knopf", selection: $micOnRight) {
                         Text("Links").tag(false)
                         Text("Rechts").tag(true)
                     }
-                    .onChange(of: micOnRight) { _, value in Spike.isMicOnRight = value }
+                    .onChange(of: micOnRight) { _, value in Blitz.isMicOnRight = value }
                     Toggle("Swipe-Eingabe", isOn: $swipeEnabled)
                     LabeledContent("Swipe-Wörterbuch", value: lexicon.status.isEmpty ? "fehlt" : lexicon.status)
                     Button(lexicon.running ? "Wird aufgebaut …" : "Swipe-Wörterbuch neu aufbauen") {
                         Task { await lexicon.build() }
                     }
                     .disabled(lexicon.running)
-                        .onChange(of: swipeEnabled) { _, value in Spike.defaults?.set(value, forKey: Spike.Key.swipeEnabled) }
+                        .onChange(of: swipeEnabled) { _, value in Blitz.defaults?.set(value, forKey: Blitz.Key.swipeEnabled) }
                 } header: {
                     Text("Tastatur")
                 } footer: {
-                    Text("Ziffern: „Langer Druck“ (Standard) legt sie auf q bis p, „Leiste“ zeigt 1 bis 0 als flache Reihe. Rücktaste 2 s halten löscht ganze Wörter.\n\nEinrichten: Einstellungen › Allgemein › Tastatur › Tastaturen › Tastatur hinzufügen › BlitzSpike, danach „Vollen Zugriff erlauben“. Den vollen Zugriff braucht das Mikro in der Tastatur.")
+                    Text("Ziffern: „Langer Druck“ (Standard) legt sie auf q bis p, „Leiste“ zeigt 1 bis 0 als flache Reihe. Rücktaste 2 s halten löscht ganze Wörter.\n\nEinrichten: Einstellungen › Allgemein › Tastatur › Tastaturen › Tastatur hinzufügen › BlitzText, danach „Vollen Zugriff erlauben“. Den vollen Zugriff braucht das Mikro in der Tastatur.")
                 }
 
                 Section {
@@ -161,7 +161,7 @@ struct LogView: View {
 
 /// Eigene Wörter der Tastatur: Namen und Fachbegriffe für Vorschläge und Swipe.
 struct UserWordsView: View {
-    @State private var words: [String] = Spike.userWords
+    @State private var words: [String] = Blitz.userWords
     @State private var newWord = ""
 
     var body: some View {
@@ -182,19 +182,19 @@ struct UserWordsView: View {
                 ForEach(words, id: \.self) { Text($0) }
                     .onDelete { offsets in
                         words.remove(atOffsets: offsets)
-                        Spike.userWords = words
+                        Blitz.userWords = words
                     }
             }
         }
         .navigationTitle("Eigene Wörter")
-        .onAppear { words = Spike.userWords }
+        .onAppear { words = Blitz.userWords }
     }
 
     private func add() {
         let word = newWord.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !word.isEmpty else { return }
-        Spike.userWords = words + [word]
-        words = Spike.userWords
+        Blitz.userWords = words + [word]
+        words = Blitz.userWords
         newWord = ""
     }
 }
