@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
     @EnvironmentObject private var session: SessionController
@@ -87,11 +88,12 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.background)
             .navigationTitle("Einstellungen")
-            .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
-                switch result {
-                case .success(let url): sharedFolder.choose(url)
-                case .failure(let error): sharedFolder.report(error)
+            .sheet(isPresented: $choosingFolder) {
+                FolderPicker { url in
+                    choosingFolder = false
+                    if let url { sharedFolder.choose(url) }
                 }
+                .ignoresSafeArea()
             }
             .alert("Gemeinsame Ablage", isPresented: Binding(
                 get: { folderAlert != nil }, set: { if !$0 { folderAlert = nil } }
@@ -101,7 +103,12 @@ struct SettingsView: View {
                 Text(folderAlert ?? "")
             }
             .onChange(of: sharedFolder.lastMessage) { _, message in
-                if let message { folderAlert = message }
+                // Erst nach dem Schließen des Ordner-Dialogs zeigen, sonst blockieren sich beide.
+                guard let message else { return }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(700))
+                    folderAlert = message
+                }
             }
         }
     }
@@ -158,5 +165,35 @@ struct UserWordsView: View {
         Spike.userWords = words + [word]
         words = Spike.userWords
         newWord = ""
+    }
+}
+
+/// Ordnerwahl über Apples Dokumentenauswahl (UIKit). Zuverlässiger als `fileImporter`, der sich
+/// nach einem Hinweisfenster in derselben Ansicht nicht erneut öffnen ließ.
+struct FolderPicker: UIViewControllerRepresentable {
+    let onPick: (URL?) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
+        picker.allowsMultipleSelection = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let onPick: (URL?) -> Void
+        init(onPick: @escaping (URL?) -> Void) { self.onPick = onPick }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            onPick(urls.first)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onPick(nil)
+        }
     }
 }
