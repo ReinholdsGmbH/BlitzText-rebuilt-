@@ -147,8 +147,9 @@ final class SharedFolder: ObservableObject {
     /// Der Ordnername hängt nur an Beginn und ID, damit Umbenennen kein zweites Paket erzeugt.
     func deliver(_ id: UUID, store: MeetingStore, log: (String) -> Void) async {
         guard let meeting = store.meeting(id), meeting.status == .done else { return }
-        let toFolder = folderName != nil
+        // Mit OneDrive geht nichts mehr zusätzlich in einen gewählten Ordner.
         let toCloud = oneDrive.isConnected
+        let toFolder = folderName != nil && !toCloud
         guard toFolder || toCloud else {
             lastMessage = "Keine Ablage eingerichtet: Ordner wählen oder mit OneDrive verbinden."
             return

@@ -4,6 +4,8 @@ import UIKit
 /// Diktat: Ohne laufende Session öffnet der Knopf die Haupt-App, mit Session schickt er Start/Stopp.
 final class KeyboardViewController: UIInputViewController {
     private let keyboard = KeyboardView()
+    private let emojiPanel = EmojiPanel()
+    private let usage = WordUsage()
     private let micButton = UIButton(type: .system)
     private let spinner = UIActivityIndicatorView(style: .medium)
     private let statusLabel = UILabel()
@@ -57,6 +59,8 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         keyboard.swipeEnabled = Blitz.isSwipeEnabled
         words.userWords = Blitz.userWords
+        usage.load()
+        words.usage = usage
         loadSwipeDecoderIfNeeded()
         digits = Blitz.digitsMode
         placeMic(onRight: Blitz.isMicOnRight)
@@ -71,6 +75,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        usage.save()
         refreshTimer?.invalidate()
         refreshTimer = nil
     }
@@ -159,6 +164,21 @@ final class KeyboardViewController: UIInputViewController {
             keyboard.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             keyboard.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        emojiPanel.translatesAutoresizingMaskIntoConstraints = false
+        emojiPanel.isHidden = true
+        view.addSubview(emojiPanel)
+        NSLayoutConstraint.activate([
+            emojiPanel.topAnchor.constraint(equalTo: keyboard.topAnchor),
+            emojiPanel.leadingAnchor.constraint(equalTo: keyboard.leadingAnchor),
+            emojiPanel.trailingAnchor.constraint(equalTo: keyboard.trailingAnchor),
+            emojiPanel.bottomAnchor.constraint(equalTo: keyboard.bottomAnchor),
+        ])
+        emojiPanel.onInsert = { [weak self] emoji in
+            self?.textDocumentProxy.insertText(emoji)
+            self?.afterEdit()
+        }
+        emojiPanel.onBackspace = { [weak self] in self?.handle(.backspace) }
+        emojiPanel.onClose = { [weak self] in self?.setEmojiPanel(visible: false) }
         keyboard.onAction = { [weak self] in self?.handle($0) }
         keyboard.onInsertAlternate = { [weak self] in self?.insert($0) }
         keyboard.onSwipe = { [weak self] path, corners, points in self?.handleSwipe(path: path, corners: corners, points: points) }
@@ -228,6 +248,8 @@ final class KeyboardViewController: UIInputViewController {
             afterEdit()
         case .globe:
             advanceToNextInputMode()
+        case .emoji:
+            setEmojiPanel(visible: true)
         case .layer(let target):
             layer = target
             reloadKeys()
@@ -235,10 +257,20 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func insert(_ text: String) {
+        if lastSwipeInsert == nil, text.count == 1, ".,!?;:".contains(text) { usage.record(partialWord) }
         textDocumentProxy.insertText(text)
         if shift == .on { shift = .off }
         afterEdit()
         lastCharWasWord = text.last.map { $0.isLetter || $0.isNumber } ?? false
+    }
+
+    private func setEmojiPanel(visible: Bool) {
+        emojiPanel.isHidden = !visible
+        keyboard.isHidden = visible
+        if !visible {
+            layer = .letters
+            reloadKeys()
+        }
     }
 
     /// Löscht das Wort vor dem Cursor samt folgender Leerzeichen; vor Satzzeichen nur ein Zeichen.
@@ -266,6 +298,7 @@ final class KeyboardViewController: UIInputViewController {
             afterEdit()
             return
         }
+        if lastSwipeInsert == nil { usage.record(partialWord) }
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
         let followsWord = lastCharWasWord || (before.last.map { $0.isLetter || $0.isNumber } ?? false)
         textDocumentProxy.insertText(" ")
@@ -305,7 +338,8 @@ final class KeyboardViewController: UIInputViewController {
         var candidates: [String] = []
         if let decoder = swipeDecoder {
             let geometry = keyboard.letterGeometry
-            candidates = decoder.decode(points: points, centers: geometry.centers, keyWidth: geometry.keyWidth)
+            candidates = decoder.decode(points: points, centers: geometry.centers, keyWidth: geometry.keyWidth,
+                                        usage: usage.counts)
         }
         if candidates.isEmpty { candidates = words.swipeCandidates(path: path, corners: corners) }
         guard let best = candidates.first else {
@@ -328,6 +362,7 @@ final class KeyboardViewController: UIInputViewController {
         if shift == .locked { text = text.uppercased() }
         let insertion = (needsSpace ? " " : "") + text
         textDocumentProxy.insertText(insertion)
+        usage.record(word)
         if shift == .on { shift = .off }
         lastSwipeInsert = insertion
         lastCharWasWord = true
@@ -378,6 +413,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func keepAndLearn(_ word: String) {
         words.learn(word)
+        usage.record(word)
         textDocumentProxy.insertText(" ")
         afterEdit()
         statusLabel.text = "„\(word)“ gemerkt"
@@ -391,11 +427,13 @@ final class KeyboardViewController: UIInputViewController {
 
     private func applySuggestion(_ word: String) {
         if let swiped = lastSwipeInsert {
+            usage.record(swiped, delta: -1)
             swiped.forEach { _ in textDocumentProxy.deleteBackward() }
             lastSwipeInsert = nil
             swipeAlternatives = []
             insertSwiped(word)
         } else {
+            usage.record(word)
             partialWord.forEach { _ in textDocumentProxy.deleteBackward() }
             textDocumentProxy.insertText(word + " ")
             afterEdit()
@@ -460,6 +498,7 @@ final class KeyboardViewController: UIInputViewController {
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
         let needsSpace = !(before.isEmpty || before.hasSuffix(" ") || before.hasSuffix("\n"))
         textDocumentProxy.insertText((needsSpace ? " " : "") + text)
+        usage.recordText(text)
         lastSwipeInsert = nil
         afterEdit()
         lastState = nil

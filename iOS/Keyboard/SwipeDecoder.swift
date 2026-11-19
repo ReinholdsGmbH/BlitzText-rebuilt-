@@ -63,7 +63,8 @@ final class SwipeDecoder: @unchecked Sendable {
     ///   - points: Spur in Tastatur-Koordinaten.
     ///   - centers: Mitte jeder Buchstabentaste.
     ///   - keyWidth: Breite einer Buchstabentaste (Maßstab für Abstände).
-    func decode(points raw: [CGPoint], centers: [Character: CGPoint], keyWidth: CGFloat, limit: Int = 4) -> [String] {
+    func decode(points raw: [CGPoint], centers: [Character: CGPoint], keyWidth: CGFloat,
+                usage: [String: Int] = [:], limit: Int = 4) -> [String] {
         guard raw.count >= 2, let first = raw.first, let last = raw.last, keyWidth > 0 else { return [] }
         let width = Double(keyWidth)
         let gesture = Self.resample(raw, Self.samples)
@@ -85,7 +86,9 @@ final class SwipeDecoder: @unchecked Sendable {
                     / Double(Self.samples) / width
                 let shape = zip(gestureShape, Self.normalizeShape(template)).map { Double(hypot($0.x - $1.x, $0.y - $1.y)) }.reduce(0, +)
                     / Double(Self.samples)
-                results.append((entry.word, location + 2.0 * shape - 0.12 * log(entry.prior + 1e-4)))
+                // Eigene Gewohnheit: oft benutzte Wörter rücken nach vorn.
+                let habit = 0.35 * log(1 + Double(usage[entry.word.lowercased()] ?? 0))
+                results.append((entry.word, location + 2.0 * shape - 0.12 * log(entry.prior + 1e-4) - habit))
             }
         }
         results.sort { $0.cost < $1.cost }

@@ -65,6 +65,11 @@ struct SettingsView: View {
                 Section {
                     if oneDrive.isConnected {
                         LabeledContent("Verbunden", value: oneDrive.accountName ?? "ja")
+                        Toggle("Fertige Meetings automatisch hochladen", isOn: $sharedFolder.autoDeliver)
+                        Button("Alle fertigen Meetings jetzt hochladen") { shareAll() }
+                        if let message = sharedFolder.lastMessage {
+                            Text(message).font(.footnote).foregroundStyle(Theme.muted)
+                        }
                         Button("Wörterbuch jetzt abgleichen") { Task { await dictionary.sync() } }
                         if !dictionary.status.isEmpty {
                             Text(dictionary.status).font(.footnote).foregroundStyle(Theme.muted)
@@ -86,18 +91,14 @@ struct SettingsView: View {
                     Text("Fertige Meetings landen direkt in OneDrive unter „Anwendungen/BlitzText iPhone“ (englisch „Apps“), ohne Dateien-App. BlitzText darf nur in diesen Ordner schreiben. Am Mac unter Einstellungen › iPhone-Ablage den Ordner „OneDrive-Persönlich/Anwendungen/BlitzText iPhone“ wählen.")
                 }
 
+                // Mit OneDrive braucht es keinen gewählten Ordner mehr; er bleibt nur als Ausweg ohne OneDrive.
+                if !oneDrive.isConnected {
                 Section {
                     LabeledContent("Ordner", value: sharedFolder.folderName ?? "keiner")
                     Button(sharedFolder.isConfigured ? "Anderen Ordner wählen …" : "Ordner wählen …") { choosingFolder = true }
                     Toggle("Fertige Meetings automatisch ablegen", isOn: $sharedFolder.autoDeliver)
-                    Button("Alle fertigen Meetings jetzt ablegen") {
-                        Task {
-                            for meeting in meetings.meetings where meeting.status == .done {
-                                await session.share(meeting.id)
-                            }
-                        }
-                    }
-                    .disabled(!sharedFolder.isConfigured)
+                    Button("Alle fertigen Meetings jetzt ablegen") { shareAll() }
+                        .disabled(!sharedFolder.isConfigured)
                     if let message = sharedFolder.lastMessage {
                         Text(message).font(.footnote).foregroundStyle(Theme.muted)
                     }
@@ -105,6 +106,7 @@ struct SettingsView: View {
                     Text("Gemeinsame Ablage")
                 } footer: {
                     Text("Ordner wählen: in den gewünschten Ordner hineinwechseln und oben rechts „Öffnen“ tippen. Ein Ordner in iCloud Drive, OneDrive oder Nextcloud. Fertige Meetings landen dort unter „BlitzText iPhone“ mit Transkript, Notizen und Audio. Am Mac denselben Ordner unter Einstellungen › iPhone-Ablage wählen; die Mac-App übernimmt alles unverändert und legt das Protokoll im Wissensordner ab.")
+                }
                 }
 
                 Section("Status") {
@@ -140,6 +142,16 @@ struct SettingsView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(folderAlert ?? "")
+            }
+        }
+    }
+}
+
+extension SettingsView {
+    func shareAll() {
+        Task {
+            for meeting in meetings.meetings where meeting.status == .done {
+                await session.share(meeting.id)
             }
         }
     }

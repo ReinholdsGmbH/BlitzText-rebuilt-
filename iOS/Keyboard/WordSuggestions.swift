@@ -13,6 +13,8 @@ final class WordSuggestions {
     var lexiconWords: [String] = []
 
     private var extraWords: [String] { userWords + lexiconWords }
+    /// Eigene Wortnutzung; oft benutzte Wörter stehen in den Vorschlägen weiter vorn.
+    var usage: WordUsage?
 
     struct Result {
         /// Das getippte Wort, falls es unbekannt ist: erscheint wie bei Apple in „…“ an erster Stelle.
@@ -42,7 +44,11 @@ final class WordSuggestions {
         }
         result += (checker.completions(forPartialWordRange: range, in: partial, language: language) ?? [])
             .map { Self.matchCase($0, to: partial) }
-        let words = Self.unique(result.filter { $0 != partial }, limit: typed == nil ? 3 : 2)
+        let ranked = result.enumerated().sorted { a, b in
+            let ua = usage?.count(a.element) ?? 0, ub = usage?.count(b.element) ?? 0
+            return ua != ub ? ua > ub : a.offset < b.offset
+        }.map(\.element)
+        let words = Self.unique(ranked.filter { $0 != partial }, limit: typed == nil ? 3 : 2)
         return Result(typed: typed, words: words)
     }
 

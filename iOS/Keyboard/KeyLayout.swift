@@ -15,6 +15,8 @@ enum KeyAction: Equatable {
     case space
     case returnKey
     case globe
+    /// Emoji-Auswahl öffnen.
+    case emoji
     case layer(KeyboardLayer)
 }
 
@@ -124,7 +126,8 @@ enum KeyLayout {
     }
 
     private static func bottomRow(switchLabel: String, switchTo: KeyboardLayer, returnLabel: String, showGlobe: Bool) -> [KeySpec] {
-        var row: [KeySpec] = [.special(.layer(switchTo), label: switchLabel, width: 1.6)]
+        var row: [KeySpec] = [.special(.layer(switchTo), label: switchLabel, width: 1.4),
+                              .special(.emoji, symbol: "face.smiling", width: 1.2)]
         if showGlobe { row.append(.special(.globe, symbol: "globe", width: 1.2)) }
         let returnKey = KeySpec.special(.returnKey, label: returnLabel, width: 2.4)
         let used = row.reduce(0) { $0 + $1.width } + returnKey.width
