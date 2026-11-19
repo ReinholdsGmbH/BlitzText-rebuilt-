@@ -33,6 +33,11 @@ final class SharedFolder: ObservableObject {
     }
 
     private let bookmarkKey = "sharedFolderBookmark"
+    /// Zugriff aus der Ordnerwahl, offen gehalten bis die App endet. Hilft, wenn der Anbieter
+    /// (z. B. Nextcloud) ein Lesezeichen liefert, das sich später nicht auflösen lässt.
+    private var liveParent: URL?
+    private var liveInbox: URL?
+    private var resolveError: String?
     /// Das Lesezeichen zeigt direkt auf „BlitzText iPhone“ statt auf den gewählten Ordner.
     private let bookmarkIsInboxKey = "sharedFolderBookmarkIsInbox"
     private let displayNameKey = "sharedFolderName"
@@ -59,7 +64,8 @@ final class SharedFolder: ObservableObject {
     func choose(_ url: URL) {
         lastMessage = nil
         let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        var keepAccess = false
+        defer { if scoped && !keepAccess { url.stopAccessingSecurityScopedResource() } }
 
         var coordinationError: NSError?
         var createError: Error?
@@ -90,6 +96,10 @@ final class SharedFolder: ObservableObject {
                     UserDefaults.standard.set(isInbox, forKey: bookmarkIsInboxKey)
                     UserDefaults.standard.set(url.lastPathComponent, forKey: displayNameKey)
                     folderName = url.lastPathComponent
+                    if let previous = liveParent { previous.stopAccessingSecurityScopedResource() }
+                    liveParent = scoped ? url : nil
+                    liveInbox = inbox
+                    keepAccess = true
                     lastMessage = "Ordner „\(url.lastPathComponent)“ gewählt."
                     return
                 } catch {
@@ -111,11 +121,19 @@ final class SharedFolder: ObservableObject {
     }
 
     private func resolve() -> URL? {
-        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
-        var stale = false
-        guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) else {
+        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else {
+            resolveError = "kein Ordner gewählt"
             return nil
         }
+        var stale = false
+        let url: URL
+        do {
+            url = try URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale)
+        } catch {
+            resolveError = error.localizedDescription
+            return nil
+        }
+        resolveError = nil
         if stale, let fresh = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) {
             UserDefaults.standard.set(fresh, forKey: bookmarkKey)
         }
@@ -125,10 +143,20 @@ final class SharedFolder: ObservableObject {
     /// Legt das Meeting als Paket ab: `<Ablage>/BlitzText iPhone/<Ordner>/meeting.json` und `audio.m4a`.
     /// Der Ordnername hängt nur an Beginn und ID, damit Umbenennen kein zweites Paket erzeugt.
     func deliver(_ id: UUID, store: MeetingStore, log: (String) -> Void) async {
-        guard let root = resolve() else { lastMessage = "Keine gemeinsame Ablage gewählt."; return }
         guard let meeting = store.meeting(id), meeting.status == .done else { return }
-        let scoped = root.startAccessingSecurityScopedResource()
-        defer { if scoped { root.stopAccessingSecurityScopedResource() } }
+        let base: URL
+        var scopedRoot: URL?
+        if let liveInbox {
+            base = liveInbox
+        } else if let root = resolve() {
+            if root.startAccessingSecurityScopedResource() { scopedRoot = root }
+            base = packageRoot(from: root)
+        } else {
+            lastMessage = "Ablage nicht erreichbar (\(resolveError ?? "unbekannt")). Bitte den Ordner in den Einstellungen neu wählen."
+            log("Ablage: Lesezeichen nicht auflösbar — \(resolveError ?? "unbekannt")")
+            return
+        }
+        defer { scopedRoot?.stopAccessingSecurityScopedResource() }
         do {
             let audio = try? await MeetingExport.audioFile(for: meeting, parts: store.audioURLs(for: id))
             let package = PhoneMeetingPackage(
@@ -140,8 +168,7 @@ final class SharedFolder: ObservableObject {
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let json = try encoder.encode(package)
-            let target = packageRoot(from: root)
-                .appendingPathComponent(Self.packageFolderName(for: meeting), isDirectory: true)
+            let target = base.appendingPathComponent(Self.packageFolderName(for: meeting), isDirectory: true)
             try write(json: json, audio: audio, to: target)
             store.update(id) { $0.sharedAt = package.sharedAt }
             lastMessage = "„\(meeting.title)“ abgelegt."
