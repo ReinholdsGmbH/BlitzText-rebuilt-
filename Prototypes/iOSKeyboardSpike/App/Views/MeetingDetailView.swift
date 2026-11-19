@@ -13,6 +13,7 @@ struct MeetingDetailView: View {
     @FocusState private var titleFocused: Bool
     @State private var confirmDelete = false
     @State private var toast: String?
+    @State private var sharedFile: SharedFile?
 
     var body: some View {
         if let meeting = store.meeting(meetingID) {
@@ -89,6 +90,21 @@ struct MeetingDetailView: View {
             Text("Audio, Transkript und Notizen werden entfernt.")
         }
         .toast($toast)
+        .sheet(item: $sharedFile) { ShareSheet(url: $0.url).presentationDetents([.medium, .large]) }
+    }
+
+    /// Eine M4A mit allen Teilen, Datum und Titel im Namen, eigenen Notizen in den Metadaten.
+    /// Am Mac: per AirDrop empfangen und auf die Meeting-Liste ziehen (Aufnahme importieren).
+    private func sendToMac(_ meeting: Meeting) {
+        toast = "Audio wird vorbereitet …"
+        Task {
+            do {
+                let url = try await MeetingExport.audioFile(for: meeting, parts: store.audioURLs(for: meeting.id))
+                sharedFile = SharedFile(url: url)
+            } catch {
+                toast = error.localizedDescription
+            }
+        }
     }
 
     private func saveTitle(_ meeting: Meeting) {
@@ -119,6 +135,8 @@ struct MeetingDetailView: View {
                     Clipboard.copy(meeting.transcript); toast = "Transkript kopiert"
                 }
                 .disabled(meeting.transcript.isEmpty)
+                Button("An Mac senden (Audio)", systemImage: "laptopcomputer.and.arrow.down") { sendToMac(meeting) }
+                    .disabled(meeting.status == .recording)
                 ShareLink("Notizen teilen", item: meeting.notesForCopy)
                 Divider()
                 Button("Umbenennen", systemImage: "pencil") { titleFocused = true }

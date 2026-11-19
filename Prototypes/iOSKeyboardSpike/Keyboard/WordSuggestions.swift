@@ -29,12 +29,15 @@ final class WordSuggestions {
     /// Vorschläge für das angefangene Wort: eigene Wörter zuerst, dann Korrekturen und Vervollständigungen.
     func suggestions(for partial: String) -> Result {
         guard !partial.isEmpty else { return Result(typed: nil, words: []) }
-        let typed = partial.count >= 2 && !isKnown(partial) ? partial : nil
+        // Das Getippte steht immer zur Wahl, auch wenn iOS es kennt (z. B. „Raba“ neben „Rabatt“),
+        // außer es ist schon ein eigenes Wort.
+        let isOwn = userWords.contains { $0.caseInsensitiveCompare(partial) == .orderedSame }
+        let typed = partial.count >= 2 && !isOwn ? partial : nil
         let range = NSRange(location: 0, length: (partial as NSString).length)
         var result = extraWords.filter {
             $0.count > partial.count && $0.lowercased().hasPrefix(partial.lowercased())
         }
-        if typed != nil {
+        if !isKnown(partial) {
             result += checker.guesses(forWordRange: range, in: partial, language: language) ?? []
         }
         result += (checker.completions(forPartialWordRange: range, in: partial, language: language) ?? [])
