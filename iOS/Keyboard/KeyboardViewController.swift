@@ -44,9 +44,12 @@ final class KeyboardViewController: UIInputViewController {
         // Kontaktnamen, die iOS der Tastatur bereitstellt (Einträge, bei denen Kürzel und Text gleich sind).
         // Die Antwort kommt auf einem XPC-Thread; der Closure darf deshalb nicht MainActor-isoliert sein.
         requestSupplementaryLexicon(completion: Self.lexiconHandler { [weak self] lexicon in
-            self?.words.lexiconWords = lexicon.entries
+            let names = lexicon.entries
                 .filter { $0.userInput == $0.documentText }
                 .map { $0.documentText }
+            self?.words.lexiconWords = names
+            // Kontaktnamen auch beim Swipe, falls der Decoder schon geladen ist.
+            self?.swipeDecoder?.add(words: names)
         })
         observers = [DarwinObserver(Blitz.Note.resultReady) { [weak self] in self?.insertDictation() }]
         let height = view.heightAnchor.constraint(equalToConstant: Self.barHeight + Self.keysHeight)
@@ -59,6 +62,7 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         keyboard.swipeEnabled = Blitz.isSwipeEnabled
         words.userWords = Blitz.userWords
+        swipeDecoder?.add(words: Blitz.userWords)
         usage.load()
         words.usage = usage
         loadSwipeDecoderIfNeeded()
@@ -105,6 +109,8 @@ final class KeyboardViewController: UIInputViewController {
             let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
             let decoder = text.isEmpty ? nil : SwipeDecoder(lexicon: text, extraWords: extra)
             await MainActor.run {
+                // Was seit dem Start dazukam (Kontaktnamen, gemerkte Wörter), gleich mit aufnehmen.
+                decoder?.add(words: Blitz.userWords + (self?.words.lexiconWords ?? []))
                 self?.swipeDecoder = decoder
                 self?.decoderLoading = false
             }
@@ -413,6 +419,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func keepAndLearn(_ word: String) {
         words.learn(word)
+        swipeDecoder?.add(words: [word])
         usage.record(word)
         textDocumentProxy.insertText(" ")
         afterEdit()

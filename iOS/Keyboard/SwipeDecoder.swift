@@ -15,6 +15,8 @@ final class SwipeDecoder: @unchecked Sendable {
     static let samples = 40
     private var byFirst: [Character: [Entry]] = [:]
     private(set) var wordCount = 0
+    /// Schon bekannte Wörter (klein), damit Nachträge nicht doppelt landen.
+    private var known = Set<String>()
 
     /// Lexikon „Wort<TAB>Wert“ je Zeile, dazu eigene Wörter mit hohem Gewicht.
     init(lexicon text: String, extraWords: [String]) {
@@ -43,6 +45,21 @@ final class SwipeDecoder: @unchecked Sendable {
             byFirst[first, default: []].append(Entry(word: value.word, letters: letters, prior: value.score / top))
         }
         wordCount = best.count
+        known = Set(best.keys)
+    }
+
+    /// Eigene Wörter und Kontaktnamen zur Laufzeit ergänzen (z. B. „Brigitte“, das Apples
+    /// Wörterbuch nicht kennt). Gewicht wie eigene Wörter beim Laden: mittlere Häufigkeit.
+    func add(words: [String]) {
+        for word in words {
+            let key = word.lowercased()
+            guard !known.contains(key) else { continue }
+            let letters = Self.collapse(Self.keyLetters(word))
+            guard letters.count >= 2, let first = letters.first else { continue }
+            byFirst[first, default: []].append(Entry(word: word, letters: letters, prior: 0.5))
+            known.insert(key)
+            wordCount += 1
+        }
     }
 
     /// Buchstaben, wie sie auf den Tasten liegen: klein, ß wie s, Akzente weg, Umlaute bleiben.
