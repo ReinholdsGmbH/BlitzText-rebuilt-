@@ -1,42 +1,9 @@
 import AVFoundation
 import UIKit
 
-/// Pegelmessung im Audio-Thread. Kein MainActor, deshalb eigenes Lock.
-final class LevelMeter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var isRecording = false
-    private var frames: Int = 0
-    private var peak: Float = 0
-    private var file: AVAudioFile?
-
-    /// Startet die Aufnahme in eine Datei im Format des Mikrofons.
-    func begin(writingTo url: URL, format: AVAudioFormat) throws {
-        let newFile = try AVAudioFile(forWriting: url, settings: format.settings,
-                                      commonFormat: format.commonFormat, interleaved: format.isInterleaved)
-        lock.withLock { isRecording = true; frames = 0; peak = 0; file = newFile }
-    }
-
-    /// Beendet die Aufnahme; die Datei wird mit dem Freigeben geschlossen.
-    func end() -> (frames: Int, peak: Float) {
-        lock.withLock { isRecording = false; file = nil; return (frames, peak) }
-    }
-
-    func process(_ buffer: AVAudioPCMBuffer) {
-        guard let channel = buffer.floatChannelData?[0] else { return }
-        let count = Int(buffer.frameLength)
-        var localPeak: Float = 0
-        for i in 0..<count { localPeak = max(localPeak, abs(channel[i])) }
-        lock.withLock {
-            guard isRecording else { return }
-            frames += count
-            peak = max(peak, localPeak)
-            try? file?.write(from: buffer)
-        }
-    }
-}
-
 /// Die "Session": Audio-Engine läuft durchgehend (orange Punkt an), damit die App im
 /// Hintergrund lebt und die Tastatur Start/Stopp ohne App-Wechsel auslösen kann.
+/// Dieselbe Engine nimmt auch Meetings auf.
 @MainActor
 final class SessionController: ObservableObject {
     @Published private(set) var state: Spike.State = .off
@@ -44,17 +11,23 @@ final class SessionController: ObservableObject {
     @Published private(set) var batteryAtStart: Float?
     @Published private(set) var sessionStart: Date?
     @Published private(set) var appGroupOK = Spike.defaults != nil
+    @Published private(set) var modelStatus = "nicht geladen"
+    @Published private(set) var activeMeetingID: UUID?
 
     /// Auto-Stop nach so viel Leerlauf in Minuten; 0 = aus. Standard 5 min wie bei Wispr.
     @Published var idleLimitMinutes: Int = UserDefaults.standard.object(forKey: "idleLimitMinutes") as? Int ?? 5 {
         didSet { UserDefaults.standard.set(idleLimitMinutes, forKey: "idleLimitMinutes") }
     }
 
-    @Published private(set) var modelStatus = "nicht geladen"
+    let history: DictationHistory
+    let meetings: MeetingStore
+    private let parakeet = ParakeetEngine()
+    private lazy var processor = MeetingProcessor(store: meetings, history: history, parakeet: parakeet) { [weak self] in
+        self?.add($0)
+    }
 
     private let engine = AVAudioEngine()
     private let meter = LevelMeter()
-    private let parakeet = ParakeetEngine()
     private var inputFormat: AVAudioFormat?
     private let recordingURL = FileManager.default.temporaryDirectory.appendingPathComponent("diktat.caf")
     private var heartbeat: Timer?
@@ -62,7 +35,9 @@ final class SessionController: ObservableObject {
     private var sampleRate: Double = 48_000
     private var observers: [DarwinObserver] = []
 
-    init() {
+    init(history: DictationHistory, meetings: MeetingStore) {
+        self.history = history
+        self.meetings = meetings
         UIDevice.current.isBatteryMonitoringEnabled = true
         observers = [
             DarwinObserver(Spike.Note.start) { [weak self] in self?.startRecording() },
@@ -84,6 +59,8 @@ final class SessionController: ObservableObject {
         startSession()
         if url.query?.contains("record=1") == true { startRecording() }
     }
+
+    // MARK: - Session
 
     func startSession() {
         guard state == .off else { return }
@@ -124,6 +101,7 @@ final class SessionController: ObservableObject {
 
     func endSession(reason: String) {
         guard state != .off else { return }
+        if state == .meeting { stopMeeting() }
         heartbeat?.invalidate()
         heartbeat = nil
         engine.stop()
@@ -133,6 +111,8 @@ final class SessionController: ObservableObject {
         add("Session beendet (\(reason)), Akku \(percent(batteryNow))")
         publishState()
     }
+
+    // MARK: - Diktat
 
     private func startRecording() {
         guard state == .idle else {
@@ -171,6 +151,7 @@ final class SessionController: ObservableObject {
         do {
             let raw = try await parakeet.transcribe(recordingURL)
             text = raw.isEmpty ? "" : raw + " "
+            if !raw.isEmpty { history.add(text: raw, seconds: seconds) }
             add(String(format: "Parakeet: %.1f s für %.1f s Audio (%@), %d Zeichen",
                        Date().timeIntervalSince(started), seconds,
                        background ? "Hintergrund" : "Vordergrund", raw.count))
@@ -186,6 +167,53 @@ final class SessionController: ObservableObject {
         publishState()
         Spike.post(Spike.Note.resultReady)
     }
+
+    // MARK: - Meeting
+
+    func startMeeting() {
+        if state == .off { startSession() }
+        guard state == .idle, let inputFormat else {
+            add("Meeting-Start nicht möglich, Zustand \(state.rawValue)")
+            return
+        }
+        let meeting = meetings.create()
+        // AAC statt PCM: eine Stunde sind so rund 30 MB statt fast 700 MB.
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: inputFormat.sampleRate,
+            AVNumberOfChannelsKey: inputFormat.channelCount,
+            AVEncoderBitRateKey: 64_000,
+        ]
+        do {
+            try meter.begin(writingTo: meetings.audioURL(for: meeting.id), format: inputFormat, fileSettings: settings)
+        } catch {
+            meetings.update(meeting.id) { $0.status = .failed("Aufnahme nicht möglich"); $0.end = Date() }
+            add("Meeting-Aufnahme nicht anlegbar: \(error.localizedDescription)")
+            return
+        }
+        activeMeetingID = meeting.id
+        state = .meeting
+        add("Meeting-Aufnahme läuft")
+        publishState()
+    }
+
+    func stopMeeting() {
+        guard state == .meeting, let id = activeMeetingID else { return }
+        let (frames, _) = meter.end()
+        activeMeetingID = nil
+        state = .idle
+        lastActivity = Date()
+        publishState()
+        meetings.update(id) { $0.end = Date(); $0.status = .transcribing }
+        add(String(format: "Meeting beendet: %.0f s Audio", Double(frames) / sampleRate))
+        Task { await processor.process(id) }
+    }
+
+    func reprocess(_ id: UUID) {
+        Task { await processor.process(id) }
+    }
+
+    // MARK: - Modell, Takt, Unterbrechungen
 
     private func preloadModel() {
         modelStatus = "lädt …"

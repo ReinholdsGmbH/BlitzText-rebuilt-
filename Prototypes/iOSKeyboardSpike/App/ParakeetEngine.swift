@@ -26,6 +26,13 @@ actor ParakeetEngine {
         }
     }
 
+    /// Für Meetings: volles Ergebnis mit Zeitstempeln pro Token (für die Sprecherzuordnung).
+    func transcribe(samples: [Float]) async throws -> ASRResult {
+        let manager = try await load()
+        var state = TdtDecoderState.make()
+        return try await manager.transcribe(samples, decoderState: &state)
+    }
+
     func transcribe(_ url: URL) async throws -> String {
         let manager = try await load()
         var state = TdtDecoderState.make()

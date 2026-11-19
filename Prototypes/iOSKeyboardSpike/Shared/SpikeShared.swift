@@ -14,10 +14,12 @@ enum Spike {
         static let state = "state"
         static let result = "result"
         static let resultID = "resultID"
+        /// Swipe-Eingabe in der Tastatur an/aus (Standard an).
+        static let swipeEnabled = "swipeEnabled"
     }
 
     enum State: String {
-        case off, idle, recording, processing
+        case off, idle, recording, processing, meeting
     }
 
     enum Note {
@@ -39,6 +41,10 @@ enum Spike {
               let raw = defaults?.string(forKey: Key.state),
               let state = State(rawValue: raw) else { return .off }
         return state
+    }
+
+    static var isSwipeEnabled: Bool {
+        defaults?.object(forKey: Key.swipeEnabled) as? Bool ?? true
     }
 
     static func post(_ name: String) {
