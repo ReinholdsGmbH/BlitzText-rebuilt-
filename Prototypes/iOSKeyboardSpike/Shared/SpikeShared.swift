@@ -19,6 +19,7 @@ enum Spike {
         /// Eigene Wörter (Namen, Fachbegriffe), von Tastatur und App gemeinsam gepflegt.
         static let userWords = "userWords"
         static let digitsMode = "digitsMode"
+        static let micOnRight = "micOnRight"
     }
 
     enum State: String {
@@ -66,6 +67,12 @@ enum Spike {
     static var digitsMode: DigitsMode {
         get { defaults?.string(forKey: Key.digitsMode).flatMap(DigitsMode.init) ?? .row }
         set { defaults?.set(newValue.rawValue, forKey: Key.digitsMode) }
+    }
+
+    /// Mikro-Knopf rechts (Standard) oder links neben den Vorschlägen.
+    static var isMicOnRight: Bool {
+        get { defaults?.object(forKey: Key.micOnRight) as? Bool ?? true }
+        set { defaults?.set(newValue, forKey: Key.micOnRight) }
     }
 
     static var userWords: [String] {

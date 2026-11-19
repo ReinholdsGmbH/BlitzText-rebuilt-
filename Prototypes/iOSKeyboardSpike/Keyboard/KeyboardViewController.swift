@@ -8,6 +8,7 @@ final class KeyboardViewController: UIInputViewController {
     private let spinner = UIActivityIndicatorView(style: .medium)
     private let statusLabel = UILabel()
     private let suggestionStack = UIStackView()
+    private let bar = UIStackView()
     private let words = WordSuggestions()
 
     private var layer: KeyboardLayer = .letters
@@ -55,6 +56,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.swipeEnabled = Spike.isSwipeEnabled
         words.userWords = Spike.userWords
         digits = Spike.digitsMode
+        placeMic(onRight: Spike.isMicOnRight)
         updateAutoShift()
         reloadKeys()
         refreshMic()
@@ -102,7 +104,8 @@ final class KeyboardViewController: UIInputViewController {
         suggestionStack.distribution = .fillEqually
         suggestionStack.spacing = 1
 
-        let bar = UIStackView(arrangedSubviews: [micButton, suggestionStack])
+        bar.addArrangedSubview(micButton)
+        bar.addArrangedSubview(suggestionStack)
         bar.axis = .horizontal
         bar.spacing = 8
         bar.alignment = .center
@@ -120,6 +123,12 @@ final class KeyboardViewController: UIInputViewController {
             spinner.centerXAnchor.constraint(equalTo: micButton.centerXAnchor),
             spinner.centerYAnchor.constraint(equalTo: micButton.centerYAnchor),
         ])
+    }
+
+    /// Mikro links oder rechts von der Vorschlagsleiste.
+    private func placeMic(onRight: Bool) {
+        bar.removeArrangedSubview(micButton)
+        bar.insertArrangedSubview(micButton, at: onRight ? bar.arrangedSubviews.count : 0)
     }
 
     private func buildKeyboard() {

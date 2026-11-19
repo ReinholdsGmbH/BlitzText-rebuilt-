@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject private var session: SessionController
     @State private var swipeEnabled = Spike.isSwipeEnabled
     @State private var digitsMode = Spike.digitsMode
+    @State private var micOnRight = Spike.isMicOnRight
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,11 @@ struct SettingsView: View {
                         .pickerStyle(.segmented)
                         .onChange(of: digitsMode) { _, value in Spike.digitsMode = value }
                     }
+                    Picker("Mikro-Knopf", selection: $micOnRight) {
+                        Text("Links").tag(false)
+                        Text("Rechts").tag(true)
+                    }
+                    .onChange(of: micOnRight) { _, value in Spike.isMicOnRight = value }
                     Toggle("Swipe-Eingabe", isOn: $swipeEnabled)
                         .onChange(of: swipeEnabled) { _, value in Spike.defaults?.set(value, forKey: Spike.Key.swipeEnabled) }
                 } header: {
