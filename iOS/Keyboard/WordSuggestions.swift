@@ -31,7 +31,7 @@ final class WordSuggestions {
     /// Vorschläge für das angefangene Wort: eigene Wörter zuerst, dann Korrekturen und Vervollständigungen.
     func suggestions(for partial: String) -> Result {
         guard !partial.isEmpty else { return Result(typed: nil, words: []) }
-        // Das Getippte steht immer zur Wahl, auch wenn iOS es kennt (z. B. „Raba“ neben „Rabatt“),
+        // Das Getippte steht immer zur Wahl, auch wenn iOS es kennt (z. B. ein Name neben einem ähnlichen Wörterbuchwort),
         // außer es ist schon ein eigenes Wort.
         let isOwn = userWords.contains { $0.caseInsensitiveCompare(partial) == .orderedSame }
         let typed = partial.count >= 2 && !isOwn ? partial : nil
