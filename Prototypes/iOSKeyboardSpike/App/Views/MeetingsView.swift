@@ -25,6 +25,7 @@ struct MeetingsView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.background)
             .navigationTitle("Meetings")
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { SessionToggle() } }
             .navigationDestination(for: UUID.self) { MeetingDetailView(meetingID: $0) }
         }
     }

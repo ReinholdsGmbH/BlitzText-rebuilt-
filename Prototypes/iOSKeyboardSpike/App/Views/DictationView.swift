@@ -1,24 +1,61 @@
 import SwiftUI
 
-/// Startseite: Wortzähler groß, darunter die Session und die letzten Diktate.
+/// Diktat: Wortzähler oben, darunter alle Diktate nach Tagen. Tippen kopiert, Wischen löscht.
+/// Die Session schaltet der Schalter oben rechts.
 struct DictationView: View {
     @EnvironmentObject private var session: SessionController
     @EnvironmentObject private var history: DictationHistory
+    @State private var query = ""
+    @State private var confirmDeleteAll = false
     @State private var toast: String?
+
+    private var filtered: [DictationEntry] {
+        query.isEmpty ? history.entries
+            : history.entries.filter { $0.text.localizedCaseInsensitiveContains(query) }
+    }
+
+    private var days: [(day: Date, entries: [DictationEntry])] {
+        let grouped = Dictionary(grouping: filtered) { Calendar.current.startOfDay(for: $0.date) }
+        return grouped.keys.sorted(by: >).map { ($0, grouped[$0] ?? []) }
+    }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    counter
-                    sessionCard
-                    recentCard
+            List {
+                Section { counter }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 8, trailing: 20))
+                if history.entries.isEmpty {
+                    Section {
+                        Text("Was du mit der BlitzText-Tastatur diktierst, landet hier. Tippen kopiert, nach links wischen löscht.")
+                            .font(.subheadline).foregroundStyle(Theme.muted)
+                    }
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 24)
+                ForEach(days, id: \.day) { day in
+                    Section(day.day.formatted(.dateTime.weekday(.wide).day().month(.wide))) {
+                        ForEach(day.entries) { entry in row(entry) }
+                    }
+                }
             }
+            .scrollContentBackground(.hidden)
             .background(Theme.background)
-            .navigationTitle("BlitzText")
+            .navigationTitle("Diktat")
+            .searchable(text: $query, prompt: "In Diktaten suchen")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { SessionToggle() }
+                if !history.entries.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Menu {
+                            Button("Alle löschen", systemImage: "trash", role: .destructive) { confirmDeleteAll = true }
+                        } label: { Image(systemName: "ellipsis.circle") }
+                    }
+                }
+            }
+            .confirmationDialog("Alle Diktate löschen?", isPresented: $confirmDeleteAll, titleVisibility: .visible) {
+                Button("Alle löschen", role: .destructive) { history.deleteAll() }
+            } message: {
+                Text("Der Wortzähler bleibt erhalten.")
+            }
             .toast($toast)
         }
     }
@@ -30,69 +67,61 @@ struct DictationView: View {
                 .foregroundStyle(Theme.ink)
                 .contentTransition(.numericText())
                 .animation(.snappy, value: history.totalWords)
-            Text("Wörter insgesamt")
-                .font(.headline)
-                .foregroundStyle(Theme.muted)
-            Text("\(history.dictatedWords.grouped) diktiert · \(history.meetingWords.grouped) in Meetings")
+            Text("Wörter insgesamt · \(history.dictatedWords.grouped) diktiert · \(history.meetingWords.grouped) in Meetings")
                 .font(.subheadline)
                 .foregroundStyle(Theme.muted)
-        }
-        .padding(.top, 8)
-        .padding(.bottom, 4)
-    }
-
-    private var sessionCard: some View {
-        Card("Session") {
-            HStack(alignment: .center, spacing: 14) {
+            HStack(spacing: 8) {
                 StatusDot(state: session.state)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(session.state.headline).font(.title3.weight(.semibold)).foregroundStyle(Theme.ink)
-                    Text(session.state.detail).font(.subheadline).foregroundStyle(Theme.muted)
-                }
-                Spacer()
+                Text(session.state.detail).font(.footnote).foregroundStyle(Theme.muted)
             }
-            if session.state == .off {
-                Button { session.startSession() } label: {
-                    Label("Session starten", systemImage: "mic.fill").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            } else {
-                Button(role: .destructive) { session.endSession(reason: "manuell") } label: {
-                    Label("Session beenden", systemImage: "stop.fill").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                Text("Zurück in deine App: unten nach rechts wischen oder oben links „◀ …“ antippen. Dann diktierst du direkt aus der BlitzText-Tastatur.")
-                    .font(.footnote).foregroundStyle(Theme.muted)
-            }
-            LabeledContent("Spracherkennung", value: session.modelStatus)
-                .font(.footnote).foregroundStyle(Theme.muted)
+            .padding(.top, 6)
         }
     }
 
-    @ViewBuilder
-    private var recentCard: some View {
-        if !history.entries.isEmpty {
-            Card("Zuletzt") {
-                ForEach(history.entries.prefix(3)) { entry in
-                    Button {
-                        Clipboard.copy(entry.text)
-                        toast = "Kopiert"
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(entry.text).font(.body).foregroundStyle(Theme.ink).lineLimit(3)
-                                .multilineTextAlignment(.leading)
-                            Text("\(entry.date.formatted(date: .omitted, time: .shortened)) · \(entry.words) Wörter · tippen zum Kopieren")
-                                .font(.caption).foregroundStyle(Theme.muted)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
-                    if entry.id != history.entries.prefix(3).last?.id { Divider() }
-                }
+    private func row(_ entry: DictationEntry) -> some View {
+        Button { copy(entry) } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(entry.text).foregroundStyle(Theme.ink).lineLimit(5).multilineTextAlignment(.leading)
+                Text("\(entry.date.formatted(date: .omitted, time: .shortened)) · \(entry.words) Wörter")
+                    .font(.caption).foregroundStyle(Theme.muted)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .buttonStyle(.plain)
+        .swipeActions(edge: .trailing) {
+            Button("Löschen", systemImage: "trash", role: .destructive) { history.delete(entry) }
+        }
+        .swipeActions(edge: .leading) {
+            Button("Kopieren", systemImage: "doc.on.doc") { copy(entry) }.tint(Theme.accent)
+        }
+        .contextMenu {
+            Button("Kopieren", systemImage: "doc.on.doc") { copy(entry) }
+            ShareLink(item: entry.text)
+            Button("Löschen", systemImage: "trash", role: .destructive) { history.delete(entry) }
+        }
+    }
+
+    private func copy(_ entry: DictationEntry) {
+        Clipboard.copy(entry.text)
+        toast = "Kopiert"
+    }
+}
+
+/// Schalter oben rechts: Session an/aus. Während Diktat oder Meeting zeigt er den Zustand und bleibt an.
+struct SessionToggle: View {
+    @EnvironmentObject private var session: SessionController
+
+    var body: some View {
+        Toggle(isOn: Binding(
+            get: { session.state != .off },
+            set: { on in on ? session.startSession() : session.endSession(reason: "manuell") }
+        )) {
+            Text(session.state.headline).font(.footnote.weight(.semibold))
+        }
+        .toggleStyle(.switch)
+        .tint(session.state == .meeting || session.state == .recording ? Theme.recording : Theme.success)
+        .fixedSize()
+        .accessibilityLabel("Session")
     }
 }
 
@@ -104,8 +133,8 @@ struct StatusDot: View {
     var body: some View {
         Circle()
             .fill(color)
-            .frame(width: 14, height: 14)
-            .overlay(Circle().stroke(color.opacity(0.35), lineWidth: pulse ? 10 : 0))
+            .frame(width: 10, height: 10)
+            .overlay(Circle().stroke(color.opacity(0.35), lineWidth: pulse ? 8 : 0))
             .animation(isLive ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true) : .default, value: pulse)
             .onAppear { pulse = isLive }
             .onChange(of: state) { pulse = isLive }
@@ -127,20 +156,20 @@ extension Spike.State {
     var headline: String {
         switch self {
         case .off: "Aus"
-        case .idle: "Bereit"
+        case .idle: "An"
         case .recording: "Hört zu"
-        case .processing: "Schreibt …"
-        case .meeting: "Meeting läuft"
+        case .processing: "Schreibt"
+        case .meeting: "Meeting"
         }
     }
 
     var detail: String {
         switch self {
-        case .off: "Start hier oder über das Mikro in der Tastatur."
-        case .idle: "Diktieren über die BlitzText-Tastatur, in jeder App."
+        case .off: "Session aus. Schalter oben rechts oder Mikro in der Tastatur."
+        case .idle: "Bereit. Diktiere über die BlitzText-Tastatur, in jeder App."
         case .recording: "Diktat läuft."
         case .processing: "Parakeet transkribiert auf dem Gerät."
-        case .meeting: "Diktat ist pausiert, bis das Meeting endet."
+        case .meeting: "Meeting läuft, Diktat pausiert."
         }
     }
 }

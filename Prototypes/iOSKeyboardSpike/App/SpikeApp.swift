@@ -31,7 +31,6 @@ struct RootView: View {
         TabView {
             Tab("Diktat", systemImage: "bolt.fill") { DictationView() }
             Tab("Meetings", systemImage: "person.2.wave.2") { MeetingsView() }
-            Tab("Verlauf", systemImage: "clock.arrow.circlepath") { HistoryView() }
             Tab("Einstellungen", systemImage: "gearshape") { SettingsView() }
         }
     }
