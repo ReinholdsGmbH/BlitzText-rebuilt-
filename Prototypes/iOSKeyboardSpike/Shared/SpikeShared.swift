@@ -32,6 +32,13 @@ enum Spike {
         static let resultReady = "de.reinholds.blitzspike.resultReady"
     }
 
+    /// Gemeinsamer Ordner von App und Tastatur (App Group), z. B. für das Swipe-Wörterbuch.
+    static var containerURL: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
+    }
+
+    static var swipeLexiconURL: URL? { containerURL?.appendingPathComponent("swipe-lexicon.tsv") }
+
     /// nil, wenn die App Group nicht verfügbar ist (z. B. Signatur ohne Entitlement).
     static var defaults: UserDefaults? { UserDefaults(suiteName: appGroup) }
 

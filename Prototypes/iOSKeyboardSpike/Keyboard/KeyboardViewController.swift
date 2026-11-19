@@ -24,6 +24,8 @@ final class KeyboardViewController: UIInputViewController {
     private var refreshTimer: Timer?
     private var lastInsertedID: String?
     private var lastState: Spike.State?
+    /// Formvergleich-Decoder; lädt das von der App gebaute Wörterbuch im Hintergrund.
+    private var swipeDecoder: SwipeDecoder?
 
     private static let barHeight: CGFloat = 46
     private static let keysHeight: CGFloat = 216
@@ -55,6 +57,7 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         keyboard.swipeEnabled = Spike.isSwipeEnabled
         words.userWords = Spike.userWords
+        loadSwipeDecoderIfNeeded()
         digits = Spike.digitsMode
         placeMic(onRight: Spike.isMicOnRight)
         updateAutoShift()
@@ -84,6 +87,22 @@ final class KeyboardViewController: UIInputViewController {
         { lexicon in
             let box = LexiconBox(lexicon: lexicon)
             DispatchQueue.main.async { MainActor.assumeIsolated { deliver(box.lexicon) } }
+        }
+    }
+
+    private var decoderLoading = false
+
+    private func loadSwipeDecoderIfNeeded() {
+        guard swipeDecoder == nil, !decoderLoading, let url = Spike.swipeLexiconURL else { return }
+        decoderLoading = true
+        let extra = Spike.userWords + words.lexiconWords
+        Task.detached(priority: .utility) { [weak self] in
+            let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            let decoder = text.isEmpty ? nil : SwipeDecoder(lexicon: text, extraWords: extra)
+            await MainActor.run {
+                self?.swipeDecoder = decoder
+                self?.decoderLoading = false
+            }
         }
     }
 
@@ -142,7 +161,7 @@ final class KeyboardViewController: UIInputViewController {
         ])
         keyboard.onAction = { [weak self] in self?.handle($0) }
         keyboard.onInsertAlternate = { [weak self] in self?.insert($0) }
-        keyboard.onSwipe = { [weak self] path, corners in self?.handleSwipe(path: path, corners: corners) }
+        keyboard.onSwipe = { [weak self] path, corners, points in self?.handleSwipe(path: path, corners: corners, points: points) }
     }
 
     private var layoutSignature = ""
@@ -282,8 +301,13 @@ final class KeyboardViewController: UIInputViewController {
 
     // MARK: - Swipe
 
-    private func handleSwipe(path: [String], corners: [String]) {
-        let candidates = words.swipeCandidates(path: path, corners: corners)
+    private func handleSwipe(path: [String], corners: [String], points: [CGPoint]) {
+        var candidates: [String] = []
+        if let decoder = swipeDecoder {
+            let geometry = keyboard.letterGeometry
+            candidates = decoder.decode(points: points, centers: geometry.centers, keyWidth: geometry.keyWidth)
+        }
+        if candidates.isEmpty { candidates = words.swipeCandidates(path: path, corners: corners) }
         guard let best = candidates.first else {
             statusLabel.text = "Kein Wort: \(words.lastDiagnosis)"
             statusLabel.adjustsFontSizeToFitWidth = true

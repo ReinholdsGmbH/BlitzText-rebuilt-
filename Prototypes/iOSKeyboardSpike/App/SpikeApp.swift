@@ -7,6 +7,7 @@ struct SpikeApp: App {
     @StateObject private var session: SessionController
     @StateObject private var sharedFolder: SharedFolder
     @StateObject private var oneDrive: OneDriveSync
+    @StateObject private var lexicon = SwipeLexiconBuilder()
 
     init() {
         let history = DictationHistory()
@@ -28,6 +29,8 @@ struct SpikeApp: App {
                 .environmentObject(meetings)
                 .environmentObject(sharedFolder)
                 .environmentObject(oneDrive)
+                .environmentObject(lexicon)
+                .task { lexicon.buildIfNeeded() }
                 .onOpenURL { session.handle(url: $0) }
                 .tint(Theme.accent)
         }

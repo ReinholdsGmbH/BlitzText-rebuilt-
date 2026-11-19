@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject private var session: SessionController
     @EnvironmentObject private var sharedFolder: SharedFolder
     @EnvironmentObject private var oneDrive: OneDriveSync
+    @EnvironmentObject private var lexicon: SwipeLexiconBuilder
     @EnvironmentObject private var meetings: MeetingStore
     @State private var choosingFolder = false
     @State private var folderAlert: String?
@@ -48,6 +49,11 @@ struct SettingsView: View {
                     }
                     .onChange(of: micOnRight) { _, value in Spike.isMicOnRight = value }
                     Toggle("Swipe-Eingabe", isOn: $swipeEnabled)
+                    LabeledContent("Swipe-Wörterbuch", value: lexicon.status.isEmpty ? "fehlt" : lexicon.status)
+                    Button(lexicon.running ? "Wird aufgebaut …" : "Swipe-Wörterbuch neu aufbauen") {
+                        Task { await lexicon.build() }
+                    }
+                    .disabled(lexicon.running)
                         .onChange(of: swipeEnabled) { _, value in Spike.defaults?.set(value, forKey: Spike.Key.swipeEnabled) }
                 } header: {
                     Text("Tastatur")

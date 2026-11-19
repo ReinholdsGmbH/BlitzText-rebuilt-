@@ -63,7 +63,19 @@ final class KeyboardView: UIView {
     var onAction: ((KeyAction) -> Void)?
     var onInsertAlternate: ((String) -> Void)?
     /// Swipe fertig: besuchte Buchstaben in Reihenfolge und die Ecken der Spur.
-    var onSwipe: ((_ path: [String], _ corners: [String]) -> Void)?
+    var onSwipe: ((_ path: [String], _ corners: [String], _ points: [CGPoint]) -> Void)?
+
+    /// Mitte jeder Buchstabentaste und Breite einer Buchstabentaste, für den Swipe-Decoder.
+    var letterGeometry: (centers: [Character: CGPoint], keyWidth: CGFloat) {
+        var centers: [Character: CGPoint] = [:]
+        var width: CGFloat = 0
+        for cap in caps.flatMap({ $0 }) {
+            guard let letter = cap.spec.letter?.first else { continue }
+            centers[letter] = CGPoint(x: cap.frame.midX, y: cap.frame.midY)
+            width = max(width, cap.frame.width + gap)
+        }
+        return (centers, width)
+    }
     var swipeEnabled = true
 
     var rows: [[KeySpec]] = [] { didSet { rebuild() } }
@@ -226,7 +238,7 @@ final class KeyboardView: UIView {
         }
         if isSwiping {
             if swipeLetters.count >= 2 {
-                onSwipe?(swipeLetters, corners())
+                onSwipe?(swipeLetters, corners(), points)
             } else if let letter = swipeLetters.first {
                 onAction?(.character(letter))
             }
