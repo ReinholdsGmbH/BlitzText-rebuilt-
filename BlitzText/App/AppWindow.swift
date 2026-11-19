@@ -204,13 +204,21 @@ struct AppRootView: View {
                             .clipped()
                         Rectangle().fill(MeetingTheme.border).frame(width: 1)
                         Group {
-                            if controller.isRecording {
+                            if controller.isRecording, !library.showsArchiveWhileRecording || library.selected == nil {
                                 LiveMeetingView(controller: controller, chat: chat)
                             } else if let entry = library.selected {
-                                MeetingDetailView(entry: entry, library: library).id(entry.folder)
+                                VStack(spacing: 0) {
+                                    if controller.isRecording {
+                                        BackToRecordingBar { library.showsArchiveWhileRecording = false }
+                                    }
+                                    MeetingDetailView(entry: entry, library: library).id(entry.folder)
+                                }
                             } else {
                                 EmptyDetail()
                             }
+                        }
+                        .onChange(of: controller.isRecording) { _, _ in
+                            library.showsArchiveWhileRecording = false
                         }
                         .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
@@ -483,5 +491,24 @@ struct UpdateBadge: View {
         }
         .padding(.trailing, 14)
         .frame(width: 190, height: 28)
+    }
+}
+
+/// Leiste über einem gespeicherten Meeting, solange im Hintergrund eine Aufnahme läuft.
+struct BackToRecordingBar: View {
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle().fill(Color.red).frame(width: 8, height: 8)
+            Text("Aufnahme läuft weiter").font(.system(size: 12.5, weight: .medium))
+            Spacer(minLength: 4)
+            Button("Zur Aufnahme", action: action)
+                .buttonStyle(LavenderButtonStyle(compact: true))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        .background(MeetingTheme.backgroundTertiary)
+        .overlay(alignment: .bottom) { Rectangle().fill(MeetingTheme.border).frame(height: 1) }
     }
 }

@@ -154,6 +154,7 @@ struct MeetingListColumn: View {
             library.marked = []
         }
         library.selection = entry.folder
+        library.showsArchiveWhileRecording = controller.isRecording
     }
 
     private func dayLabel(_ day: Date) -> String {
