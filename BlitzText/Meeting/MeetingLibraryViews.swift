@@ -1340,6 +1340,7 @@ struct NotesEditor: View {
 /// mit Reitern wie beim fertigen Meeting.
 struct LiveMeetingView: View {
     @ObservedObject var controller: MeetingController
+    @ObservedObject var chat: MeetingChat
     @State private var tab: Tab = .transcript
 
     enum Tab: Hashable { case transcript, notes }
@@ -1381,6 +1382,9 @@ struct LiveMeetingView: View {
                     .font(.caption).foregroundStyle(MeetingTheme.foregroundTertiary)
             }
             Spacer(minLength: 0)
+            if case .recording(let startedAt) = controller.phase {
+                LiveQuestionsPanel(chat: chat, controller: controller, startedAt: startedAt)
+            }
         }
         .padding(.horizontal, 32)
         .padding(.top, 26)
