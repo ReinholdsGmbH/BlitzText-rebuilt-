@@ -152,6 +152,24 @@ final class MeetingController: ObservableObject {
             Log.write("MeetingController: aktive Quellen \(sources.map(\.displayName))")
         }
         activeSources = sources
+        logNoticeChange()
+    }
+
+    /// Zuletzt protokollierte Sichtbarkeit des Hinweises „Meeting erkannt“.
+    private var loggedNoticeVisible = false
+
+    /// Schreibt ins Log, wann die Pille „Meeting erkannt“ erscheint oder verschwindet und
+    /// warum. Damit lässt sich prüfen, ob eine ausgebliebene Pille an der Erkennung lag.
+    private func logNoticeChange() {
+        let visible = showsDetectionNotice
+        guard visible != loggedNoticeVisible else { return }
+        loggedNoticeVisible = visible
+        let reason: String
+        if visible { reason = "Quelle \(activeSources.map(\.displayName))" }
+        else if activeSources.isEmpty { reason = "keine aktive Quelle" }
+        else if noticeDismissed { reason = "weggeklickt oder gesperrt seit letzter Aufnahme" }
+        else { reason = "Phase \(phase)" }
+        Log.write("MeetingController: Hinweis „Meeting erkannt“ \(visible ? "sichtbar" : "aus") (\(reason))")
     }
 
     /// Nur für Aufnahmen, die einer erkannten Meeting-App gelten.
@@ -180,6 +198,7 @@ final class MeetingController: ObservableObject {
 
     func dismissNotice() {
         noticeDismissed = true
+        defer { logNoticeChange() }
         switch phase {
         case .finished, .failed: phase = .idle
         default: break

@@ -56,6 +56,7 @@ enum AppSection: String, CaseIterable, Identifiable {
 final class AppWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var dockObserver: AnyCancellable?
+    private var chatLinker: AnyCancellable?
     private let model: AppWindowModel
     private let library: MeetingLibrary
     private let controller: MeetingController
@@ -86,6 +87,10 @@ final class AppWindowController: NSObject, NSWindowDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in DispatchQueue.main.async { self?.applyDockPolicy() } }
         applyDockPolicy()
+        // Chats aus laufenden Meetings an das fertige Meeting hängen, sobald es in der Liste ist.
+        chatLinker = library.$entries
+            .receive(on: DispatchQueue.main)
+            .sink { [weak chat] entries in chat?.linkLiveThreads(entries: entries) }
     }
 
     /// Hinweis rechts in der Titelleiste, sobald der Updater eine neuere Version kennt.
@@ -200,7 +205,7 @@ struct AppRootView: View {
                         Rectangle().fill(MeetingTheme.border).frame(width: 1)
                         Group {
                             if controller.isRecording {
-                                LiveMeetingView(controller: controller)
+                                LiveMeetingView(controller: controller, chat: chat)
                             } else if let entry = library.selected {
                                 MeetingDetailView(entry: entry, library: library).id(entry.folder)
                             } else {
