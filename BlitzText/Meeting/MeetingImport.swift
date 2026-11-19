@@ -34,6 +34,48 @@ enum MeetingImport {
 
     static let microphoneMarkers = ["mic", "mikro", "microphone", "mikrofon", "ich", "me"]
 
+    /// Was eine vom iPhone gesendete Datei mitbringt: Beginn aus dem Dateinamen
+    /// („dd.mm.jj_hh.mm_Titel.m4a“), Titel und eigene Notizen aus den Metadaten.
+    struct SourceInfo: Equatable {
+        var startedAt: Date?
+        var title: String?
+        var userNotes: String?
+    }
+
+    /// Beginn aus einem Dateinamen „19.11.26_10.07_…“ in der lokalen Zeitzone, sonst nil.
+    static func startDate(fromFileName name: String, timeZone: TimeZone = .current) -> Date? {
+        let pattern = #"^(\d{2})\.(\d{2})\.(\d{2})_(\d{2})\.(\d{2})(_|\.|$)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)) else { return nil }
+        func number(_ index: Int) -> Int? {
+            Range(match.range(at: index), in: name).flatMap { Int(name[$0]) }
+        }
+        guard let day = number(1), let month = number(2), let year = number(3),
+              let hour = number(4), let minute = number(5) else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = DateComponents(year: 2000 + year, month: month, day: day, hour: hour, minute: minute)
+        guard let date = calendar.date(from: components),
+              calendar.component(.day, from: date) == day, calendar.component(.month, from: date) == month else { return nil }
+        return date
+    }
+
+    static func sourceInfo(for url: URL) async -> SourceInfo {
+        var info = SourceInfo(startedAt: startDate(fromFileName: url.lastPathComponent))
+        guard let items = try? await AVURLAsset(url: url).load(.metadata) else { return info }
+        for item in items {
+            guard let identifier = item.identifier,
+                  let value = try? await item.load(.stringValue)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty else { continue }
+            switch identifier {
+            case .iTunesMetadataUserComment, .commonIdentifierDescription: info.userNotes = value
+            case .iTunesMetadataSongName, .commonIdentifierTitle: info.title = value
+            default: break
+            }
+        }
+        return info
+    }
+
     static func plan(for urls: [URL]) throws -> Plan {
         switch urls.count {
         case 0: throw ImportError.noFiles
