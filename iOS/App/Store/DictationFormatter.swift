@@ -105,22 +105,52 @@ enum DictationFormatter {
 
     // MARK: - Prüfung der KI-Fassung
 
-    /// Hat die KI-Fassung den Wortbestand behalten? Erlaubt sind Satzzeichen, Großschreibung,
-    /// Listenzeichen und das Wegfallen von „erstens/zweitens …“; Wörter dürfen kaum fehlen oder dazukommen.
+    /// Wörter, die in einer Liste wegfallen dürfen: Aufzählungs- und Füllwörter.
+    static let listFillers: Set<String> = Set(ordinals + [
+        "als", "erstes", "nächstes", "letztes", "zuerst", "zunächst", "dann", "danach", "außerdem",
+        "zudem", "weiterhin", "zuletzt", "schließlich", "noch", "und", "sowie", "auch", "ich", "möchte",
+        "will", "würde", "muss", "müssen", "wir", "gern", "gerne", "mal", "bitte",
+    ])
+
+    /// Hat die KI-Fassung den Wortbestand behalten? Erlaubt: Satzzeichen, Großschreibung,
+    /// Listenzeichen, wegfallende Aufzählungs- und Füllwörter. Inhaltswörter und Zahlen müssen
+    /// bleiben, neue Wörter darf es kaum geben.
     static func preservesWords(original: String, formatted: String) -> Bool {
+        let withoutMarkers = replace(#"(?m)^\s*(\d+\.|-|•)\s+"#, in: formatted, with: "")
         func words(_ text: String) -> [String] {
             text.lowercased()
-                .split(whereSeparator: { !$0.isLetter })
+                .split(whereSeparator: { !($0.isLetter || $0.isNumber) })
                 .map(String.init)
-                .filter { !ordinals.contains($0) }
         }
-        var remaining = Dictionary(words(original).map { ($0, 1) }, uniquingKeysWith: +)
+        let originalWords = words(original)
+        var remaining = Dictionary(originalWords.map { ($0, 1) }, uniquingKeysWith: +)
         var added = 0
-        for word in words(formatted) {
+        for word in words(withoutMarkers) {
             if let count = remaining[word], count > 0 { remaining[word] = count - 1 } else { added += 1 }
         }
-        let missing = remaining.values.reduce(0, +)
-        let total = max(words(original).count, 1)
-        return missing <= max(1, total / 20) && added <= max(2, total / 12)
+        let missing = remaining.filter { $0.value > 0 && !listFillers.contains($0.key) }
+        // Zahlen sind nie entbehrlich („Sache 1“).
+        if missing.keys.contains(where: { $0.allSatisfy(\.isNumber) }) { return false }
+        let missingContent = missing.values.reduce(0, +)
+        let total = max(originalWords.count, 1)
+        return missingContent <= max(0, total / 25) && added <= max(1, total / 15)
+    }
+
+    /// Fängt die KI-Fassung direkt mit „1.“ an, obwohl im Diktat ein Satz vor der Aufzählung
+    /// stand, wird dieser Satz mit Doppelpunkt davorgesetzt.
+    static func restoreIntro(original: String, formatted: String) -> String {
+        let firstLine = formatted.split(separator: "\n").first.map(String.init) ?? ""
+        guard firstLine.range(of: #"^\s*(1\.|-)\s"#, options: .regularExpression) != nil else { return formatted }
+        let markers = ordinals + ["als erstes", "zuerst", "zunächst"]
+        let lower = original.lowercased()
+        guard let marker = markers.compactMap({ lower.range(of: $0) }).min(by: { $0.lowerBound < $1.lowerBound }) else {
+            return formatted
+        }
+        let before = original[..<marker.lowerBound]
+        guard let sentenceEnd = before.lastIndex(where: { ".!?".contains($0) }) else { return formatted }
+        var intro = String(original[...sentenceEnd]).trimmingCharacters(in: .whitespaces)
+        guard !intro.isEmpty else { return formatted }
+        intro = String(intro.dropLast()) + ":"
+        return intro + "\n" + formatted
     }
 }

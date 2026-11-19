@@ -99,6 +99,7 @@ final class SessionController: ObservableObject {
         state = .idle
         add("Session gestartet, Akku \(percent(batteryNow))")
         preloadModel()
+        if aiFormatting { DictationAI.prewarm() }
         heartbeat = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
