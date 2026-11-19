@@ -1,0 +1,67 @@
+# Wegwerf-Spike: prüft, ob Haupt-App (Background Audio) + Tastatur-Erweiterung + App Group
+# mit kostenlosem Personal Team signiert und läuft. Kein Produktivcode.
+# Erzeugen: xcodegen generate   (Team-ID gehört in Local.xcconfig, siehe Local.xcconfig.example)
+name: BlitzSpike
+options:
+  bundleIdPrefix: de.reinholds
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: de
+configFiles:
+  Debug: Spike.xcconfig
+  Release: Spike.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: "1"
+targets:
+  BlitzSpike:
+    type: application
+    platform: iOS
+    sources: [App, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.reinholds.blitzspike
+        CODE_SIGN_ENTITLEMENTS: App/App.entitlements
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: BlitzSpike
+        UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        NSMicrophoneUsageDescription: "BlitzSpike nimmt für den Machbarkeitstest Audio auf."
+        CFBundleURLTypes:
+          - CFBundleURLName: de.reinholds.blitzspike
+            CFBundleURLSchemes: [blitzspike]
+    entitlements:
+      path: App/App.entitlements
+      properties:
+        com.apple.security.application-groups: [group.de.reinholds.blitzspike]
+    dependencies:
+      - target: BlitzSpikeKeyboard
+  BlitzSpikeKeyboard:
+    type: app-extension
+    platform: iOS
+    sources: [Keyboard, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.reinholds.blitzspike.keyboard
+        CODE_SIGN_ENTITLEMENTS: Keyboard/Keyboard.entitlements
+    info:
+      path: Keyboard/Info.plist
+      properties:
+        CFBundleDisplayName: BlitzSpike
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
+          NSExtensionAttributes:
+            IsASCIICapable: false
+            PrefersRightToLeft: false
+            PrimaryLanguage: de-DE
+            RequestsOpenAccess: true
+    entitlements:
+      path: Keyboard/Keyboard.entitlements
+      properties:
+        com.apple.security.application-groups: [group.de.reinholds.blitzspike]
