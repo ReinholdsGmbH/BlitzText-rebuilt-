@@ -1,0 +1,7 @@
+Local.xcconfig
+BlitzText-iOS.xcodeproj/
+App/Info.plist
+App/App.entitlements
+Keyboard/Info.plist
+Keyboard/Keyboard.entitlements
+build/

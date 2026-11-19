@@ -259,10 +259,11 @@ Plans:
 Eingeplante Initiativen für künftige Milestones — werden bei Bedarf via `/gsd-insert-phase` oder neuem Milestone aktiviert.
 
 ### Phase 999.1: iOS-/iPadOS-Port
-**Goal**: BlitzText als mobile App mit angepassten Trigger-Modellen, gleiche Transkriptions-/Rewrite-Pipeline
-**Depends on**: macOS-Version stabil; FluidAudio iOS-Support geprüft
+**Goal**: BlitzText als iOS-App mit Diktat-Tastatur (Session-Modell: Haupt-App hält Mikrofon im Hintergrund, Tastatur steuert Start/Stopp und fügt Text ein), gleiche Transkriptions-/Rewrite-Pipeline über ein gemeinsames Core-Package
+**Depends on**: macOS-Version stabil
 **Requirements**: BL-IOS
-**Notes**: Andere Hotkey-/Trigger-Modelle (Keyboard-Shortcut, Action-Button, Share-Sheet); shared core mit macOS prüfen
+**Context**: 999.1-MACHBARKEIT.md (Machbarkeit 2026-11-19: Session-App + Tastatur + App Group mit Personal Team geprüft; FluidAudio/Parakeet unterstützt iOS)
+**Notes**: Erst Akku-Messung und Parakeet im Spike (`iOS`), dann `BlitzTextCore`-Package; weitere Trigger (Action-Button, Share-Sheet, Kontrollzentrum) später
 
 ### Phase 999.2: Meeting-Transkription
 **Goal**: Längere Aufnahmen mit Diarization, dedizierte UI/Workflow (kein Auto-Paste, Speichern + Anzeigen mit Sprecher-Annotationen)

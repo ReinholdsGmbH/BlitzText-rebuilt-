@@ -1,0 +1,2 @@
+// Team-ID nicht einchecken: steht in Local.xcconfig (gitignored).
+#include? "Local.xcconfig"

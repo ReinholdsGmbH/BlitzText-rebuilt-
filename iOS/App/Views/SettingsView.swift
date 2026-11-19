@@ -1,0 +1,254 @@
+import SwiftUI
+import UIKit
+
+struct SettingsView: View {
+    @EnvironmentObject private var session: SessionController
+    @EnvironmentObject private var sharedFolder: SharedFolder
+    @EnvironmentObject private var oneDrive: OneDriveSync
+    @EnvironmentObject private var lexicon: SwipeLexiconBuilder
+    @EnvironmentObject private var dictionary: DictionarySync
+    @EnvironmentObject private var meetings: MeetingStore
+    @State private var choosingFolder = false
+    @State private var folderAlert: String?
+    @State private var pickedFolder: URL?
+    @State private var swipeEnabled = Blitz.isSwipeEnabled
+    @State private var digitsMode = Blitz.digitsMode
+    @State private var micOnRight = Blitz.isMicOnRight
+    @State private var clipboardPreview = Blitz.isClipboardPreviewEnabled
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Intelligente Formatierung", isOn: $session.aiFormatting)
+                    LabeledContent("Apple Intelligence", value: DictationAI.statusText)
+                } header: {
+                    Text("Diktat")
+                } footer: {
+                    Text("Gesprochene Satzzeichen („Ausrufezeichen“, „neue Zeile“), Emojis („Herz Emoji“) und Aufzählungen („erstens … dann … als Letztes“) als nummerierte Liste gelten immer, auch ohne Apple Intelligence. Eingeschaltet formatiert Apple Intelligence auf dem Gerät zusätzlich Listen und Absätze, ohne Wörter zu ändern; weicht das Ergebnis ab oder dauert es länger als 4 s, bleibt der Text ohne KI.")
+                }
+
+                Section {
+                    Picker("Auto-Stop bei Leerlauf", selection: $session.idleLimitMinutes) {
+                        Text("5 min").tag(5)
+                        Text("30 min").tag(30)
+                        Text("aus").tag(0)
+                    }
+                } header: {
+                    Text("Session")
+                } footer: {
+                    Text("Solange die Session läuft, ist das Mikrofon offen (orange Anzeige). Ohne Diktat endet sie nach der gewählten Zeit.")
+                }
+
+                Section {
+                    NavigationLink {
+                        UserWordsView()
+                    } label: {
+                        LabeledContent("Eigene Wörter", value: "\(Blitz.userWords.count)")
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Ziffern über den Buchstaben")
+                        Picker("Ziffern", selection: $digitsMode) {
+                            ForEach(Blitz.DigitsMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: digitsMode) { _, value in Blitz.digitsMode = value }
+                    }
+                    Picker("Mikro-Knopf", selection: $micOnRight) {
+                        Text("Links").tag(false)
+                        Text("Rechts").tag(true)
+                    }
+                    .onChange(of: micOnRight) { _, value in Blitz.isMicOnRight = value }
+                    Toggle("Vorschau der Zwischenablage", isOn: $clipboardPreview)
+                        .onChange(of: clipboardPreview) { _, value in Blitz.isClipboardPreviewEnabled = value }
+                    Toggle("Swipe-Eingabe", isOn: $swipeEnabled)
+                    LabeledContent("Swipe-Wörterbuch", value: lexicon.status.isEmpty ? "fehlt" : lexicon.status)
+                    Button(lexicon.running ? "Wird aufgebaut …" : "Swipe-Wörterbuch neu aufbauen") {
+                        Task { await lexicon.build() }
+                    }
+                    .disabled(lexicon.running)
+                        .onChange(of: swipeEnabled) { _, value in Blitz.defaults?.set(value, forKey: Blitz.Key.swipeEnabled) }
+                } header: {
+                    Text("Tastatur")
+                } footer: {
+                    Text("Ziffern: „Langer Druck“ (Standard) legt sie auf q bis p, „Leiste“ zeigt 1 bis 0 als flache Reihe. Rücktaste 2 s halten löscht ganze Wörter. Für die Vorschau der Zwischenablage ohne Rückfrage einmal in den iPhone-Einstellungen unter Apps › BlitzText › „Aus anderen Apps einfügen“ auf „Erlauben“ stellen.\n\nEinrichten: Einstellungen › Allgemein › Tastatur › Tastaturen › Tastatur hinzufügen › BlitzText, danach „Vollen Zugriff erlauben“. Den vollen Zugriff braucht das Mikro in der Tastatur.")
+                }
+
+                Section {
+                    if oneDrive.isConnected {
+                        LabeledContent("Verbunden", value: oneDrive.accountName ?? "ja")
+                        Toggle("Fertige Meetings automatisch hochladen", isOn: $sharedFolder.autoDeliver)
+                        Button("Alle fertigen Meetings jetzt hochladen") { shareAll() }
+                        if let message = sharedFolder.lastMessage {
+                            Text(message).font(.footnote).foregroundStyle(Theme.muted)
+                        }
+                        Button("Wörterbuch jetzt abgleichen") { Task { await dictionary.sync() } }
+                        if !dictionary.status.isEmpty {
+                            Text(dictionary.status).font(.footnote).foregroundStyle(Theme.muted)
+                        }
+                        Button("Von OneDrive trennen", role: .destructive) { oneDrive.disconnect() }
+                    } else {
+                        Button {
+                            Task { await oneDrive.connect() }
+                        } label: {
+                            if oneDrive.busy { ProgressView() } else { Text("Mit OneDrive verbinden …") }
+                        }
+                    }
+                    if let message = oneDrive.lastMessage {
+                        Text(message).font(.footnote).foregroundStyle(Theme.muted)
+                    }
+                } header: {
+                    Text("OneDrive")
+                } footer: {
+                    Text("Fertige Meetings landen direkt in OneDrive unter „Anwendungen/BlitzText iPhone“ (englisch „Apps“), ohne Dateien-App. BlitzText darf nur in diesen Ordner schreiben. Am Mac unter Einstellungen › iPhone-Ablage den Ordner „OneDrive-Persönlich/Anwendungen/BlitzText iPhone“ wählen.")
+                }
+
+                // Mit OneDrive braucht es keinen gewählten Ordner mehr; er bleibt nur als Ausweg ohne OneDrive.
+                if !oneDrive.isConnected {
+                Section {
+                    LabeledContent("Ordner", value: sharedFolder.folderName ?? "keiner")
+                    Button(sharedFolder.isConfigured ? "Anderen Ordner wählen …" : "Ordner wählen …") { choosingFolder = true }
+                    Toggle("Fertige Meetings automatisch ablegen", isOn: $sharedFolder.autoDeliver)
+                    Button("Alle fertigen Meetings jetzt ablegen") { shareAll() }
+                        .disabled(!sharedFolder.isConfigured)
+                    if let message = sharedFolder.lastMessage {
+                        Text(message).font(.footnote).foregroundStyle(Theme.muted)
+                    }
+                } header: {
+                    Text("Gemeinsame Ablage")
+                } footer: {
+                    Text("Ordner wählen: in den gewünschten Ordner hineinwechseln und oben rechts „Öffnen“ tippen. Ein Ordner in iCloud Drive, OneDrive oder Nextcloud. Fertige Meetings landen dort unter „BlitzText iPhone“ mit Transkript, Notizen und Audio. Am Mac denselben Ordner unter Einstellungen › iPhone-Ablage wählen; die Mac-App übernimmt alles unverändert und legt das Protokoll im Wissensordner ab.")
+                }
+                }
+
+                Section("Status") {
+                    LabeledContent("App Group", value: session.appGroupOK ? "ok" : "fehlt")
+                    LabeledContent("Spracherkennung", value: session.modelStatus)
+                    if let start = session.batteryAtStart {
+                        LabeledContent("Akku Start / jetzt",
+                                       value: "\(Int(start * 100)) % / \(Int(session.batteryNow * 100)) %")
+                    }
+                    NavigationLink("Protokoll") { LogView() }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .navigationTitle("Einstellungen")
+            // Ordner erst nach dem Schließen des Dialogs übernehmen; das Ergebnis erscheint nur
+            // dann als Hinweis, nicht bei jedem späteren Wechsel in die Einstellungen.
+            .sheet(isPresented: $choosingFolder, onDismiss: {
+                guard let url = pickedFolder else { return }
+                pickedFolder = nil
+                sharedFolder.choose(url)
+                folderAlert = sharedFolder.lastMessage
+            }) {
+                FolderPicker { url in
+                    pickedFolder = url
+                    choosingFolder = false
+                }
+                .ignoresSafeArea()
+            }
+            .alert("Gemeinsame Ablage", isPresented: Binding(
+                get: { folderAlert != nil }, set: { if !$0 { folderAlert = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(folderAlert ?? "")
+            }
+        }
+    }
+}
+
+extension SettingsView {
+    func shareAll() {
+        Task {
+            for meeting in meetings.meetings where meeting.status == .done {
+                await session.share(meeting.id)
+            }
+        }
+    }
+}
+
+struct LogView: View {
+    @EnvironmentObject private var session: SessionController
+
+    var body: some View {
+        List(session.log, id: \.self) { line in
+            Text(line).font(.caption.monospaced())
+        }
+        .navigationTitle("Protokoll")
+        .toolbar {
+            ShareLink(item: session.log.joined(separator: "\n"))
+        }
+    }
+}
+
+/// Eigene Wörter der Tastatur: Namen und Fachbegriffe für Vorschläge und Swipe.
+struct UserWordsView: View {
+    @State private var words: [String] = Blitz.userWords
+    @State private var newWord = ""
+
+    var body: some View {
+        List {
+            Section {
+                HStack {
+                    TextField("Neues Wort, z. B. ein Name", text: $newWord)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onSubmit(add)
+                    Button("Hinzufügen", action: add)
+                        .disabled(newWord.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            } footer: {
+                Text("In der Tastatur: unbekanntes Wort tippen, dann den Vorschlag in „…“ antippen. Es landet hier.")
+            }
+            Section("\(words.count) Wörter") {
+                ForEach(words, id: \.self) { Text($0) }
+                    .onDelete { offsets in
+                        words.remove(atOffsets: offsets)
+                        Blitz.userWords = words
+                    }
+            }
+        }
+        .navigationTitle("Eigene Wörter")
+        .onAppear { words = Blitz.userWords }
+    }
+
+    private func add() {
+        let word = newWord.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !word.isEmpty else { return }
+        Blitz.userWords = words + [word]
+        words = Blitz.userWords
+        newWord = ""
+    }
+}
+
+/// Ordnerwahl über Apples Dokumentenauswahl (UIKit). Zuverlässiger als `fileImporter`, der sich
+/// nach einem Hinweisfenster in derselben Ansicht nicht erneut öffnen ließ.
+struct FolderPicker: UIViewControllerRepresentable {
+    let onPick: (URL?) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
+        picker.allowsMultipleSelection = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let onPick: (URL?) -> Void
+        init(onPick: @escaping (URL?) -> Void) { self.onPick = onPick }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            onPick(urls.first)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onPick(nil)
+        }
+    }
+}
