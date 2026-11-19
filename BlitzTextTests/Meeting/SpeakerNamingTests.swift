@@ -237,6 +237,21 @@ struct MeetingChatTests {
         #expect(MeetingSearch.snippet(in: entries()[0].document, for: "freitag") == "Anna: Der Cutover ist am Freitag")
     }
 
+    @Test("Chat kennt das heutige Datum und den Wochentag jedes Meetings")
+    func dates() throws {
+        let berlin = try #require(TimeZone(identifier: "Europe/Berlin"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = berlin
+        let today = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 19, hour: 10, minute: 30)))
+        #expect(MeetingChat.todayLine(today) == "Heute ist Donnerstag, 19.11.2026, 10:30 Uhr.")
+
+        let yesterday = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 18, hour: 8, minute: 30)))
+        let document = MeetingDocument(startedAt: yesterday, duration: 600, sourceNames: ["Teams"], lines: [],
+                                       summary: nil, notes: [])
+        #expect(MeetingSearch.dateLine(for: document) == "Zeit: Mittwoch, 18.11.2026, 08:30 bis 08:40 Uhr")
+        #expect(MeetingSearch.context(for: document, limit: 10_000).contains("Mittwoch, 18.11.2026"))
+    }
+
     @Test("Chat über alle Meetings nennt die Quellen")
     func askAll() async {
         let chat = MeetingChat(makeSummarizer: { FakeSummarizer(result: .success(""), askResult: .success("Am Freitag.")) })
