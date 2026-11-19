@@ -36,6 +36,17 @@ enum DictationAI {
         LanguageModelSession(instructions: instructions).prewarm()
     }
 
+    /// Für die Einstellungen: ob und warum Apple Intelligence nicht erreichbar ist.
+    static var statusText: String {
+        switch SystemLanguageModel.default.availability {
+        case .available: return "verfügbar"
+        case .unavailable(.deviceNotEligible): return "Gerät nicht geeignet"
+        case .unavailable(.appleIntelligenceNotEnabled): return "in den iPhone-Einstellungen aus"
+        case .unavailable(.modelNotReady): return "Modell wird noch geladen"
+        case .unavailable: return "nicht verfügbar"
+        }
+    }
+
     static var isAvailable: Bool {
         if case .available = SystemLanguageModel.default.availability { return true }
         return false

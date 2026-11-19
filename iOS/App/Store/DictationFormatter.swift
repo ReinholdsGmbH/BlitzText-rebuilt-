@@ -41,30 +41,79 @@ enum DictationFormatter {
     static let ordinals = ["erstens", "zweitens", "drittens", "viertens", "fünftens",
                            "sechstens", "siebtens", "achtens", "neuntens", "zehntens"]
 
-    /// „… erstens A, zweitens B und drittens C“ → Einleitung plus nummerierte Liste.
-    static func ordinalList(_ text: String) -> String {
-        let pattern = #"[\s,;]*\b("# + ordinals.joined(separator: "|") + #")\b[\s,:]*"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return text }
-        let ns = text as NSString
-        let matches = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
-        guard matches.count >= 2 else { return text }
+    /// Wörter, die eine Aufzählung beginnen. „erstens“ und „als Erstes“ reichen mit einem
+    /// Folgewort; „zuerst“ und „zunächst“ kommen auch in normalen Sätzen vor und brauchen zwei.
+    static let strongStarts = ["erstens", "als erstes", "zum einen"]
+    static let weakStarts = ["zuerst", "zunächst"]
+    static let followers = Array(ordinals.dropFirst()) + [
+        "als nächstes", "als letztes", "zum anderen", "zum schluss", "danach", "außerdem",
+        "zudem", "weiterhin", "zuletzt", "schließlich", "dann",
+    ]
+    /// Am Rand eines Listenpunkts entbehrlich.
+    static let edgeFillers: Set<String> = [
+        "und", "oder", "ich", "wir", "möchte", "möchten", "will", "wollen", "muss", "müssen", "würde",
+        "würden", "sollte", "sollten", "gern", "gerne", "noch", "außerdem", "dann", "danach", "auch",
+        "zudem", "bitte", "mal", "also",
+    ]
 
-        var intro = ns.substring(to: matches[0].range.location).trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Aufzählung im Fließtext → Einleitung mit Doppelpunkt plus nummerierte Liste.
+    /// „Erstens möchte ich A klären, dann außerdem B und als Letztes noch C.“ → 1. A klären, 2. B, 3. C
+    static func ordinalList(_ text: String) -> String {
+        let alternatives = (strongStarts + weakStarts + followers)
+            .sorted { $0.count > $1.count }
+            .map { NSRegularExpression.escapedPattern(for: $0) }
+            .joined(separator: "|")
+        guard let regex = try? NSRegularExpression(pattern: #"\b("# + alternatives + #")\b"#, options: [.caseInsensitive]) else {
+            return text
+        }
+        let ns = text as NSString
+        let all = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        // Erst ab dem ersten Startwort zählt die Aufzählung.
+        guard let startIndex = all.firstIndex(where: { match in
+            let word = ns.substring(with: match.range).lowercased()
+            return strongStarts.contains(word) || weakStarts.contains(word)
+        }) else { return text }
+        let startWord = ns.substring(with: all[startIndex].range).lowercased()
+        let markers = Array(all[startIndex...])
+        let neededFollowers = weakStarts.contains(startWord) ? 2 : 1
+        guard markers.count - 1 >= neededFollowers else { return text }
+
+        // Ende der Aufzählung: Satzende nach dem letzten Marker.
+        let lastMarkerEnd = markers.last!.range.location + markers.last!.range.length
+        let tail = ns.substring(from: lastMarkerEnd)
+        let sentenceEndOffset = tail.firstIndex(where: { ".!?\n".contains($0) }).map { tail.distance(from: tail.startIndex, to: $0) + 1 }
+        let listEnd = sentenceEndOffset.map { lastMarkerEnd + ($0 as Int) } ?? ns.length
+
         var items: [String] = []
-        for (index, match) in matches.enumerated() {
-            let start = match.range.location + match.range.length
-            let end = index + 1 < matches.count ? matches[index + 1].range.location : ns.length
-            var item = ns.substring(with: NSRange(location: start, length: max(0, end - start)))
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            for suffix in [" und", " oder", ",", ";"] where item.lowercased().hasSuffix(suffix) {
-                item = String(item.dropLast(suffix.count)).trimmingCharacters(in: .whitespaces)
-            }
-            if !item.isEmpty { items.append(capitalizeFirst(item)) }
+        for (index, marker) in markers.enumerated() {
+            let start = marker.range.location + marker.range.length
+            let end = index + 1 < markers.count ? markers[index + 1].range.location : listEnd
+            guard end > start else { continue }
+            let item = cleanItem(ns.substring(with: NSRange(location: start, length: end - start)))
+            if !item.isEmpty { items.append(item) }
         }
         guard items.count >= 2 else { return text }
-        if !intro.isEmpty, let last = intro.last, !":.!?".contains(last) { intro += ":" }
+
+        var intro = ns.substring(to: markers[0].range.location).trimmingCharacters(in: .whitespacesAndNewlines)
+        while let last = intro.last, ",;.".contains(last) { intro.removeLast() }
+        intro = intro.trimmingCharacters(in: .whitespaces)
+        if !intro.isEmpty { intro += ":" }
+        let outro = ns.substring(from: min(listEnd, ns.length)).trimmingCharacters(in: .whitespacesAndNewlines)
+
         let list = items.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
-        return intro.isEmpty ? list : intro + "\n" + list
+        return [intro, list, outro].filter { !$0.isEmpty }.joined(separator: "\n")
+            .replacingOccurrences(of: list + "\n" + outro, with: outro.isEmpty ? list : list + "\n\n" + outro)
+    }
+
+    /// Satzzeichen und Füllwörter am Rand weg, erster Buchstabe groß.
+    private static func cleanItem(_ raw: String) -> String {
+        var words = raw.split(whereSeparator: \.isWhitespace).map(String.init)
+        func bare(_ word: String) -> String { word.lowercased().trimmingCharacters(in: .punctuationCharacters) }
+        while let first = words.first, edgeFillers.contains(bare(first)) || bare(first).isEmpty { words.removeFirst() }
+        while let last = words.last, edgeFillers.contains(bare(last)) || bare(last).isEmpty { words.removeLast() }
+        var item = words.joined(separator: " ").trimmingCharacters(in: CharacterSet(charactersIn: " ,;.:"))
+        if let first = item.first { item = first.uppercased() + item.dropFirst() }
+        return item
     }
 
     // MARK: - Aufräumen
