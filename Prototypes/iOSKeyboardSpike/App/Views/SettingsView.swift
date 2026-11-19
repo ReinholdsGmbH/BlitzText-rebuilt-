@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject private var sharedFolder: SharedFolder
     @EnvironmentObject private var meetings: MeetingStore
     @State private var choosingFolder = false
+    @State private var folderAlert: String?
     @State private var swipeEnabled = Spike.isSwipeEnabled
     @State private var digitsMode = Spike.digitsMode
     @State private var micOnRight = Spike.isMicOnRight
@@ -70,7 +71,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Gemeinsame Ablage")
                 } footer: {
-                    Text("Ein Ordner in iCloud Drive oder OneDrive. Fertige Meetings landen dort unter „BlitzText iPhone“ mit Transkript, Notizen und Audio. Am Mac denselben Ordner unter Einstellungen › iPhone-Ablage wählen; die Mac-App übernimmt alles unverändert und legt das Protokoll im Wissensordner ab.")
+                    Text("Ordner wählen: in den gewünschten Ordner hineinwechseln und oben rechts „Öffnen“ tippen. Ein Ordner in iCloud Drive, OneDrive oder Nextcloud. Fertige Meetings landen dort unter „BlitzText iPhone“ mit Transkript, Notizen und Audio. Am Mac denselben Ordner unter Einstellungen › iPhone-Ablage wählen; die Mac-App übernimmt alles unverändert und legt das Protokoll im Wissensordner ab.")
                 }
 
                 Section("Status") {
@@ -87,7 +88,20 @@ struct SettingsView: View {
             .background(Theme.background)
             .navigationTitle("Einstellungen")
             .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
-                if case .success(let url) = result { sharedFolder.choose(url) }
+                switch result {
+                case .success(let url): sharedFolder.choose(url)
+                case .failure(let error): sharedFolder.report(error)
+                }
+            }
+            .alert("Gemeinsame Ablage", isPresented: Binding(
+                get: { folderAlert != nil }, set: { if !$0 { folderAlert = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(folderAlert ?? "")
+            }
+            .onChange(of: sharedFolder.lastMessage) { _, message in
+                if let message { folderAlert = message }
             }
         }
     }

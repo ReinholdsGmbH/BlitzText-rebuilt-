@@ -40,17 +40,39 @@ final class SharedFolder: ObservableObject {
 
     var isConfigured: Bool { folderName != nil }
 
+    /// Übernimmt den gewählten Ordner. Manche Anbieter (z. B. Nextcloud) liefern kein volles
+    /// Lesezeichen; dann wird ein minimales versucht. Danach ein Probeschreiben, damit ein
+    /// Ordner ohne Schreibrecht sofort auffällt statt erst beim ersten Meeting.
     func choose(_ url: URL) {
+        lastMessage = nil
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let data: Data
         do {
-            let data = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
-            UserDefaults.standard.set(data, forKey: bookmarkKey)
-            folderName = url.lastPathComponent
-            lastMessage = nil
+            data = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
         } catch {
-            lastMessage = "Ordner nicht übernommen: \(error.localizedDescription)"
+            do {
+                data = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
+            } catch let fallbackError {
+                lastMessage = "„\(url.lastPathComponent)“ nicht übernommen: \(fallbackError.localizedDescription) (Zugriff beim Start: \(scoped ? "ja" : "nein"))"
+                return
+            }
         }
+        let probe = url.appendingPathComponent(PhoneMeetingPackage.folderName, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: probe, withIntermediateDirectories: true)
+        } catch {
+            lastMessage = "„\(url.lastPathComponent)“ gewählt, aber nicht beschreibbar: \(error.localizedDescription)"
+            return
+        }
+        UserDefaults.standard.set(data, forKey: bookmarkKey)
+        folderName = url.lastPathComponent
+        lastMessage = "Ordner „\(url.lastPathComponent)“ gewählt."
+    }
+
+    func report(_ error: Error) {
+        lastMessage = nil
+        lastMessage = "Ordnerwahl fehlgeschlagen: \(error.localizedDescription)"
     }
 
     func clear() {
