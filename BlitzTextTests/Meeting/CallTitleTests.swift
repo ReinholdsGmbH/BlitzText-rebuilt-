@@ -29,9 +29,9 @@ struct CallTitleTests {
     func titleFallsBackToCallTitle() {
         var doc = MeetingDocument(startedAt: Date(), duration: 60, sourceNames: ["Microsoft Teams"],
                                   lines: [], summary: nil, notes: [])
-        doc.callTitle = "Reinholds Daily"
-        #expect(MeetingMarkdown.baseTitle(for: doc) == "Reinholds Daily")
-        #expect(doc.summaryInput.hasPrefix("Name der Besprechung laut Teams: Reinholds Daily"))
+        doc.callTitle = "Team Daily"
+        #expect(MeetingMarkdown.baseTitle(for: doc) == "Team Daily")
+        #expect(doc.summaryInput.hasPrefix("Name der Besprechung laut Teams: Team Daily"))
         doc.aiTitle = "Eigener Titel"
         #expect(MeetingMarkdown.baseTitle(for: doc) == "Eigener Titel")
     }
@@ -46,13 +46,13 @@ struct CallTitleTests {
         var doc = MeetingDocument(startedAt: Date(), duration: 30, sourceNames: ["Microsoft Teams"],
                                   lines: [TranscriptLine(speaker: .others, start: 1, end: 3, text: "Hallo", speakerID: "1")],
                                   summary: nil, notes: [])
-        doc.callTitle = "Reinholds Daily"
+        doc.callTitle = "Team Daily"
         try archive.writeProtocol(doc, in: folder)
         let library = MeetingLibrary(archive: archive, diarizer: nil,
                                      makeSummarizer: { FakeSummarizer(result: .success("TITEL: KI-Titel\n### Zusammenfassung\n- A")) })
         library.reload()
         await library.regenerateSummary(in: folder)
         let saved = try #require(archive.load(folder: folder))
-        #expect(MeetingMarkdown.baseTitle(for: saved) == "Reinholds Daily")
+        #expect(MeetingMarkdown.baseTitle(for: saved) == "Team Daily")
     }
 }
