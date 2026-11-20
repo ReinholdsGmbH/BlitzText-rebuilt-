@@ -82,3 +82,42 @@ extension MeetingDocument {
         return document
     }
 }
+
+extension MeetingDocument {
+    /// Baut die Zuordnung aus einer frischen Sprechertrennung neu auf: Jeder Beitrag der
+    /// Gegenseite geht an die Stimme, die zeitlich am meisten mit ihm überlappt. Namen gibt
+    /// es danach nur noch aus eindeutig passenden Profilen.
+    func resettingSpeakers(to diarization: MeetingDiarization, excludingSelf: Bool) -> MeetingDocument {
+        var document = self
+        document.lines = lines.map { line in
+            guard canReassign(line) else { return line }
+            return TranscriptLine(speaker: line.speaker, start: line.start, end: line.end, text: line.text,
+                                  speakerID: Self.speaker(for: line, in: diarization.segments))
+        }
+        document.speakerNames = [:]
+        document.nameSources = [:]
+        for (id, name) in diarization.knownNames where !(excludingSelf && SpeakerNaming.isSelf(name)) {
+            document.speakerNames[id] = name
+            document.nameSources[id] = .profile
+        }
+        document.learnedSamples = nil
+        return document
+    }
+
+    /// Stimme mit dem größten zeitlichen Überlapp; ohne Überlapp der nächste Abschnitt.
+    static func speaker(for line: TranscriptLine, in segments: [DiarizedSegment]) -> String? {
+        var overlap: [String: TimeInterval] = [:]
+        for segment in segments {
+            let shared = min(segment.end, line.end) - max(segment.start, line.start)
+            if shared > 0 { overlap[segment.speakerID, default: 0] += shared }
+        }
+        if let best = overlap.max(by: { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) }) {
+            return best.key
+        }
+        let middle = (line.start + line.end) / 2
+        func distance(_ segment: DiarizedSegment) -> TimeInterval {
+            middle < segment.start ? segment.start - middle : max(0, middle - segment.end)
+        }
+        return segments.min { distance($0) < distance($1) }?.speakerID
+    }
+}

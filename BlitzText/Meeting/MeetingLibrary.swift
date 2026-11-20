@@ -109,9 +109,10 @@ final class MeetingLibrary: ObservableObject {
             .map { SpeechSpan(start: $0.start, end: $0.end) }
         let track = folder.appendingPathComponent(document.diarizedTrack)
         var profileNote: String?
+        var sample: LearnedSample?
         if let diarizer {
             do {
-                try await diarizer.learnProfile(name: name, from: track, spans: spans)
+                sample = try await diarizer.learnProfile(name: name, from: track, spans: spans)
             } catch {
                 profileNote = error.localizedDescription
             }
@@ -120,9 +121,11 @@ final class MeetingLibrary: ObservableObject {
         // Reicht die Stimme nicht für ein Profil (etwa nur ein kurzer Satz), gilt der Name
         // trotzdem als zugeordnet: `.manual` statt `.meetingApp`, sonst stünde die Stimme
         // für immer wieder unter „Wer spricht hier?“.
-        let updated = document.assigning(name: name, to: speakerID,
+        var updated = document.assigning(name: name, to: speakerID,
                                          source: profileNote == nil ? .confirmed : .manual)
-        save(updated, at: index)
+        if let sample { updated.learnedSamples = (updated.learnedSamples ?? []) + [sample] }
+        // Während des Lernens kann sich die Liste geändert haben.
+        save(updated, at: self.index(of: folder) ?? index)
         refreshKnownNames()
         if let profileNote { lastError = "Name übernommen, ohne Stimmprofil: \(profileNote)" }
     }
@@ -274,6 +277,34 @@ final class MeetingLibrary: ObservableObject {
         Log.write("MeetingLibrary: Abgleich \(folder.lastPathComponent) — \(voices.count) Stimmen, \(plan.names.count) erkannt, \(plan.merges.count) zusammengelegt")
         guard !plan.isEmpty, let current = self.index(of: folder) else { return }
         save(entries[current].document.applying(plan), at: current)
+    }
+
+    /// Verwirft alle Namen und Umhängungen dieses Meetings, nimmt die daraus gelernten
+    /// Stimmproben wieder aus den Profilen und trennt die Stimmen neu. Text und gelöschte
+    /// Beiträge bleiben, nur die Zuordnung wird neu aufgebaut.
+    func resetSpeakers(in folder: URL) async {
+        guard let diarizer, let index = index(of: folder) else { return }
+        let document = entries[index].document
+        busy = "Erkenne Sprecher neu …"
+        defer { busy = nil }
+        // Zuerst die Proben entfernen, damit die neue Erkennung nicht auf ihnen beruht.
+        diarizer.forget(document.learnedSamples ?? [])
+        do {
+            let diarization = try await diarizer.diarize(track: folder.appendingPathComponent(document.diarizedTrack))
+            guard let current = self.index(of: folder) else { return }
+            let excluding = document.diarizedTrack == MeetingArchive.othersTrackFile
+            save(entries[current].document.resettingSpeakers(to: diarization, excludingSelf: excluding), at: current)
+            Log.write("MeetingLibrary: Zuordnung zurückgesetzt \(folder.lastPathComponent), \(document.learnedSamples?.count ?? 0) Proben entfernt")
+        } catch {
+            // Die Proben sind schon raus; das Meeting zeigt sie aber weiter als gelernt an.
+            if let current = self.index(of: folder) {
+                var unlearned = entries[current].document
+                unlearned.learnedSamples = nil
+                save(unlearned, at: current)
+            }
+            lastError = "Sprecher nicht neu erkannt: \(error.localizedDescription)"
+        }
+        refreshKnownNames()
     }
 
     static let mixedVoicesName = "Mehrere Personen"

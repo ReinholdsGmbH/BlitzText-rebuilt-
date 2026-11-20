@@ -61,6 +61,7 @@
 		39858F60F5C3A31D2FCEE18C /* SpeakerNamingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3FCDB00D3559177DEA22002 /* SpeakerNamingTests.swift */; };
 		3F55A73CB0EE5FA21A9873DD /* UeberTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8659A9B1B4413A7C878DA8FE /* UeberTab.swift */; };
 		416D982E2F44218C603391E9 /* UpdateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CA3B1A1E68CA900D3C6944 /* UpdateService.swift */; };
+		43FBFC2455BCD553B4419BF2 /* SpeakerResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B1F2EA39C99512CB10CD08 /* SpeakerResetTests.swift */; };
 		456C649FD65C53DA1F55446B /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05E474160016E12581FCA33 /* HistoryView.swift */; };
 		4692A39432B9AC7BA776AA9A /* LiveQuestionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371663723241B31FD48C00DB /* LiveQuestionsTests.swift */; };
 		48745E2A18111B1C1825D794 /* OllamaRewriteClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A25B8911B446B60B911BA4A /* OllamaRewriteClient.swift */; };
@@ -199,6 +200,7 @@
 		0B1BC8E40FD8A939B8377AB8 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		0BF0B5AE7B6146CDBA633A7E /* SpeakerProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerProfileStoreTests.swift; sourceTree = "<group>"; };
 		0C7122A8A416D11E0DB7060B /* SuggestionPresenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionPresenterTests.swift; sourceTree = "<group>"; };
+		12B1F2EA39C99512CB10CD08 /* SpeakerResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerResetTests.swift; sourceTree = "<group>"; };
 		12CA4C98FD05E4B280B7AD2A /* ExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExceptionCatcher.h; sourceTree = "<group>"; };
 		12EEB952C202F77FDBCA3CC0 /* SecretVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretVault.swift; sourceTree = "<group>"; };
 		138899AFCB62E0CE46B3C771 /* MeetingArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingArchive.swift; sourceTree = "<group>"; };
@@ -715,6 +717,7 @@
 				A3FCDB00D3559177DEA22002 /* SpeakerNamingTests.swift */,
 				247DF0729959CF78B8A54170 /* SpeakerRematcherTests.swift */,
 				BDEAAADABAB2F12CCAE766AB /* SpeakerRematchLiveTests.swift */,
+				12B1F2EA39C99512CB10CD08 /* SpeakerResetTests.swift */,
 				574C650A4891995E6AD2D2D3 /* SpeechSegmenterTests.swift */,
 				81F8FDDC80C866047ABA1FAA /* TranscriptMergerTests.swift */,
 				8825225403EFC7D3A9003905 /* UIRenderTests.swift */,
@@ -951,6 +954,7 @@
 				EE81687387E610E55E72EBAE /* SpeakerProfileViewModelTests.swift in Sources */,
 				FB1EC07F1AF9CC14F6FE69B9 /* SpeakerRematchLiveTests.swift in Sources */,
 				0EDB11F0E31FDD3D98EBBA3B /* SpeakerRematcherTests.swift in Sources */,
+				43FBFC2455BCD553B4419BF2 /* SpeakerResetTests.swift in Sources */,
 				BA9171A5C31B3D043E8736AD /* SpeechSegmenterTests.swift in Sources */,
 				4A94AF6913E792CD6C1A669C /* StatusPollerTests.swift in Sources */,
 				9EE0B6AFC0B15E71AA75F7D6 /* StringSimilarityTests.swift in Sources */,
