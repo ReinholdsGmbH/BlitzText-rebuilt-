@@ -387,6 +387,10 @@ struct PillPositionTests {
         defaults.set(NSStringFromPoint(NSPoint(x: 100, y: 200)), forKey: MeetingPillController.originKey)
         #expect(MeetingPillController.savedOrigin(defaults: defaults, screens: [screen]) == NSPoint(x: 100, y: 200))
 
+        // Neben dem Dock: unterhalb von visibleFrame, aber auf dem Bildschirm. Bleibt stehen.
+        defaults.set(NSStringFromPoint(NSPoint(x: 1165, y: 2)), forKey: MeetingPillController.originKey)
+        #expect(MeetingPillController.savedOrigin(defaults: defaults, screens: [screen]) == NSPoint(x: 1165, y: 2))
+
         // Zweiter Monitor fehlt: Position liegt außerhalb, Standardplatz greift.
         defaults.set(NSStringFromPoint(NSPoint(x: -1500, y: 1500)), forKey: MeetingPillController.originKey)
         #expect(MeetingPillController.savedOrigin(defaults: defaults, screens: [screen]) == nil)
