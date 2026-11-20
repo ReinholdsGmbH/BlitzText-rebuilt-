@@ -145,4 +145,16 @@ extension MeetingDocument {
         return document
     }
 
+    /// Entfernt Beiträge aus dem Transkript, etwa Gespräche, die nach dem Meeting noch
+    /// mitgelaufen sind. Gibt es schon eine Zusammenfassung, gilt sie danach als veraltet,
+    /// weil sie den gelöschten Inhalt noch enthalten kann.
+    func removingLines(at indices: IndexSet) -> MeetingDocument {
+        let kept = lines.enumerated().filter { !indices.contains($0.offset) }.map(\.element)
+        guard kept.count < lines.count else { return self }
+        var document = self
+        document.lines = kept
+        if document.summary != nil { document.summaryOutdated = true }
+        return document
+    }
+
 }

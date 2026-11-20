@@ -40,6 +40,8 @@ struct MeetingDocument: Codable, Equatable {
     /// Ende des Meetings. Nur bei zusammengeführten Meetings gesetzt (Pausen zwischen den
     /// Teilen); sonst gilt Beginn plus Dauer.
     var endedAt: Date?
+    /// Transkript wurde nach der Zusammenfassung gekürzt; „Neu erstellen“ setzt es zurück.
+    var summaryOutdated: Bool?
 
     /// Wann das Meeting endete.
     var endDate: Date { endedAt ?? startedAt.addingTimeInterval(duration) }
