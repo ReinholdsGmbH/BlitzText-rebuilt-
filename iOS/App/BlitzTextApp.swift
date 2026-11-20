@@ -10,6 +10,7 @@ struct BlitzTextApp: App {
     @StateObject private var lexicon = SwipeLexiconBuilder()
     @StateObject private var dictionary: DictionarySync
     @Environment(\.scenePhase) private var scenePhase
+    @State private var tab = AppTab.dictation
 
     init() {
         let history = DictationHistory()
@@ -26,7 +27,7 @@ struct BlitzTextApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            RootView(tab: $tab)
                 .environmentObject(session)
                 .environmentObject(history)
                 .environmentObject(meetings)
@@ -38,18 +39,24 @@ struct BlitzTextApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { Task { await dictionary.sync() } }
                 }
-                .onOpenURL { session.handle(url: $0) }
+                .onOpenURL { url in
+                    if url.host == "settings" { tab = .settings } else { session.handle(url: url) }
+                }
                 .tint(Theme.accent)
         }
     }
 }
 
+enum AppTab: Hashable { case dictation, meetings, settings }
+
 struct RootView: View {
+    @Binding var tab: AppTab
+
     var body: some View {
-        TabView {
-            Tab("Diktat", systemImage: "bolt.fill") { DictationView() }
-            Tab("Meetings", systemImage: "person.2.wave.2") { MeetingsView() }
-            Tab("Einstellungen", systemImage: "gearshape") { SettingsView() }
+        TabView(selection: $tab) {
+            Tab("Diktat", systemImage: "bolt.fill", value: .dictation) { DictationView() }
+            Tab("Meetings", systemImage: "person.2.wave.2", value: .meetings) { MeetingsView() }
+            Tab("Einstellungen", systemImage: "gearshape", value: .settings) { SettingsView() }
         }
     }
 }

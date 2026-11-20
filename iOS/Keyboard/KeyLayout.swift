@@ -12,8 +12,8 @@ enum KeyAction: Equatable {
     case character(String)
     case shift
     case backspace
-    /// Rücktaste lange gehalten: ganzes Wort löschen.
-    case deleteWord
+    /// Rücktaste lange gehalten: so viele ganze Wörter löschen.
+    case deleteWords(Int)
     /// Cursor-Steuerung: echten Cursor auf diesen Zeichenindex im Modell der Vorschau setzen.
     case cursorTo(Int)
     /// Cursor-Steuerung steht am Rand des bekannten Textausschnitts: Kontext neu lesen.

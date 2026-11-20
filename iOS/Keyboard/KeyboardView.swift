@@ -382,6 +382,7 @@ final class KeyboardView: UIView {
     }
 
     /// Löschen wiederholt Zeichen für Zeichen; nach 2 s Halten ganze Wörter, wie bei Apple.
+    /// Danach wird es schneller: ab 3 s zwei, ab 4 s drei Wörter je Schritt.
     private func startRepeating() {
         let pressedAt = Date().addingTimeInterval(-0.45)
         repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
@@ -389,9 +390,13 @@ final class KeyboardView: UIView {
                 guard let self else { return }
                 if Date().timeIntervalSince(pressedAt) >= 2 {
                     self.repeatTimer?.invalidate()
-                    self.onAction?(.deleteWord)
+                    self.onAction?(.deleteWords(1))
                     self.repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
-                        MainActor.assumeIsolated { self?.onAction?(.deleteWord) }
+                        MainActor.assumeIsolated {
+                            let held = Date().timeIntervalSince(pressedAt)
+                            let words = held >= 4 ? 3 : held >= 3 ? 2 : 1
+                            self?.onAction?(.deleteWords(words))
+                        }
                     }
                 } else {
                     self.onAction?(.backspace)

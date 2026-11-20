@@ -7,6 +7,8 @@ final class KeyboardViewController: UIInputViewController {
     private let emojiPanel = EmojiPanel()
     private let usage = WordUsage()
     private let micButton = UIButton(type: .system)
+    /// Gegenüber dem Mikro: öffnet die BlitzText-App auf den Einstellungen.
+    private let settingsButton = UIButton(type: .system)
     private let spinner = UIActivityIndicatorView(style: .medium)
     private let statusLabel = UILabel()
     private let suggestionStack = UIStackView()
@@ -140,6 +142,14 @@ final class KeyboardViewController: UIInputViewController {
         micButton.layer.cornerRadius = 17
         micButton.addTarget(self, action: #selector(micTapped), for: .touchUpInside)
         micButton.translatesAutoresizingMaskIntoConstraints = false
+        let gear = UIImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        settingsButton.setImage(UIImage(systemName: "gearshape.fill", withConfiguration: gear), for: .normal)
+        settingsButton.tintColor = .secondaryLabel
+        settingsButton.backgroundColor = .secondarySystemFill
+        settingsButton.layer.cornerRadius = 17
+        settingsButton.accessibilityLabel = "BlitzText-Einstellungen öffnen"
+        settingsButton.addTarget(self, action: #selector(settingsTapped), for: .touchUpInside)
+        settingsButton.translatesAutoresizingMaskIntoConstraints = false
         spinner.translatesAutoresizingMaskIntoConstraints = false
         spinner.hidesWhenStopped = true
 
@@ -151,8 +161,9 @@ final class KeyboardViewController: UIInputViewController {
         suggestionStack.distribution = .fillEqually
         suggestionStack.spacing = 1
 
-        bar.addArrangedSubview(micButton)
+        bar.addArrangedSubview(settingsButton)
         bar.addArrangedSubview(suggestionStack)
+        bar.addArrangedSubview(micButton)
         bar.axis = .horizontal
         bar.spacing = 8
         bar.alignment = .center
@@ -166,16 +177,20 @@ final class KeyboardViewController: UIInputViewController {
             bar.heightAnchor.constraint(equalToConstant: Self.barHeight),
             micButton.widthAnchor.constraint(equalToConstant: 34),
             micButton.heightAnchor.constraint(equalToConstant: 34),
+            settingsButton.widthAnchor.constraint(equalToConstant: 34),
+            settingsButton.heightAnchor.constraint(equalToConstant: 34),
             suggestionStack.heightAnchor.constraint(equalToConstant: 36),
             spinner.centerXAnchor.constraint(equalTo: micButton.centerXAnchor),
             spinner.centerYAnchor.constraint(equalTo: micButton.centerYAnchor),
         ])
     }
 
-    /// Mikro links oder rechts von der Vorschlagsleiste.
+    /// Mikro links oder rechts von der Vorschlagsleiste, das Zahnrad auf der Gegenseite.
     private func placeMic(onRight: Bool) {
-        bar.removeArrangedSubview(micButton)
-        bar.insertArrangedSubview(micButton, at: onRight ? bar.arrangedSubviews.count : 0)
+        let (left, right) = onRight ? (settingsButton, micButton) : (micButton, settingsButton)
+        for button in [left, right] { bar.removeArrangedSubview(button) }
+        bar.insertArrangedSubview(left, at: 0)
+        bar.addArrangedSubview(right)
     }
 
     private func buildKeyboard() {
@@ -279,8 +294,8 @@ final class KeyboardViewController: UIInputViewController {
                 textDocumentProxy.deleteBackward()
             }
             afterEdit()
-        case .deleteWord:
-            deleteWordBackward()
+        case .deleteWords(let words):
+            deleteWordsBackward(words)
         case .cursorTo(let target):
             guard var navigator = cursorNavigator else { break }
             let delta = target - navigator.position
@@ -362,20 +377,27 @@ final class KeyboardViewController: UIInputViewController {
     private func setEmojiPanel(visible: Bool) {
         emojiPanel.isHidden = !visible
         keyboard.isHidden = visible
+        if visible { emojiPanel.refresh() }
         if !visible {
             layer = .letters
             reloadKeys()
         }
     }
 
-    /// Löscht das Wort vor dem Cursor samt folgender Leerzeichen; vor Satzzeichen nur ein Zeichen.
-    private func deleteWordBackward() {
-        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+    /// Löscht `words` Wörter vor dem Cursor samt folgender Leerzeichen; ein Satzzeichen zählt
+    /// als Wort. Alles wird auf demselben Textstand gezählt, weil der Kontext der Ziel-App nach
+    /// dem Löschen verzögert nachzieht.
+    private func deleteWordsBackward(_ words: Int) {
+        var rest = Substring(textDocumentProxy.documentContextBeforeInput ?? "")
         var count = 0
-        var rest = Substring(before)
-        while let last = rest.last, last == " " { count += 1; rest = rest.dropLast() }
-        let wordLength = rest.reversed().prefix { $0.isLetter || $0.isNumber }.count
-        count += max(wordLength, rest.isEmpty ? 0 : (wordLength == 0 ? 1 : 0))
+        for _ in 0..<max(words, 1) {
+            guard !rest.isEmpty else { break }
+            while let last = rest.last, last == " " { count += 1; rest = rest.dropLast() }
+            let wordLength = rest.reversed().prefix { $0.isLetter || $0.isNumber }.count
+            let step = wordLength > 0 ? wordLength : (rest.isEmpty ? 0 : 1)
+            count += step
+            rest = rest.dropLast(step)
+        }
         if count == 0 { count = 1 }
         for _ in 0..<count { textDocumentProxy.deleteBackward() }
         lastSwipeInsert = nil
@@ -664,6 +686,10 @@ final class KeyboardViewController: UIInputViewController {
         }
         lastState = nil
         refreshMic()
+    }
+
+    @objc private func settingsTapped() {
+        if !openContainingApp(Blitz.settingsURL) { statusLabel.text = "App konnte nicht geöffnet werden" }
     }
 
     private func insertDictation() {

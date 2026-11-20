@@ -77,6 +77,7 @@ final class SessionController: ObservableObject {
 
     func handle(url: URL) {
         add("URL geöffnet: \(url.absoluteString)")
+        guard url.host == "session" else { return }
         startSession()
         if url.query?.contains("record=1") == true { startRecording() }
     }
