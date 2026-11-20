@@ -41,7 +41,6 @@ final class SessionController: ObservableObject {
     private let recordingURL = FileManager.default.temporaryDirectory.appendingPathComponent("diktat.caf")
     private var heartbeat: Timer?
     private var lastActivity = Date()
-    private var sampleRate: Double = 48_000
     private var observers: [DarwinObserver] = []
 
     init(history: DictationHistory, meetings: MeetingStore, sharedFolder: SharedFolder) {
@@ -58,6 +57,18 @@ final class SessionController: ObservableObject {
         ) { [weak self] note in
             let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
             MainActor.assumeIsolated { self?.handleInterruption(raw) }
+        }
+        // Mikrofon gewechselt (CarPlay, AirPods, Kabel): iOS hält die Engine dann still an.
+        NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { [weak self] in self?.restartEngine(reason: "Audiogerät gewechselt") }
+        }
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
+        ) { note in
+            let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+            MainActor.assumeIsolated { [weak self] in self?.logRouteChange(raw) }
         }
         publishState()
     }
@@ -79,14 +90,7 @@ final class SessionController: ObservableObject {
             try session.setCategory(.playAndRecord, mode: .default,
                                     options: [.mixWithOthers, .defaultToSpeaker, .allowBluetoothA2DP])
             try session.setActive(true)
-            let input = engine.inputNode
-            let format = input.outputFormat(forBus: 0)
-            sampleRate = format.sampleRate
-            inputFormat = format
-            // Der Tap läuft im Audio-Thread. Closure darf nicht MainActor-isoliert sein,
-            // sonst bricht Swift 6 zur Laufzeit ab (dispatch_assert_queue).
-            input.installTap(onBus: 0, bufferSize: 4096, format: format, block: Self.makeTap(meter))
-            try engine.start()
+            try configureEngine()
         } catch {
             add("Session-Start fehlgeschlagen: \(error.localizedDescription)")
             engine.inputNode.removeTap(onBus: 0)
@@ -104,6 +108,61 @@ final class SessionController: ObservableObject {
             MainActor.assumeIsolated { self?.tick() }
         }
         publishState()
+    }
+
+    /// Tap im aktuellen Format des Mikrofons anlegen und Engine starten. Auch nach Gerätewechsel.
+    private func configureEngine() throws {
+        let input = engine.inputNode
+        input.removeTap(onBus: 0)
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            throw NSError(domain: "BlitzText", code: 1, userInfo: [NSLocalizedDescriptionKey: "kein Mikrofon verfügbar"])
+        }
+        inputFormat = format
+        // Der Tap läuft im Audio-Thread. Closure darf nicht MainActor-isoliert sein,
+        // sonst bricht Swift 6 zur Laufzeit ab (dispatch_assert_queue).
+        input.installTap(onBus: 0, bufferSize: 4096, format: format, block: Self.makeTap(meter))
+        engine.prepare()
+        try engine.start()
+    }
+
+    /// Nach Gerätewechsel oder Unterbrechung: Engine mit dem jetzt aktiven Mikrofon neu aufbauen.
+    /// Eine laufende Aufnahme schreibt weiter in dieselbe Datei (der LevelMeter rechnet um).
+    @discardableResult
+    private func restartEngine(reason: String) -> Bool {
+        guard state != .off else { return false }
+        engine.stop()
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+            try configureEngine()
+            let name = AVAudioSession.sharedInstance().currentRoute.inputs.first?.portName ?? "?"
+            let rate = inputFormat.map { String(format: "%.0f Hz", $0.sampleRate) } ?? "?"
+            add("\(reason): Engine neu gestartet, Mikrofon \(name), \(rate)")
+            return true
+        } catch {
+            add("\(reason): Neustart fehlgeschlagen (\(error.localizedDescription))")
+            return false
+        }
+    }
+
+    private func logRouteChange(_ raw: UInt?) {
+        guard let raw, let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
+        let input = AVAudioSession.sharedInstance().currentRoute.inputs.first?.portName ?? "kein Eingang"
+        let text = switch reason {
+        case .newDeviceAvailable: "neues Gerät"
+        case .oldDeviceUnavailable: "Gerät getrennt"
+        case .categoryChange: "Kategorie geändert"
+        case .override: "Umleitung"
+        default: "Grund \(raw)"
+        }
+        add("Audioweg geändert (\(text)), Eingang: \(input)")
+        // Nicht jeder Wechsel löst eine Konfigurationsänderung aus; steht die Engine, neu starten.
+        if state != .off, !engine.isRunning { restartEngine(reason: "Audioweg geändert") }
+    }
+
+    /// Läuft die Engine nicht (etwa nach unbemerktem Gerätewechsel), vor der Aufnahme neu starten.
+    private func ensureEngineRunning() -> Bool {
+        engine.isRunning || restartEngine(reason: "Engine stand vor der Aufnahme")
     }
 
     nonisolated private static func makeTap(_ meter: LevelMeter) -> AVAudioNodeTapBlock {
@@ -130,7 +189,10 @@ final class SessionController: ObservableObject {
             add("Start ignoriert, Zustand \(state.rawValue)")
             return
         }
-        guard let inputFormat else { return }
+        guard ensureEngineRunning(), let inputFormat else {
+            publishResult("[Mikrofon nicht verfügbar, Session in der App neu starten] ")
+            return
+        }
         do {
             try meter.begin(writingTo: recordingURL, format: inputFormat)
         } catch {
@@ -145,17 +207,26 @@ final class SessionController: ObservableObject {
 
     private func stopRecording() {
         guard state == .recording else { return }
-        let (frames, peak) = meter.end()
+        let (seconds, peak) = meter.end()
         state = .processing
         lastActivity = Date()
         publishState()
-        let seconds = Double(frames) / sampleRate
         let db = peak > 0 ? 20 * log10(peak) : -160
         add(String(format: "Aufnahme fertig: %.1f s, Spitze %.0f dB", seconds, db))
         Task { await transcribeRecording(seconds: seconds) }
     }
 
+    /// Unter 0,3 s nimmt Parakeet nichts an. Kurzer Tipper: nichts einfügen; gar kein Ton: Hinweis.
+    private static let minimumSeconds = 0.3
+
     private func transcribeRecording(seconds: Double) async {
+        guard seconds >= Self.minimumSeconds else {
+            add(seconds == 0 ? "Kein Ton aufgenommen" : "Aufnahme zu kurz, verworfen")
+            try? FileManager.default.removeItem(at: recordingURL)
+            if state == .processing { state = .idle }
+            publishResult(seconds == 0 ? "[Kein Ton aufgenommen, Mikrofon prüfen] " : "")
+            return
+        }
         let background = UIApplication.shared.applicationState != .active
         let started = Date()
         let text: String
@@ -184,9 +255,14 @@ final class SessionController: ObservableObject {
             add("Parakeet-Fehler (\(background ? "Hintergrund" : "Vordergrund")): \(error.localizedDescription)")
         }
         try? FileManager.default.removeItem(at: recordingURL)
+        if state == .processing { state = .idle }
+        publishResult(text)
+    }
+
+    /// Ergebnis an die Tastatur geben (auch Hinweise statt Text).
+    private func publishResult(_ text: String) {
         Blitz.defaults?.set(text, forKey: Blitz.Key.result)
         Blitz.defaults?.set(UUID().uuidString, forKey: Blitz.Key.resultID)
-        if state == .processing { state = .idle }
         lastActivity = Date()
         publishState()
         Blitz.post(Blitz.Note.resultReady)
@@ -196,7 +272,7 @@ final class SessionController: ObservableObject {
 
     func startMeeting() {
         if state == .off { startSession() }
-        guard state == .idle, let inputFormat else {
+        guard state == .idle, ensureEngineRunning(), let inputFormat else {
             add("Meeting-Start nicht möglich, Zustand \(state.rawValue)")
             return
         }
@@ -207,7 +283,7 @@ final class SessionController: ObservableObject {
     /// Nimmt ein beendetes Meeting wieder auf; der neue Teil wird bei der Verarbeitung angehängt.
     func resumeMeeting(_ id: UUID) {
         if state == .off { startSession() }
-        guard state == .idle, let inputFormat, let meeting = meetings.meeting(id), !meeting.status.isBusy else {
+        guard state == .idle, ensureEngineRunning(), let inputFormat, let meeting = meetings.meeting(id), !meeting.status.isBusy else {
             add("Fortsetzen nicht möglich, Zustand \(state.rawValue)")
             return
         }
@@ -240,14 +316,14 @@ final class SessionController: ObservableObject {
 
     func stopMeeting() {
         guard state == .meeting, let id = activeMeetingID else { return }
-        let (frames, _) = meter.end()
+        let (seconds, _) = meter.end()
         activeMeetingID = nil
         meetingRecordingSince = nil
         state = .idle
         lastActivity = Date()
         publishState()
         meetings.update(id) { $0.end = Date(); $0.status = .transcribing }
-        add(String(format: "Meeting beendet: %.0f s Audio", Double(frames) / sampleRate))
+        add(String(format: "Meeting beendet: %.0f s Audio", seconds))
         Task { await processor.process(id) }
     }
 
@@ -306,11 +382,7 @@ final class SessionController: ObservableObject {
         case .began:
             add("Unterbrechung begonnen")
         case .ended:
-            do {
-                try AVAudioSession.sharedInstance().setActive(true)
-                try engine.start()
-                add("Unterbrechung beendet, Engine läuft wieder")
-            } catch {
+            if !restartEngine(reason: "Unterbrechung beendet") {
                 endSession(reason: "Neustart nach Unterbrechung fehlgeschlagen")
             }
         @unknown default:
