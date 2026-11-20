@@ -26,10 +26,11 @@ struct MeetingDocument: Codable, Equatable {
 
     /// Was das Modell für die Zusammenfassung bekommt: Gesprächsverlauf plus eigene Notizen.
     var summaryInput: String {
+        let header = callTitle.map { "Name der Besprechung laut Teams: \($0)\n\n" } ?? ""
         guard let notes = userNotes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty else {
-            return transcriptText
+            return header + transcriptText
         }
-        return transcriptText + "\n\nNotizen von „Ich“ (Protokollierende Person) zum Meeting:\n" + notes
+        return header + transcriptText + "\n\nNotizen von „Ich“ (Protokollierende Person) zum Meeting:\n" + notes
     }
     /// Bereichsschlüssel im Wissensordner (mw-route-Logik), z. B. „pag“. Von Hand überschreibbar.
     var project: String?
@@ -44,6 +45,9 @@ struct MeetingDocument: Codable, Equatable {
     var summaryOutdated: Bool?
     /// Stimmproben, die aus diesem Meeting in Profile geflossen sind.
     var learnedSamples: [LearnedSample]?
+    /// Name der Besprechung aus dem Teams-Fenster. Ist er bekannt, ist er der Titel; die KI
+    /// schlägt dann keinen eigenen vor.
+    var callTitle: String?
 
     /// Wann das Meeting endete.
     var endDate: Date { endedAt ?? startedAt.addingTimeInterval(duration) }
@@ -169,6 +173,7 @@ enum MeetingMarkdown {
     /// Das Datum steht hier bewusst nicht, es kommt über `title(for:)` vorn dazu.
     static func baseTitle(for document: MeetingDocument) -> String {
         if let ai = document.aiTitle, !ai.isEmpty { return ai }
+        if let call = document.callTitle, !call.isEmpty { return call }
         guard let source = document.sourceNames.first else { return "Meeting" }
         return source == "Import" ? "Import" : "\(source)-Meeting"
     }

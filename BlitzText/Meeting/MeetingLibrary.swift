@@ -191,7 +191,7 @@ final class MeetingLibrary: ObservableObject {
             let split = MeetingSummarizer.splitTitle(try await makeSummarizer().summarize(transcript: document.summaryInput))
         document.summary = split.notes
             document.summaryOutdated = nil
-            if let title = split.title, document.titleChosenByUser != true { document.aiTitle = title }
+            if let title = split.title, document.titleChosenByUser != true, document.callTitle == nil { document.aiTitle = title }
             save(document, at: index)
         } catch {
             lastError = "Notizen nicht erstellt: \(error.localizedDescription)"

@@ -49,6 +49,11 @@ final class MeetingController: ObservableObject {
     /// Die Meeting-App nutzt das Mikrofon nicht mehr: Pille fragt, ob die Aufnahme enden soll.
     @Published private(set) var meetingEndSuggested = false
     private var endWatch = MeetingEndWatch()
+    /// Besprechungsname aus Teams, sobald gefunden; landet im Dokument der Aufnahme.
+    private var capturedCallTitle: String?
+    private var lastCallTitleProbe = Date.distantPast
+    private var probingCallTitle = false
+    private static let callTitleProbeInterval: TimeInterval = 30
 
     /// Unter dieser Wortzahl gilt ein Mitschnitt als versehentlich.
     static let accidentalWordLimit = 12
@@ -175,6 +180,7 @@ final class MeetingController: ObservableObject {
     /// Nur für Aufnahmen, die einer erkannten Meeting-App gelten.
     private func checkMeetingEnd() {
         guard !recorder.activeSources.isEmpty else { return }
+        probeCallTitle()
         var stillActive = !recorder.activeMeetingSources().isEmpty
         // Teams: Mikrofon zu heißt noch nicht aufgelegt. Steht der Auflegen-Knopf noch da,
         // läuft der Call weiter (Gerätewechsel, Neuverbindung). Nur geprüft, wenn das
@@ -187,6 +193,29 @@ final class MeetingController: ObservableObject {
         if suggest != meetingEndSuggested {
             meetingEndSuggested = suggest
             if suggest { Log.write("MeetingController: Meeting-App ohne Mikrofon seit \(Int(MeetingEndWatch.grace)) s — schlage Stopp vor") }
+        }
+    }
+
+    /// Liest den Besprechungsnamen aus dem Teams-Call-Fenster, bis er gefunden ist. Läuft
+    /// abseits des Main-Threads: Der Baum ist groß, und eine hängende App darf die
+    /// Oberfläche nicht einfrieren.
+    private func probeCallTitle() {
+        guard capturedCallTitle == nil, !probingCallTitle,
+              Date().timeIntervalSince(lastCallTitleProbe) >= Self.callTitleProbeInterval else { return }
+        let pids = recorder.activeSources
+            .filter { TeamsCallControls.bundleIDs.contains($0.bundleIdentifier) }.map(\.pid)
+        guard !pids.isEmpty else { return }
+        lastCallTitleProbe = Date()
+        probingCallTitle = true
+        Task.detached(priority: .utility) { [weak self] in
+            let title = pids.lazy.compactMap { TeamsCallControls.meetingName(pid: $0) }.first
+            await MainActor.run {
+                guard let self else { return }
+                self.probingCallTitle = false
+                guard let title, self.isRecording, self.capturedCallTitle == nil else { return }
+                self.capturedCallTitle = title
+                Log.write("MeetingController: Besprechungsname aus Teams übernommen")
+            }
         }
     }
 
@@ -229,6 +258,9 @@ final class MeetingController: ObservableObject {
                 }
             }
             noticeDismissed = true
+            capturedCallTitle = nil
+            lastCallTitleProbe = .distantPast
+            probeCallTitle()
         } catch {
             phase = .failed("Aufnahme nicht gestartet: \(error.localizedDescription)")
         }
@@ -374,6 +406,8 @@ final class MeetingController: ObservableObject {
             notes: notes
         )
         var withNotes = document
+        withNotes.callTitle = capturedCallTitle
+        capturedCallTitle = nil
         let typed = liveNotes.trimmingCharacters(in: .whitespacesAndNewlines)
         withNotes.userNotes = typed.isEmpty ? nil : liveNotes
         liveNotes = ""
@@ -480,7 +514,7 @@ final class MeetingController: ObservableObject {
                 do {
                     let split = MeetingSummarizer.splitTitle(try await summarizer.summarize(transcript: document.summaryInput))
                     document.summary = split.notes
-                    if let title = split.title { document.aiTitle = title }
+                    if let title = split.title, document.callTitle == nil { document.aiTitle = title }
                 } catch {
                     warning = "Zusammenfassung fehlgeschlagen: \(error.localizedDescription)"
                     Log.write("MeetingController: \(warning ?? "")")
