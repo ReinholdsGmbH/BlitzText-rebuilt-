@@ -129,6 +129,7 @@ final class KeyboardView: UIView {
         layer.addSublayer(trail)
         cursorPreview.isHidden = true
         addSubview(cursorPreview)
+
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
@@ -317,7 +318,7 @@ final class KeyboardView: UIView {
         cursorLastTime = CACurrentMediaTime()
         joystickLastTick = CACurrentMediaTime()
         activeCap?.setHighlighted(false)
-        caps.flatMap { $0 }.forEach { $0.alpha = 0.06 }
+        caps.flatMap { $0 }.forEach { $0.alpha = CursorPreviewView.showsText ? 0.06 : 0.35 }
         onAction?(.cursorBegan)
         joystickTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.joystickTick() }
@@ -329,9 +330,23 @@ final class KeyboardView: UIView {
         1 + min(max(speed - 150, 0) / 350, 3)
     }
 
-    func showCursorPreview(_ model: CursorNavigator) {
+    func showCursorPreview(_ model: CursorNavigator, keepingX: Bool = false) {
         cursorPreview.frame = bounds
-        cursorPreview.show(model)
+        cursorPreview.show(model, keepingX: keepingX)
+    }
+
+    private var lastContextReload: TimeInterval = 0
+    /// Abstand zwischen zwei Neu-Lese-Versuchen am Textrand; die Ziel-App braucht einen Moment,
+    /// bis ihr Kontext nach einer Cursor-Verschiebung stimmt.
+    private static let contextReloadInterval: TimeInterval = 0.25
+
+    private func apply(_ move: CursorPreviewView.Move) {
+        if let position = move.position { onAction?(.cursorTo(position)) }
+        let now = CACurrentMediaTime()
+        if move.pushesEdge, now - lastContextReload > Self.contextReloadInterval {
+            lastContextReload = now
+            onAction?(.cursorReload)
+        }
     }
 
     private func moveCursor(to point: CGPoint, at time: TimeInterval) {
@@ -342,9 +357,7 @@ final class KeyboardView: UIView {
         // Waagerecht nur, solange der Joystick ruht: beim Hoch- und Runterfahren soll ein schräger
         // Finger die waagerechte Position nicht verschieben.
         guard linesPerSecond(at: point.y) == 0 else { return }
-        if let position = cursorPreview.moveCaret(dx: dx * Self.gain(speed: abs(dx) / dt), dy: 0) {
-            onAction?(.cursorTo(position))
-        }
+        apply(cursorPreview.moveCaret(dx: dx * Self.gain(speed: abs(dx) / dt), dy: 0))
     }
 
     /// Joystick-Tempo: negativ nach oben, positiv nach unten, null in der Ruhezone. Nach oben ist
@@ -365,9 +378,7 @@ final class KeyboardView: UIView {
         let rate = cursorMode ? linesPerSecond(at: cursorLast.y) : 0
         guard rate != 0 else { return }
         // Stufenlos: der Cursor gleitet mit dem Tempo durch die Zeilen, statt von Zeile zu Zeile zu springen.
-        if let position = cursorPreview.moveCaret(dx: 0, dy: CGFloat(dt) * rate * Self.previewLineHeight) {
-            onAction?(.cursorTo(position))
-        }
+        apply(cursorPreview.moveCaret(dx: 0, dy: CGFloat(dt) * rate * Self.previewLineHeight))
     }
 
     /// Löschen wiederholt Zeichen für Zeichen; nach 2 s Halten ganze Wörter, wie bei Apple.

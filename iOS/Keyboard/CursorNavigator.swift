@@ -37,7 +37,9 @@ struct CursorNavigator {
     /// Waagerechte Lage einer Cursorposition in ihrer Zeile, in Punkt ab Zeilenanfang.
     func x(of position: Int) -> CGFloat {
         let line = lines[lineIndex(of: position)]
-        return text[line.start..<min(position, text.count)].reduce(0) { $0 + advance($1) }
+        // Beim Randsprung liegt die Position ein Zeichen außerhalb des Ausschnitts (-1 oder count+1).
+        let end = min(max(position, line.start), text.count)
+        return text[line.start..<end].reduce(0) { $0 + advance($1) }
     }
 
     /// Cursorposition in Zeile `index`, die der waagerechten Lage `goal` am nächsten liegt.

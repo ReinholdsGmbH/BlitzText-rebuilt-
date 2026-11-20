@@ -9,6 +9,9 @@ final class CursorPreviewView: UIView {
     private static let lineHeight: CGFloat = 24
     /// So viel Abstand hält der gleitende Cursor zum oberen und unteren Rand, bevor gescrollt wird.
     private static let scrollMargin: CGFloat = 36
+    /// Text im Tastaturbereich anzeigen. Aus, weil sich die Steuerung ohne sichtbaren Text im Test
+    /// besser anfühlte; der gleitende Cursor rechnet trotzdem weiter und führt den echten Cursor.
+    static let showsText = false
 
     private var model: CursorNavigator?
     /// Gleitender Cursor: x ab Zeilenanfang, y als Mitte der Zeile, beides in Punkt im Gesamttext.
@@ -25,14 +28,16 @@ final class CursorPreviewView: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
 
-    func show(_ model: CursorNavigator) {
+    /// `keepingX`: nach dem Nachladen am Rand die waagerechte Lage des gleitenden Cursors behalten.
+    func show(_ model: CursorNavigator, keepingX: Bool = false) {
+        let previousX = caret.x
         self.model = model
         snapped = model.position
-        caret = CGPoint(x: model.x(of: model.position),
+        caret = CGPoint(x: keepingX ? previousX : model.x(of: model.position),
                         y: (CGFloat(model.lineIndex(of: model.position)) + 0.5) * Self.lineHeight)
         scrollOffset = caret.y - bounds.height / 2
         clampScroll()
-        isHidden = false
+        isHidden = !Self.showsText
         setNeedsDisplay()
     }
 
@@ -41,13 +46,22 @@ final class CursorPreviewView: UIView {
         isHidden = true
     }
 
-    /// Verschiebt den gleitenden Cursor. Liefert die neue Zeichenposition, wenn der Cursor dabei
-    /// ein anderes Zeichen erreicht hat, sonst nil.
-    func moveCaret(dx: CGFloat, dy: CGFloat) -> Int? {
-        guard let model else { return nil }
+    struct Move {
+        /// Neue Zeichenposition, wenn der Cursor ein anderes Zeichen erreicht hat.
+        var position: Int?
+        /// Der Cursor steht an der ersten oder letzten bekannten Zeile und soll weiter: Die Tastatur
+        /// kennt nur einen Ausschnitt des Textes, also muss neu gelesen werden.
+        var pushesEdge = false
+    }
+
+    /// Verschiebt den gleitenden Cursor.
+    func moveCaret(dx: CGFloat, dy: CGFloat) -> Move {
+        guard let model else { return Move() }
+        let firstLineY = Self.lineHeight / 2
         let lastLineY = (CGFloat(model.lines.count - 1) + 0.5) * Self.lineHeight
+        let pushesEdge = (dy < 0 && caret.y <= firstLineY) || (dy > 0 && caret.y >= lastLineY)
         caret.x = min(max(caret.x + dx, 0), model.lineWidth)
-        caret.y = min(max(caret.y + dy, Self.lineHeight / 2), lastLineY)
+        caret.y = min(max(caret.y + dy, firstLineY), lastLineY)
         if caret.y - scrollOffset < Self.scrollMargin { scrollOffset = caret.y - Self.scrollMargin }
         if caret.y - scrollOffset > bounds.height - Self.scrollMargin {
             scrollOffset = caret.y - bounds.height + Self.scrollMargin
@@ -55,10 +69,13 @@ final class CursorPreviewView: UIView {
         clampScroll()
         setNeedsDisplay()
         let line = Int(caret.y / Self.lineHeight)
-        let position = model.nearest(to: caret.x, inLine: line)
-        guard position != snapped else { return nil }
+        var position = model.nearest(to: caret.x, inLine: line)
+        // Über die erste oder letzte bekannte Zeile hinaus: echten Cursor ein Zeichen über den Rand
+        // des Ausschnitts setzen. Erst dann liefert die Ziel-App beim Nachladen den Text dahinter.
+        if pushesEdge { position = dy < 0 ? -1 : model.text.count + 1 }
+        guard position != snapped else { return Move(pushesEdge: pushesEdge) }
         snapped = position
-        return position
+        return Move(position: position, pushesEdge: pushesEdge)
     }
 
     private func clampScroll() {

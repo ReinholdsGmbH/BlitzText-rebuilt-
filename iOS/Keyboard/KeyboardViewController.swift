@@ -287,11 +287,12 @@ final class KeyboardViewController: UIInputViewController {
             navigator.position = target
             cursorNavigator = navigator
             if delta != 0 { textDocumentProxy.adjustTextPosition(byCharacterOffset: delta) }
+        case .cursorReload:
+            let navigator = makeCursorNavigator()
+            cursorNavigator = navigator
+            keyboard.showCursorPreview(navigator, keepingX: true)
         case .cursorBegan:
-            let navigator = CursorNavigator(before: textDocumentProxy.documentContextBeforeInput ?? "",
-                                            after: textDocumentProxy.documentContextAfterInput ?? "",
-                                            lineWidth: estimatedLineWidth,
-                                            advance: { [weak self] in self?.advance(of: $0) ?? 8.4 })
+            let navigator = makeCursorNavigator()
             cursorNavigator = navigator
             keyboard.showCursorPreview(navigator)
             lastSwipeInsert = nil
@@ -338,6 +339,18 @@ final class KeyboardViewController: UIInputViewController {
     /// Zeichenbreiten der Systemschrift in 17 pt, wie sie Nachrichten-Apps verwenden.
     private static let cursorFont = UIFont.systemFont(ofSize: 17)
     private var advanceCache: [Character: CGFloat] = [:]
+
+    /// Textmodell aus dem Ausschnitt, den die Ziel-App gerade rund um den Cursor liefert. In
+    /// WhatsApp beginnt er am Satzanfang (bis etwa 300 Zeichen), nicht am Zeilenanfang; bei langen
+    /// Absätzen weichen die nachgebildeten Zeilen deshalb seitlich vom Textfeld ab. Den ganzen
+    /// Absatz durch Hin- und Herschieben des Cursors einzusammeln scheiterte daran, dass iOS den
+    /// Ausschnitt nach einer Verschiebung erst verzögert und ohne erkennbares Signal aktualisiert.
+    private func makeCursorNavigator() -> CursorNavigator {
+        CursorNavigator(before: textDocumentProxy.documentContextBeforeInput ?? "",
+                        after: textDocumentProxy.documentContextAfterInput ?? "",
+                        lineWidth: estimatedLineWidth,
+                        advance: { [weak self] in self?.advance(of: $0) ?? 8.4 })
+    }
 
     private func advance(of character: Character) -> CGFloat {
         if let cached = advanceCache[character] { return cached }
