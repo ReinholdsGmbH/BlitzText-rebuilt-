@@ -269,6 +269,36 @@ enum TeamsCallControls {
         return false
     }
 
+    /// Name der Besprechung: erstes Feld im Titel des Fensters mit dem Auflegen-Knopf, etwa
+    /// „Daily | Firma | konto@firma.de“ (belegt am 20.11.2026). `nil`, wenn kein Call läuft
+    /// oder der Titel nur eine Ansicht oder einen Ad-hoc-Anruf beschreibt.
+    static func meetingName(pid: pid_t) -> String? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        var budget = nodeBudget
+        for window in children(of: app, attribute: kAXWindowsAttribute) where find(in: window, budget: &budget) {
+            var value: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &value) == .success,
+                  let title = value as? String else { return nil }
+            return meetingName(fromWindowTitle: title)
+        }
+        return nil
+    }
+
+    /// Hauptfenster heißen nach der Ansicht; Ad-hoc-Anrufe tragen nur die Personen im Namen.
+    static let viewNames: Set<String> = ["chat", "calendar", "kalender", "activity", "aktivität", "teams",
+                                         "calls", "anrufe", "files", "dateien", "microsoft teams",
+                                         "meet now", "jetzt besprechen"]
+    static let adHocPrefixes = ["besprechung mit ", "meeting with ", "anruf mit ", "call with "]
+
+    static func meetingName(fromWindowTitle title: String) -> String? {
+        guard let first = title.components(separatedBy: " | ").first?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !first.isEmpty else { return nil }
+        let lowered = first.lowercased()
+        let generic = viewNames.contains(lowered) || adHocPrefixes.contains { lowered.hasPrefix($0) }
+        return generic ? nil : String(first.prefix(80))
+    }
+
     private static func find(in element: AXUIElement, budget: inout Int) -> Bool {
         guard budget > 0 else { return false }
         budget -= 1

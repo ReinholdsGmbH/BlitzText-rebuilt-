@@ -163,6 +163,7 @@
 		E8339E8E6FEC9708580640C4 /* VaultSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1762D197F6B19CE5571B3C1 /* VaultSection.swift */; };
 		EBD44500FFB25155B249C8ED /* ActiveSpeakerPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E71B9824085C0D447169C3B /* ActiveSpeakerPoller.swift */; };
 		EC82998BA697D6627FA1E1D3 /* VaultExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9592C8DC40369A825B03C42 /* VaultExporterTests.swift */; };
+		ECF5AFFD9F8B579A90BE59B5 /* CallTitleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4C4625D45A320900CB1F6F /* CallTitleTests.swift */; };
 		ED97025F38BD388818C76A3D /* SemanticVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F3C35FE2FD2D5969C709FAF /* SemanticVersion.swift */; };
 		EE81687387E610E55E72EBAE /* SpeakerProfileViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AEB5387B18598064957C25A /* SpeakerProfileViewModelTests.swift */; };
 		EF4432C11DBDF9EDD34BD0B2 /* MeetingMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27BB9051C954165EA58D678D /* MeetingMerger.swift */; };
@@ -320,6 +321,7 @@
 		CB103011BE1AF1282271DF86 /* VaultExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultExporter.swift; sourceTree = "<group>"; };
 		CB85FA13E496B64239B33221 /* NumberWordConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberWordConverter.swift; sourceTree = "<group>"; };
 		CBA55D0F435F044261A21822 /* LokalTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LokalTab.swift; sourceTree = "<group>"; };
+		CE4C4625D45A320900CB1F6F /* CallTitleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTitleTests.swift; sourceTree = "<group>"; };
 		D0369392AB86514DEFF69E82 /* ChatDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatDock.swift; sourceTree = "<group>"; };
 		D2A44D2779C607F250DC2240 /* GitHubRepo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubRepo.swift; sourceTree = "<group>"; };
 		D3C28960EDC99F7D288E8084 /* SuggestionToastController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionToastController.swift; sourceTree = "<group>"; };
@@ -701,6 +703,7 @@
 		C0C61F827171CB66944E7F1A /* Meeting */ = {
 			isa = PBXGroup;
 			children = (
+				CE4C4625D45A320900CB1F6F /* CallTitleTests.swift */,
 				371663723241B31FD48C00DB /* LiveQuestionsTests.swift */,
 				C4AD19FB34ED5CEE06BD21E2 /* MeetingAudioMatcherTests.swift */,
 				347FDACC2A850E17C7DBDB6A /* MeetingDetectorTests.swift */,
@@ -911,6 +914,7 @@
 			files = (
 				720818EBAD79180314A385B5 /* AppleFoundationAvailabilityTests.swift in Sources */,
 				781D5B32310C1729C84629D1 /* AppleFoundationRewriteClientTests.swift in Sources */,
+				ECF5AFFD9F8B579A90BE59B5 /* CallTitleTests.swift in Sources */,
 				074508627366A3CF92A5FF13 /* CandidateLedgerTests.swift in Sources */,
 				54291188A3089EC6A6BB9740 /* DiarizerModelManagerTests.swift in Sources */,
 				9E2FAD8DD66D9DBB61CF955C /* ETAEstimatorTests.swift in Sources */,
