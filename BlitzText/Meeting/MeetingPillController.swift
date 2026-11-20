@@ -79,8 +79,10 @@ final class MeetingPillController {
     }
 
     /// Zuletzt hingezogene Stelle, solange die Pille dort noch ganz auf einem Bildschirm liegt
-    /// (etwa nicht, wenn der zweite Monitor fehlt).
-    static func savedOrigin(defaults: UserDefaults = .standard, screens: [NSRect] = NSScreen.screens.map(\.visibleFrame)) -> NSPoint? {
+    /// (etwa nicht, wenn der zweite Monitor fehlt). Geprüft wird gegen den ganzen Bildschirm,
+    /// nicht gegen `visibleFrame`: Das spart die volle Breite der Dock-Leiste aus, und eine
+    /// neben das Dock gezogene Pille sprang beim nächsten Meeting zurück in die Mitte.
+    static func savedOrigin(defaults: UserDefaults = .standard, screens: [NSRect] = NSScreen.screens.map(\.frame)) -> NSPoint? {
         guard let stored = defaults.string(forKey: originKey) else { return nil }
         let origin = NSPointFromString(stored)
         let frame = NSRect(origin: origin, size: size)
