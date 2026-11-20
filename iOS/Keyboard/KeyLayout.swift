@@ -14,10 +14,13 @@ enum KeyAction: Equatable {
     case backspace
     /// Rücktaste lange gehalten: ganzes Wort löschen.
     case deleteWord
-    /// Leertaste lange gehalten und gezogen: Cursor um so viele Zeichen verschieben.
-    case moveCursor(Int)
-    /// Leertaste gehalten und nach oben/unten gezogen: eine Zeile hoch (-1) oder runter (+1).
-    case moveCursorLine(Int)
+    /// Cursor-Steuerung: echten Cursor auf diesen Zeichenindex im Modell der Vorschau setzen.
+    case cursorTo(Int)
+    /// Cursor-Steuerung steht am Rand des bekannten Textausschnitts: Kontext neu lesen.
+    case cursorReload
+    /// Cursor-Steuerung über die Leertaste beginnt bzw. endet.
+    case cursorBegan
+    case cursorEnded
     case space
     case returnKey
     case globe

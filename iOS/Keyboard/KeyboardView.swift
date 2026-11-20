@@ -86,33 +86,50 @@ final class KeyboardView: UIView {
 
     private var caps: [[KeyCap]] = []
     private let trail = CAShapeLayer()
+    /// Spur wird fortgeschrieben statt bei jeder Bewegung neu aufgebaut.
+    private var trailPath = CGMutablePath()
     private let gap: CGFloat = 6
     private let rowGap: CGFloat = 11
 
     private var activeCap: KeyCap?
+    /// Der Finger, der gerade ausgewertet wird. Weitere Finger beim schnellen Tippen lösen den
+    /// vorigen Anschlag sofort aus, statt verloren zu gehen.
+    private weak var activeTouch: UITouch?
     private var startPoint: CGPoint = .zero
     private var points: [CGPoint] = []
     private var swipeLetters: [String] = []
     private var isSwiping = false
     private var longPressFired = false
-    /// Leertaste lange gedrückt: Ziehen verschiebt den Cursor wie ein Trackpad.
-    private var cursorMode = false
-    private var cursorAnchorX: CGFloat = 0
-    private var cursorAnchorY: CGFloat = 0
-    private static let cursorStep: CGFloat = 9
-    private static let cursorLineStep: CGFloat = 28
     private var longPressTimer: Timer?
     private var repeatTimer: Timer?
 
+    // Cursor-Steuerung über die Leertaste: waagerecht wie ein Trackpad mit Beschleunigung,
+    // senkrecht wie ein Joystick. Die Auslenkung über oder unter dem Startpunkt bestimmt das Tempo
+    // in Zeilen pro Sekunde; zurück auf Höhe des Startpunkts heißt Stopp.
+    private var cursorMode = false
+    private var cursorLast: CGPoint = .zero
+    private var cursorLastTime: TimeInterval = 0
+    private var joystickTimer: Timer?
+    private var joystickLastTick: TimeInterval = 0
+    private let cursorPreview = CursorPreviewView()
+    /// Zeilenhöhe der Vorschau; das Joystick-Tempo ist in Zeilen pro Sekunde angegeben.
+    private static let previewLineHeight: CGFloat = 24
+    /// Ruhezone um den Startpunkt: so weit darf der Finger senkrecht wackeln, ohne dass etwas läuft.
+    private static let joystickDeadZone: CGFloat = 14
+    private var cursorStartY: CGFloat = 0
+
     override init(frame: CGRect) {
         super.init(frame: frame)
-        isMultipleTouchEnabled = false
+        isMultipleTouchEnabled = true
         trail.fillColor = UIColor.clear.cgColor
         trail.strokeColor = UIColor.systemOrange.withAlphaComponent(0.55).cgColor
         trail.lineWidth = 7
         trail.lineCap = .round
         trail.lineJoin = .round
         layer.addSublayer(trail)
+        cursorPreview.isHidden = true
+        addSubview(cursorPreview)
+
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
@@ -165,8 +182,20 @@ final class KeyboardView: UIView {
     // MARK: - Touches
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let point = touches.first?.location(in: self), let cap = cap(at: point) else { return }
+        for touch in touches { begin(touch) }
+    }
+
+    private func begin(_ touch: UITouch) {
+        let point = touch.location(in: self)
+        guard let cap = cap(at: point) else { return }
+        if activeTouch != nil {
+            // Cursorfahrt gehört einem Finger. Ein laufender Swipe oder Anschlag wird abgeschlossen,
+            // sobald der nächste Finger aufsetzt (Wischen mit zwei Daumen, schnelles Tippen).
+            if cursorMode { return }
+            finishActive()
+        }
         reset()
+        activeTouch = touch
         activeCap = cap
         startPoint = point
         points = [point]
@@ -179,14 +208,10 @@ final class KeyboardView: UIView {
                 MainActor.assumeIsolated { self?.startRepeating() }
             }
         case .space:
-            longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
+            longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: false) { [weak self] _ in
                 MainActor.assumeIsolated {
                     guard let self else { return }
-                    self.cursorMode = true
-                    self.cursorAnchorX = self.points.last?.x ?? self.startPoint.x
-                    self.cursorAnchorY = self.points.last?.y ?? self.startPoint.y
-                    self.activeCap?.setHighlighted(false)
-                    self.caps.flatMap { $0 }.forEach { $0.alpha = 0.35 }
+                    self.beginCursorMode(at: self.points.last ?? self.startPoint)
                 }
             }
         default:
@@ -203,37 +228,43 @@ final class KeyboardView: UIView {
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let point = touches.first?.location(in: self) else { return }
-        points.append(point)
+        guard let touch = activeTouch, touches.contains(touch) else { return }
+        let point = touch.location(in: self)
+        // Alle Zwischenpunkte (120 Hz) übernehmen, sonst fehlen bei schnellem Wischen die Bögen.
+        let samples = event?.coalescedTouches(for: touch)?.map { $0.location(in: self) } ?? [point]
+        points.append(contentsOf: samples.isEmpty ? [point] : samples)
         if cursorMode {
-            // Senkrecht hat Vorrang: eine Zeile je Schritt, waagerecht zeichenweise.
-            let lines = Int((point.y - cursorAnchorY) / Self.cursorLineStep)
-            if lines != 0 {
-                for _ in 0..<abs(lines) { onAction?(.moveCursorLine(lines > 0 ? 1 : -1)) }
-                cursorAnchorY += CGFloat(lines) * Self.cursorLineStep
-                cursorAnchorX = point.x
-                return
-            }
-            let steps = Int((point.x - cursorAnchorX) / Self.cursorStep)
-            if steps != 0 {
-                onAction?(.moveCursor(steps))
-                cursorAnchorX += CGFloat(steps) * Self.cursorStep
-            }
+            moveCursor(to: point, at: touch.timestamp)
             return
         }
         let slot = bounds.width / KeyLayout.unitsPerRow
+        let distance = hypot(point.x - startPoint.x, point.y - startPoint.y)
+        // Leertaste ziehen startet die Cursorfahrt sofort, ohne erst lange zu halten.
+        if activeCap?.spec.action == .space, distance > slot * 0.5 {
+            beginCursorMode(at: point)
+            cursorLastTime = touch.timestamp
+            return
+        }
+        // Sichtbares Ziehen bricht den langen Druck für Umlaute ab, sonst stirbt ein langsam
+        // begonnener Swipe am Timer.
+        if !longPressFired, distance > slot * 0.35 { longPressTimer?.invalidate() }
         if !isSwiping, !longPressFired, swipeEnabled, layer_ == .letters, activeCap?.spec.letter != nil,
-           hypot(point.x - startPoint.x, point.y - startPoint.y) > slot * 0.9 {
+           distance > slot * 0.75 {
             isSwiping = true
             longPressTimer?.invalidate()
             activeCap?.setHighlighted(false)
         }
         if isSwiping {
-            if let letter = cap(at: point)?.spec.letter, letter != swipeLetters.last { swipeLetters.append(letter) }
-            let path = UIBezierPath()
-            path.move(to: points[0])
-            points.dropFirst().forEach { path.addLine(to: $0) }
-            trail.path = path.cgPath
+            for sample in samples {
+                if let letter = cap(at: sample)?.spec.letter, letter != swipeLetters.last { swipeLetters.append(letter) }
+            }
+            if trailPath.isEmpty {
+                trailPath.move(to: points[0])
+                points.dropFirst().forEach { trailPath.addLine(to: $0) }
+            } else {
+                samples.forEach { trailPath.addLine(to: $0) }
+            }
+            trail.path = trailPath.copy()
         } else if repeatTimer == nil, !longPressFired, let cap = cap(at: point), cap !== activeCap {
             longPressTimer?.invalidate()
             activeCap?.setHighlighted(false)
@@ -243,23 +274,112 @@ final class KeyboardView: UIView {
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = activeTouch, touches.contains(touch) else { return }
+        finishActive()
+        reset()
+    }
+
+    /// Schließt ab, was der aktive Finger begonnen hat: Cursorfahrt, Swipe oder Anschlag.
+    private func finishActive() {
         if cursorMode {
-            reset()
-            return
-        }
-        if isSwiping {
+            onAction?(.cursorEnded)
+        } else if isSwiping {
             if swipeLetters.count >= 2 {
                 onSwipe?(swipeLetters, corners(), points)
             } else if let letter = swipeLetters.first {
                 onAction?(.character(letter))
             }
-        } else if !longPressFired, let cap = activeCap, cap.spec.action != .backspace {
-            onAction?(cap.spec.action)
+        } else {
+            commitActiveKey()
         }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = activeTouch, touches.contains(touch) else { return }
+        if cursorMode { onAction?(.cursorEnded) }
         reset()
     }
 
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { reset() }
+    /// Normaler Anschlag beim Loslassen (oder wenn schon der nächste Finger aufsetzt).
+    private func commitActiveKey() {
+        guard !longPressFired, let cap = activeCap, cap.spec.action != .backspace else { return }
+        onAction?(cap.spec.action)
+    }
+
+    // MARK: - Cursorfahrt
+
+    private func beginCursorMode(at point: CGPoint) {
+        guard !cursorMode else { return }
+        longPressTimer?.invalidate()
+        cursorMode = true
+        cursorLast = point
+        // Ruhepunkt ist, wo der Finger auf der Leertaste aufgesetzt hat, nicht wo die Fahrt erkannt wurde.
+        cursorStartY = startPoint.y
+        cursorLastTime = CACurrentMediaTime()
+        joystickLastTick = CACurrentMediaTime()
+        activeCap?.setHighlighted(false)
+        caps.flatMap { $0 }.forEach { $0.alpha = CursorPreviewView.showsText ? 0.06 : 0.35 }
+        onAction?(.cursorBegan)
+        joystickTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.joystickTick() }
+        }
+    }
+
+    /// Schnelle Bewegung zählt mehr: langsam zeichengenau, zügig quer durch den Text.
+    private static func gain(speed: CGFloat) -> CGFloat {
+        1 + min(max(speed - 150, 0) / 350, 3)
+    }
+
+    func showCursorPreview(_ model: CursorNavigator, keepingX: Bool = false) {
+        cursorPreview.frame = bounds
+        cursorPreview.show(model, keepingX: keepingX)
+    }
+
+    private var lastContextReload: TimeInterval = 0
+    /// Abstand zwischen zwei Neu-Lese-Versuchen am Textrand; die Ziel-App braucht einen Moment,
+    /// bis ihr Kontext nach einer Cursor-Verschiebung stimmt.
+    private static let contextReloadInterval: TimeInterval = 0.25
+
+    private func apply(_ move: CursorPreviewView.Move) {
+        if let position = move.position { onAction?(.cursorTo(position)) }
+        let now = CACurrentMediaTime()
+        if move.pushesEdge, now - lastContextReload > Self.contextReloadInterval {
+            lastContextReload = now
+            onAction?(.cursorReload)
+        }
+    }
+
+    private func moveCursor(to point: CGPoint, at time: TimeInterval) {
+        let dt = max(time - cursorLastTime, 0.004)
+        let dx = point.x - cursorLast.x
+        cursorLast = point
+        cursorLastTime = time
+        // Waagerecht nur, solange der Joystick ruht: beim Hoch- und Runterfahren soll ein schräger
+        // Finger die waagerechte Position nicht verschieben.
+        guard linesPerSecond(at: point.y) == 0 else { return }
+        apply(cursorPreview.moveCaret(dx: dx * Self.gain(speed: abs(dx) / dt), dy: 0))
+    }
+
+    /// Joystick-Tempo: negativ nach oben, positiv nach unten, null in der Ruhezone. Nach oben ist
+    /// viel Platz (bis über die Tasten), nach unten nur wenige Punkt bis zum Displayrand, daher
+    /// steigt das Tempo dort steiler.
+    private func linesPerSecond(at y: CGFloat) -> CGFloat {
+        let offset = y - cursorStartY
+        let beyond = abs(offset) - Self.joystickDeadZone
+        guard beyond > 0 else { return 0 }
+        if offset < 0 { return -min(1.5 + beyond * 0.1, 30) }
+        return min(1.5 + beyond * 0.4, 20)
+    }
+
+    private func joystickTick() {
+        let now = CACurrentMediaTime()
+        let dt = now - joystickLastTick
+        joystickLastTick = now
+        let rate = cursorMode ? linesPerSecond(at: cursorLast.y) : 0
+        guard rate != 0 else { return }
+        // Stufenlos: der Cursor gleitet mit dem Tempo durch die Zeilen, statt von Zeile zu Zeile zu springen.
+        apply(cursorPreview.moveCaret(dx: 0, dy: CGFloat(dt) * rate * Self.previewLineHeight))
+    }
 
     /// Löschen wiederholt Zeichen für Zeichen; nach 2 s Halten ganze Wörter, wie bei Apple.
     private func startRepeating() {
@@ -283,15 +403,19 @@ final class KeyboardView: UIView {
     private func reset() {
         longPressTimer?.invalidate(); longPressTimer = nil
         repeatTimer?.invalidate(); repeatTimer = nil
+        joystickTimer?.invalidate(); joystickTimer = nil
+        activeTouch = nil
         activeCap?.setHighlighted(false)
         activeCap = nil
         isSwiping = false
         longPressFired = false
         if cursorMode { caps.flatMap { $0 }.forEach { $0.alpha = 1 } }
+        cursorPreview.hide()
         cursorMode = false
         swipeLetters = []
         points = []
         trail.path = nil
+        trailPath = CGMutablePath()
     }
 
     /// Ecken der Spur: Punkte mit deutlichem Richtungswechsel, plus Anfang und Ende.
