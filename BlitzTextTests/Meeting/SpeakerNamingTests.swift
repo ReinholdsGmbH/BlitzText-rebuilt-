@@ -330,3 +330,41 @@ struct LineSplitTests {
         #expect(doc().splitting(lineAt: 0, beforeWord: word).lines.count == 1)
     }
 }
+
+struct TranscriptDeletionTests {
+
+    private func doc(summary: String? = "## Punkte\n- Eins") -> MeetingDocument {
+        MeetingDocument(
+            startedAt: Date(), duration: 60, sourceNames: ["Teams"],
+            lines: [
+                TranscriptLine(speaker: .me, start: 0, end: 4, text: "Eins"),
+                TranscriptLine(speaker: .others, start: 5, end: 8, text: "Zwei", speakerID: "1"),
+                TranscriptLine(speaker: .others, start: 9, end: 12, text: "Drei", speakerID: "2")
+            ],
+            summary: summary, notes: [])
+    }
+
+    @Test("Gelöschte Beiträge verschwinden, die Reihenfolge der übrigen bleibt")
+    func removesLines() {
+        let result = doc().removingLines(at: IndexSet([0, 2]))
+        #expect(result.lines.map(\.text) == ["Zwei"])
+    }
+
+    @Test("Nach dem Löschen gilt eine vorhandene Zusammenfassung als veraltet")
+    func marksSummaryOutdated() {
+        #expect(doc().removingLines(at: IndexSet([1])).summaryOutdated == true)
+        #expect(doc(summary: nil).removingLines(at: IndexSet([1])).summaryOutdated == nil)
+    }
+
+    @Test("Ungültige Indizes ändern nichts")
+    func ignoresInvalid() {
+        let original = doc()
+        #expect(original.removingLines(at: IndexSet([7])) == original)
+        #expect(original.removingLines(at: IndexSet()) == original)
+    }
+
+    @Test("Ohne die Sprecher-ID fällt die Person aus der Teilnehmerliste")
+    func dropsSpeaker() {
+        #expect(doc().removingLines(at: IndexSet([2])).speakerIDs == ["1"])
+    }
+}

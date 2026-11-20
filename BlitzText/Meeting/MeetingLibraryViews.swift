@@ -403,10 +403,24 @@ struct Toast: View {
                     Text(error).lineLimit(2)
                     Button { library.lastError = nil } label: { Image(systemName: "xmark") }.buttonStyle(.plain)
                 }
+            } else if let deletion = library.lastDeletion {
+                bubble {
+                    Text(deletion.count == 1 ? "Beitrag gelöscht" : "\(deletion.count) Beiträge gelöscht")
+                    Button("Rückgängig") { library.undoDeletion() }
+                        .buttonStyle(.plain).foregroundStyle(MeetingTheme.dawn500)
+                    Button { library.dismissDeletion() } label: { Image(systemName: "xmark") }.buttonStyle(.plain)
+                }
+                .task(id: deletion.id) {
+                    try? await Task.sleep(for: .seconds(Self.undoSeconds))
+                    if library.lastDeletion?.id == deletion.id { library.dismissDeletion() }
+                }
             }
         }
         .padding(.bottom, 22)
     }
+
+    /// So lange bleibt „Rückgängig“ nach dem Löschen im Transkript stehen.
+    private static let undoSeconds = 12
 
     private func bubble<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         HStack(spacing: 8, content: content)
@@ -606,7 +620,24 @@ struct MeetingDetailView: View {
     @ViewBuilder
     private var notes: some View {
         if let summary = document.summary {
-            SummaryText(markdown: summary)
+            VStack(alignment: .leading, spacing: 12) {
+                if document.summaryOutdated == true {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.circle").foregroundStyle(MeetingTheme.dawn700)
+                        Text("Im Transkript wurden Beiträge gelöscht. Die Zusammenfassung kann sie noch enthalten.")
+                            .font(.system(size: 12)).foregroundStyle(MeetingTheme.foreground)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        Button("Neu erstellen") { Task { await library.regenerateSummary(in: entry.folder) } }
+                            .buttonStyle(LavenderButtonStyle(compact: true))
+                            .disabled(library.busy != nil || document.lines.isEmpty)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(MeetingTheme.backgroundTertiary))
+                }
+                SummaryText(markdown: summary)
+            }
         } else {
             Text(document.lines.isEmpty ? "Es wurde keine Sprache erkannt." : "Noch keine Notizen. „Neu erstellen“ fasst das Transkript zusammen.")
                 .font(.system(size: 13)).foregroundStyle(MeetingTheme.foregroundTertiary)
@@ -638,7 +669,9 @@ struct MeetingDetailView: View {
                            choices: document.canReassign(line) ? speakerChoices : [],
                            known: library.knownNames,
                            onReassign: { target in library.reassign(lineAt: item.index, to: target, in: entry.folder) },
-                           onSplit: { word in library.split(lineAt: item.index, beforeWord: word, in: entry.folder) }) {
+                           onSplit: { word in library.split(lineAt: item.index, beforeWord: word, in: entry.folder) },
+                           onDelete: { scope in deleteLines(scope, from: item.index, total: document.lines.count) },
+                           offersRanges: needle.isEmpty) {
                         player.toggle(id: id, url: entry.folder.appendingPathComponent(document.trackFile(for: line)),
                                       start: line.start, end: line.end)
                     }
@@ -658,6 +691,19 @@ struct MeetingDetailView: View {
         }
     }
 
+    /// Löscht einen Beitrag oder alles davor bzw. danach. Die Markierung hängt am Index
+    /// und würde nach dem Löschen auf einen anderen Beitrag zeigen.
+    private func deleteLines(_ scope: DeleteScope, from index: Int, total: Int) {
+        focusedLine = nil
+        let range: Range<Int>
+        switch scope {
+        case .line: range = index..<(index + 1)
+        case .toEnd: range = index..<total
+        case .fromStart: range = 0..<(index + 1)
+        }
+        library.deleteLines(IndexSet(integersIn: range), in: entry.folder)
+    }
+
     /// Personen, denen ein Beitrag der Gegenseite zugeordnet werden kann.
     private var speakerChoices: [(id: String, label: String)] {
         document.speakerIDs.map { ($0, document.label(forSpeaker: $0)) }
@@ -675,6 +721,9 @@ struct MeetingDetailView: View {
     }
 }
 
+/// Welche Beiträge „Löschen“ an einer Sprechblase trifft.
+enum DeleteScope { case line, toEnd, fromStart }
+
 /// Ein Redebeitrag als weiße Sprechblase mit kleinem farbigem Namen darüber,
 /// wie das Transkript auf wisprflow.ai.
 private struct Bubble: View {
@@ -688,6 +737,9 @@ private struct Bubble: View {
     var onReassign: (MeetingLibrary.ReassignTarget) -> Void = { _ in }
     /// Teilt vor dem Wort mit diesem Index.
     var onSplit: ((Int) -> Void)?
+    var onDelete: ((DeleteScope) -> Void)?
+    /// „Ab hier“ und „Bis hier“ nur ohne Suchfilter, sonst träfe es unsichtbare Beiträge.
+    var offersRanges = true
     let onPlay: () -> Void
     @State private var hovering = false
     @State private var askingName = false
@@ -705,6 +757,16 @@ private struct Bubble: View {
                 if hovering || playing {
                     PlayButton(playing: playing, action: onPlay)
                 }
+                if hovering, let onDelete {
+                    Button { onDelete(.line) } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(MeetingTheme.foregroundTertiary)
+                            .frame(width: 16, height: 16)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Beitrag löschen")
+                }
             }
             .frame(height: 16)
             Text(line.text)
@@ -715,6 +777,15 @@ private struct Bubble: View {
                 .background(RoundedRectangle(cornerRadius: 12).fill(MeetingTheme.card))
         }
         .onHover { hovering = $0 }
+        .contextMenu {
+            if let onDelete {
+                Button("Beitrag löschen") { onDelete(.line) }
+                if offersRanges {
+                    Button("Ab hier bis zum Ende löschen") { onDelete(.toEnd) }
+                    Button("Vom Anfang bis hier löschen") { onDelete(.fromStart) }
+                }
+            }
+        }
     }
 
     /// Name über der Blase. Bei umhängbaren Beiträgen ein Menü: andere Person im Meeting

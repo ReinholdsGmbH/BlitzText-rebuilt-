@@ -24,6 +24,16 @@ final class MeetingLibrary: ObservableObject {
     /// Namen für die Vorschläge beim Tippen: gespeicherte Profile plus bestätigte Namen
     /// aus allen Meetings.
     @Published private(set) var knownNames: [String] = []
+    /// Letzte Löschung im Transkript, solange sie sich zurücknehmen lässt. Jede weitere
+    /// Änderung am Archiv verwirft sie, damit „Rückgängig“ nichts anderes überschreibt.
+    @Published private(set) var lastDeletion: TranscriptDeletion?
+
+    struct TranscriptDeletion: Equatable {
+        let id = UUID()
+        let folder: URL
+        let previous: MeetingDocument
+        let count: Int
+    }
 
     private let archive: MeetingArchive
     private let diarizer: MeetingDiarizing?
@@ -142,6 +152,26 @@ final class MeetingLibrary: ObservableObject {
         save(entries[entryIndex].document.splitting(lineAt: index, beforeWord: wordIndex), at: entryIndex)
     }
 
+    /// Löscht Beiträge aus dem Transkript. Lässt sich über `undoDeletion()` zurücknehmen.
+    func deleteLines(_ indices: IndexSet, in folder: URL) {
+        guard let entryIndex = index(of: folder) else { return }
+        let before = entries[entryIndex].document
+        let after = before.removingLines(at: indices)
+        let removed = before.lines.count - after.lines.count
+        guard removed > 0 else { return }
+        save(after, at: entryIndex)
+        lastDeletion = TranscriptDeletion(folder: folder, previous: before, count: removed)
+    }
+
+    func undoDeletion() {
+        guard let deletion = lastDeletion else { return }
+        lastDeletion = nil
+        guard let entryIndex = index(of: deletion.folder) else { return }
+        save(deletion.previous, at: entryIndex)
+    }
+
+    func dismissDeletion() { lastDeletion = nil }
+
     enum ReassignTarget: Equatable {
         case speaker(String)
         case name(String)
@@ -157,6 +187,7 @@ final class MeetingLibrary: ObservableObject {
         do {
             let split = MeetingSummarizer.splitTitle(try await makeSummarizer().summarize(transcript: document.summaryInput))
         document.summary = split.notes
+            document.summaryOutdated = nil
             if let title = split.title, document.titleChosenByUser != true { document.aiTitle = title }
             save(document, at: index)
         } catch {
@@ -308,6 +339,7 @@ final class MeetingLibrary: ObservableObject {
     /// Speichert und spiegelt jede Korrektur in den Wissensordner, damit dort immer die
     /// aktuelle Fassung liegt (Sprecher, Umhängen, Notizen, Bereich).
     private func save(_ document: MeetingDocument, at index: Int) {
+        lastDeletion = nil
         let result = archive.persist(document, in: entries[index].folder, exporter: makeExporter())
         entries[index].document = result.document
         if let error = result.exportError {
