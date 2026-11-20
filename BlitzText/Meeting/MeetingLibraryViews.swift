@@ -235,6 +235,7 @@ private struct MeetingRow: View {
     @State private var renaming = false
     @State private var draftTitle = ""
     @State private var confirmMerge = false
+    @State private var confirmReset = false
 
     /// Markierte Meetings in zeitlicher Reihenfolge.
     private var markedFolders: [URL] {
@@ -317,6 +318,14 @@ private struct MeetingRow: View {
         } message: {
             Text("Leer lassen setzt auf den automatischen Titel zurück. Datum und Uhrzeit stehen in der Ablage immer davor.")
         }
+        .confirmationDialog("Sprecher-Zuordnung zurücksetzen?", isPresented: $confirmReset) {
+            Button("Zurücksetzen und neu erkennen", role: .destructive) { Task { await library.resetSpeakers(in: entry.folder) } }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            let count = entry.document.learnedSamples?.count ?? 0
+            Text("Alle Namen und Umhängungen in diesem Meeting werden verworfen und die Stimmen neu getrennt. Der Text bleibt."
+                 + (count > 0 ? " \(count == 1 ? "Die Stimmprobe" : "Die \(count) Stimmproben"), die dabei in Profile geflossen \(count == 1 ? "ist" : "sind"), \(count == 1 ? "wird" : "werden") wieder entfernt." : ""))
+        }
         .confirmationDialog("\(markedFolders.count) Meetings zu einem zusammenführen?", isPresented: $confirmMerge) {
             Button("Zusammenführen") { Task { await library.merge(markedFolders) } }
             Button("Abbrechen", role: .cancel) {}
@@ -348,6 +357,11 @@ extension MeetingRow {
         }
         .disabled(entry.document.speakerIDs.isEmpty || library.busy != nil)
         .help("Unbenannte Stimmen mit deinen Stimmprofilen und untereinander abgleichen")
+        Button { confirmReset = true } label: {
+            Label("Zuordnung zurücksetzen und neu erkennen …", systemImage: "arrow.counterclockwise")
+        }
+        .disabled(entry.document.lines.allSatisfy { $0.speaker == .me } || library.busy != nil)
+        .help("Namen und Umhängungen verwerfen, gelernte Stimmproben aus den Profilen nehmen und die Stimmen neu trennen")
         Divider()
         if library.marked.count >= 2 && library.isMarked(entry.folder) {
             Button { confirmMerge = true } label: {

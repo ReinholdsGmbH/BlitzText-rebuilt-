@@ -9,6 +9,13 @@ struct DiarizedSegment: Equatable {
     let end: TimeInterval
 }
 
+/// Eine Stimmprobe, die ein Meeting in ein Profil geschrieben hat. Damit lässt sie sich
+/// wieder herausnehmen, wenn der Name falsch war.
+struct LearnedSample: Codable, Equatable {
+    let name: String
+    let segmentID: UUID
+}
+
 struct MeetingDiarization: Equatable {
     let segments: [DiarizedSegment]
     /// Sprecher-ID → Name für Stimmen, die zu einem gespeicherten Profil passten.
@@ -20,7 +27,11 @@ protocol MeetingDiarizing: Sendable {
     func diarize(track: URL) async throws -> MeetingDiarization
     /// Legt aus den Abschnitten eines Sprechers ein Profil an oder schärft ein vorhandenes
     /// gleichen Namens nach.
-    func learnProfile(name: String, from track: URL, spans: [SpeechSpan]) async throws
+    @discardableResult
+    func learnProfile(name: String, from track: URL, spans: [SpeechSpan]) async throws -> LearnedSample
+    /// Nimmt Stimmproben wieder aus den Profilen. Ein Profil ohne verbleibende Probe wird
+    /// gelöscht, es bestand dann nur aus der falschen Zuordnung.
+    func forget(_ samples: [LearnedSample])
     /// Namen aller gespeicherten Profile, für die Vorschläge beim Tippen.
     func knownSpeakerNames() -> [String]
     /// Klang einer Stimme aus ihren Abschnitten, für den nachträglichen Abgleich.
@@ -109,6 +120,35 @@ final class FluidMeetingDiarizer: MeetingDiarizing, @unchecked Sendable {
         return MeetingDiarization(segments: segments, knownNames: known)
     }
 
+    func forget(_ samples: [LearnedSample]) {
+        guard !samples.isEmpty else { return }
+        let updated = Self.removing(samples, from: store.loadSpeakers())
+        store.saveSpeakers(updated.speakers)
+        Log.write("MeetingDiarizer: \(updated.removed) Stimmproben entfernt, \(updated.deletedProfiles) Profile gelöscht")
+    }
+
+    /// Einheitslänge wie bei FluidAudios eigenen Rohproben.
+    static func normalized(_ vector: [Float]) -> [Float] {
+        let length = vector.reduce(0) { $0 + $1 * $1 }.squareRoot()
+        return length > 0 ? vector.map { $0 / length } : vector
+    }
+
+    /// Entfernt die Proben anhand ihrer ID; der Mittelwert des Profils wird neu berechnet.
+    static func removing(_ samples: [LearnedSample], from speakers: [Speaker])
+        -> (speakers: [Speaker], removed: Int, deletedProfiles: Int) {
+        let ids = Set(samples.map(\.segmentID))
+        var removed = 0, deleted = 0
+        var result: [Speaker] = []
+        for var speaker in speakers {
+            let hits = speaker.rawEmbeddings.filter { ids.contains($0.segmentId) }.map(\.segmentId)
+            guard !hits.isEmpty else { result.append(speaker); continue }
+            hits.forEach { speaker.removeRawEmbedding(segmentId: $0) }
+            removed += hits.count
+            if speaker.rawEmbeddings.isEmpty { deleted += 1 } else { result.append(speaker) }
+        }
+        return (result, removed, deleted)
+    }
+
     func knownSpeakerNames() -> [String] {
         store.loadSpeakers().filter(\.isPermanent).map(\.name)
     }
@@ -126,25 +166,32 @@ final class FluidMeetingDiarizer: MeetingDiarizing, @unchecked Sendable {
         store.loadSpeakers().filter(\.isPermanent).map { ($0.name, $0.currentEmbedding) }
     }
 
-    func learnProfile(name: String, from track: URL, spans: [SpeechSpan]) async throws {
+    @discardableResult
+    func learnProfile(name: String, from track: URL, spans: [SpeechSpan]) async throws -> LearnedSample {
         let manager = try await diarizer()
         let samples = try Self.samples(of: spans, in: track, limit: Self.maximumProfileSeconds)
         let seconds = Double(samples.count) / 16_000
         guard seconds >= Self.minimumProfileSeconds else { throw MeetingDiarizerError.notEnoughSpeech(seconds) }
 
         let embedding = try manager.extractSpeakerEmbedding(from: samples)
+        let segmentID = UUID()
         var all = store.loadSpeakers()
         if let index = all.firstIndex(where: { $0.isPermanent && SpeakerNaming.key($0.name) == SpeakerNaming.key(name) }) {
-            all[index].updateMainEmbedding(duration: Float(seconds), embedding: embedding, segmentId: UUID(), alpha: 0.7)
+            all[index].updateMainEmbedding(duration: Float(seconds), embedding: embedding, segmentId: segmentID, alpha: 0.7)
             Log.write("MeetingDiarizer: Profil nachgeschärft (\(String(format: "%.0f", seconds)) s)")
         } else {
-            all.append(Speaker(name: name, currentEmbedding: embedding, duration: Float(seconds), isPermanent: true))
+            // Die erste Probe auch als Rohprobe ablegen: Sonst fiele sie beim ersten
+            // Nachschärfen aus dem Mittelwert und ließe sich nicht gezielt entfernen.
+            var speaker = Speaker(name: name, currentEmbedding: embedding, duration: Float(seconds), isPermanent: true)
+            speaker.addRawEmbedding(RawEmbedding(segmentId: segmentID, embedding: Self.normalized(embedding)))
+            all.append(speaker)
             Log.write("MeetingDiarizer: neues Profil angelegt (\(String(format: "%.0f", seconds)) s)")
         }
         store.saveSpeakers(all)
         if let manager = lock.withLock({ loaded }) {
             await manager.speakerManager.reset()
         }
+        return LearnedSample(name: name, segmentID: segmentID)
     }
 
     /// Ersetzt gleichnamige IDs im gespeicherten Bestand, behält alle übrigen Profile.

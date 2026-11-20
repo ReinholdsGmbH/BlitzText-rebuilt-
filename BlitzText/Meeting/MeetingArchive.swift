@@ -42,6 +42,8 @@ struct MeetingDocument: Codable, Equatable {
     var endedAt: Date?
     /// Transkript wurde nach der Zusammenfassung gekürzt; „Neu erstellen“ setzt es zurück.
     var summaryOutdated: Bool?
+    /// Stimmproben, die aus diesem Meeting in Profile geflossen sind.
+    var learnedSamples: [LearnedSample]?
 
     /// Wann das Meeting endete.
     var endDate: Date { endedAt ?? startedAt.addingTimeInterval(duration) }
