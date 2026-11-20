@@ -5,6 +5,8 @@ import Foundation
 enum Blitz {
     static let appGroup = "group.de.reinholds.blitztext"
     static let sessionURL = URL(string: "blitztext://session?record=1")!
+    /// Öffnet die App auf dem Einstellungen-Tab, ohne eine Session zu starten.
+    static let settingsURL = URL(string: "blitztext://settings")!
 
     /// Heartbeat älter als das gilt als "Session aus".
     static let heartbeatTimeout: TimeInterval = 3
