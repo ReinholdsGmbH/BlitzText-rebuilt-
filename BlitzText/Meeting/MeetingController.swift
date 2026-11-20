@@ -514,7 +514,10 @@ final class MeetingController: ObservableObject {
                 do {
                     let split = MeetingSummarizer.splitTitle(try await summarizer.summarize(transcript: document.summaryInput))
                     document.summary = split.notes
-                    if let title = split.title, document.callTitle == nil { document.aiTitle = title }
+                    let series = document.callTitle.map { call in
+                        MeetingDocument.isSeries(call, archiveTitles: archive.loadAll().compactMap(\.document.callTitle))
+                    } ?? false
+                    document.applySummaryTitle(split.title, isSeries: series)
                 } catch {
                     warning = "Zusammenfassung fehlgeschlagen: \(error.localizedDescription)"
                     Log.write("MeetingController: \(warning ?? "")")

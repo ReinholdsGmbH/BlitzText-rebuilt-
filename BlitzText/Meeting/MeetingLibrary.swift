@@ -191,7 +191,7 @@ final class MeetingLibrary: ObservableObject {
             let split = MeetingSummarizer.splitTitle(try await makeSummarizer().summarize(transcript: document.summaryInput))
         document.summary = split.notes
             document.summaryOutdated = nil
-            if let title = split.title, document.titleChosenByUser != true, document.callTitle == nil { document.aiTitle = title }
+            document.applySummaryTitle(split.title, isSeries: isSeries(document))
             save(document, at: index)
         } catch {
             lastError = "Notizen nicht erstellt: \(error.localizedDescription)"
@@ -220,12 +220,23 @@ final class MeetingLibrary: ObservableObject {
         busy = "Erzeuge Titel …"
         defer { busy = nil }
         do {
-            document.aiTitle = try await makeSummarizer().title(for: document.summaryInput)
+            let suggested = try await makeSummarizer().title(for: document.summaryInput)
             document.titleChosenByUser = false
+            // Ausdrücklich angefordert: bei einmaligen Terminen ersetzt der KI-Titel den
+            // Besprechungsnamen, bei Serien kommt das Thema dazu.
+            document.aiTitle = suggested
+            if let call = document.callTitle, isSeries(document) {
+                document.aiTitle = MeetingDocument.seriesTitle(call: call, topic: suggested)
+            }
             save(document, at: index)
         } catch {
             lastError = "Titel nicht erzeugt: \(error.localizedDescription)"
         }
+    }
+
+    private func isSeries(_ document: MeetingDocument) -> Bool {
+        guard let call = document.callTitle else { return false }
+        return MeetingDocument.isSeries(call, archiveTitles: entries.compactMap(\.document.callTitle))
     }
 
     /// Titel von Hand. Leer setzt auf den automatischen Titel zurück.
