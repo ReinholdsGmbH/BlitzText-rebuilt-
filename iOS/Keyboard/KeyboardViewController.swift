@@ -288,7 +288,10 @@ final class KeyboardViewController: UIInputViewController {
             reloadKeys()
         case .backspace:
             if let swiped = lastSwipeInsert {
-                swiped.forEach { _ in textDocumentProxy.deleteBackward() }
+                // Nur das Wort löschen, das Leerzeichen davor bleibt stehen: So kann direkt das
+                // nächste Wort folgen, wie bei Apple.
+                let word = swiped.hasPrefix(" ") ? swiped.dropFirst() : Substring(swiped)
+                word.forEach { _ in textDocumentProxy.deleteBackward() }
                 lastSwipeInsert = nil
             } else {
                 textDocumentProxy.deleteBackward()

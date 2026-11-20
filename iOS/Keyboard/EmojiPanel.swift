@@ -2,7 +2,8 @@ import CoreText
 import UIKit
 
 /// Emoji-Auswahl der Tastatur: alle Apple-Emojis in Kategorien, durchgehend scrollbar wie bei
-/// Apple, oben die Sprungleiste, unten „ABC“ und Löschen. Hautfarben per langem Druck.
+/// Apple, unten die Sprungleiste über „ABC“ und Löschen. Hautfarben per langem Druck, die
+/// gewählte Farbe gilt danach als Standard für diese Figur.
 /// Apples eigene Emoji-Tastatur lässt sich aus einer fremden Tastatur nicht einblenden.
 final class EmojiPanel: UIView {
     var onInsert: ((String) -> Void)?
@@ -10,6 +11,15 @@ final class EmojiPanel: UIView {
     var onClose: (() -> Void)?
 
     private static let recentKey = "recentEmojis"
+    /// Gewählte Hautfarbe je Figur, wie bei Apple: Grundform → Variante.
+    private static let toneKey = "emojiSkinTones"
+    /// Variante → Grundform, damit auch ein Emoji aus „Zuletzt verwendet“ die Auswahl öffnet.
+    private static let toneBase: [String: String] = {
+        var map: [String: String] = [:]
+        for (base, variants) in EmojiCatalog.skinTones { for variant in variants { map[variant] = base } }
+        return map
+    }()
+    private var preferredTones: [String: String] = [:]
     private static let recentLimit = 32
     private static let perRow: CGFloat = 8
     private static let rowHeight: CGFloat = 42
@@ -41,6 +51,7 @@ final class EmojiPanel: UIView {
     /// Beim Einblenden: zuletzt verwendete neu lesen, beim ersten Mal die Liste aufbauen.
     func refresh() {
         recents = Blitz.defaults?.stringArray(forKey: Self.recentKey) ?? []
+        preferredTones = Blitz.defaults?.dictionary(forKey: Self.toneKey) as? [String: String] ?? [:]
         hideTonePicker()
         guard categories.isEmpty else {
             collection.reloadData()
@@ -92,6 +103,19 @@ final class EmojiPanel: UIView {
         var list = (Blitz.defaults?.stringArray(forKey: Self.recentKey) ?? []).filter { $0 != emoji }
         list.insert(emoji, at: 0)
         Blitz.defaults?.set(Array(list.prefix(Self.recentLimit)), forKey: Self.recentKey)
+    }
+
+    /// Was im Raster steht: bei Figuren die zuletzt gewählte Hautfarbe.
+    private func displayed(_ emoji: String) -> String {
+        preferredTones[emoji] ?? emoji
+    }
+
+    /// Hautfarbe merken und das Raster sofort darauf umstellen.
+    private func choose(_ variant: String, for base: String) {
+        if variant == base { preferredTones[base] = nil } else { preferredTones[base] = variant }
+        Blitz.defaults?.set(preferredTones, forKey: Self.toneKey)
+        collection.reloadData()
+        insert(variant)
     }
 
     private func insert(_ emoji: String) {
@@ -191,11 +215,12 @@ final class EmojiPanel: UIView {
               let path = collection.indexPathForItem(at: gesture.location(in: collection)),
               let cell = collection.cellForItem(at: path) else { return }
         let emoji = emojis(in: path.section)[path.item]
-        guard let tones = EmojiCatalog.skinTones[emoji] else { return }
-        showTonePicker([emoji] + tones, above: cell.convert(cell.bounds, to: self))
+        let base = Self.toneBase[emoji] ?? emoji
+        guard let tones = EmojiCatalog.skinTones[base] else { return }
+        showTonePicker([base] + tones, for: base, above: cell.convert(cell.bounds, to: self))
     }
 
-    private func showTonePicker(_ options: [String], above anchor: CGRect) {
+    private func showTonePicker(_ options: [String], for base: String, above anchor: CGRect) {
         hideTonePicker()
         let overlay = UIControl(frame: bounds)
         overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -210,7 +235,7 @@ final class EmojiPanel: UIView {
             button.titleLabel?.font = .systemFont(ofSize: 30)
             button.addAction(UIAction { [weak self] _ in
                 self?.hideTonePicker()
-                self?.insert(option)
+                self?.choose(option, for: base)
             }, for: .touchUpInside)
             row.addArrangedSubview(button)
         }
@@ -249,7 +274,7 @@ extension EmojiPanel: UICollectionViewDataSource, UICollectionViewDelegateFlowLa
 
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: EmojiCell.id, for: indexPath)
-        (cell as? EmojiCell)?.label.text = emojis(in: indexPath.section)[indexPath.item]
+        (cell as? EmojiCell)?.label.text = displayed(emojis(in: indexPath.section)[indexPath.item])
         return cell
     }
 
@@ -274,7 +299,7 @@ extension EmojiPanel: UICollectionViewDataSource, UICollectionViewDelegateFlowLa
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         collectionView.deselectItem(at: indexPath, animated: true)
-        insert(emojis(in: indexPath.section)[indexPath.item])
+        insert(displayed(emojis(in: indexPath.section)[indexPath.item]))
     }
 
     /// Die Kategorie oben im sichtbaren Bereich hervorheben.
