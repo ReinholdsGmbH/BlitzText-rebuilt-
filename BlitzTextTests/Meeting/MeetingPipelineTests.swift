@@ -133,6 +133,7 @@ struct MeetingControllerTests {
             Issue.record("Phase: \(controller.phase)"); return
         }
         #expect(warning == nil)
+        #expect(controller.pendingMeetings.isEmpty)
         let url = folder.appendingPathComponent(MeetingArchive.protocolFile)
         let md = try String(contentsOf: url, encoding: .utf8)
         #expect(md.contains("- Test"))
@@ -156,6 +157,8 @@ struct MeetingControllerTests {
         controller.start()
         controller.stop()
         #expect(controller.isProcessing)
+        // Sofort in der Liste, nicht erst nach Transkription und Zusammenfassung.
+        #expect(controller.pendingMeetings.count == 1)
 
         controller.start()
         #expect(controller.isRecording)
@@ -165,6 +168,7 @@ struct MeetingControllerTests {
         }
         #expect(controller.isRecording)
         #expect(controller.lastFolder != nil)
+        #expect(controller.pendingMeetings.isEmpty)
 
         controller.stop()
         for _ in 0..<400 where !isFinished(controller) { try await Task.sleep(for: .milliseconds(25)) }

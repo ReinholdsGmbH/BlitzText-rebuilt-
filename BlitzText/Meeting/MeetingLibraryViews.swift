@@ -76,7 +76,7 @@ struct MeetingListColumn: View {
                     .padding(.horizontal, 22).padding(.bottom, 6)
             }
 
-            if library.entries.isEmpty {
+            if library.entries.isEmpty && controller.pendingMeetings.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "calendar").font(.system(size: 26)).foregroundStyle(MeetingTheme.foregroundTertiary)
                     Text("Noch keine Meetings").font(.system(size: 15, weight: .medium))
@@ -87,6 +87,11 @@ struct MeetingListColumn: View {
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {
+                        // Beendet, aber noch ohne Protokoll: sofort sichtbar statt erst nach
+                        // Transkription und Zusammenfassung.
+                        ForEach(controller.pendingMeetings) { pending in
+                            PendingMeetingRow(pending: pending, status: controller.backgroundStatus)
+                        }
                         ForEach(groups, id: \.day) { group in
                             Text(dayLabel(group.day))
                                 .font(.system(size: 11, weight: .semibold))
@@ -1597,5 +1602,33 @@ private struct LiveTranscriptPanel: View {
             }
             .animation(.easeOut(duration: 0.2), value: atBottom)
         }
+    }
+}
+
+/// Platzhalter für ein Meeting, dessen Protokoll gerade entsteht. Nicht anklickbar: Es gibt
+/// noch kein Transkript, und Änderungen würden beim Speichern überschrieben.
+struct PendingMeetingRow: View {
+    let pending: PendingMeeting
+    let status: String?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ProgressView().controlSize(.small)
+                .frame(width: 32, height: 32)
+                .background(RoundedRectangle(cornerRadius: 9).fill(MeetingTheme.backgroundSecondary))
+            VStack(alignment: .leading, spacing: 2) {
+                (Text(MeetingMarkdown.stamp(pending.startedAt, timeSeparator: ":") + "_")
+                    .foregroundStyle(MeetingTheme.foregroundTertiary)
+                 + Text(pending.title).fontWeight(.semibold))
+                    .font(.system(size: 13.5)).lineLimit(1)
+                Text(status.map { "Wird verarbeitet: \($0)" } ?? "Wird verarbeitet …")
+                    .font(.system(size: 12)).foregroundStyle(MeetingTheme.foregroundTertiary)
+            }
+            Spacer(minLength: 4)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .padding(.top, 10)
+        .help("Das Protokoll entsteht noch. Danach lässt sich das Meeting öffnen.")
     }
 }

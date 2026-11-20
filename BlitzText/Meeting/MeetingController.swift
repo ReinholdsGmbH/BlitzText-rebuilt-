@@ -80,6 +80,9 @@ final class MeetingController: ObservableObject {
     /// Fortschritt einer Verarbeitung, die im Hintergrund läuft, während schon die nächste
     /// Aufnahme läuft. Sonst nil.
     @Published private(set) var backgroundStatus: String?
+    /// Meetings, deren Spuren gespeichert sind, deren Protokoll aber noch entsteht. Die Liste
+    /// zeigt sie sofort, statt sie erst nach Transkription und Zusammenfassung aufzunehmen.
+    @Published private(set) var pendingMeetings: [PendingMeeting] = []
 
     /// Pollintervall der Meeting-Erkennung.
     static let pollInterval: TimeInterval = 5
@@ -442,6 +445,8 @@ final class MeetingController: ObservableObject {
         // Sofort umschalten, nicht erst im Hintergrund-Task: sonst zeigt die Oberfläche nach dem
         // Stopp noch kurz „Aufnahme läuft“, und ein neuer Start würde verschluckt.
         setPipelinePhase((others != nil && diarizer != nil) ? .diarizing : .transcribing(done: 0, total: 0))
+        pendingMeetings.append(PendingMeeting(folder: folder, startedAt: initial.startedAt,
+                                              title: MeetingMarkdown.baseTitle(for: initial)))
         let transcriber = MeetingTranscriber(transcriber: makeTranscriber(), language: language())
         let summarizer = makeSummarizer()
         let diarizer = self.diarizer
@@ -543,6 +548,7 @@ final class MeetingController: ObservableObject {
                 }
                 self?.finish(folder: folder, warning: warning, document: document)
             } catch {
+                self?.dropPending(folder)
                 self?.setPipelinePhase(.failed("Transkription fehlgeschlagen: \(error.localizedDescription)"))
                 Log.write("MeetingController: Transkription fehlgeschlagen — \(error.localizedDescription)")
             }
@@ -563,8 +569,13 @@ final class MeetingController: ObservableObject {
         }
     }
 
+    private func dropPending(_ folder: URL) {
+        pendingMeetings.removeAll { MeetingLibrary.key($0.folder) == MeetingLibrary.key(folder) }
+    }
+
     private func finish(folder: URL, warning: String?, document: MeetingDocument) {
         backgroundStatus = nil
+        dropPending(folder)
         // Läuft schon die nächste Aufnahme: still fertig, ohne Ergebnis-Pille und ohne die
         // Rückfrage „Versehentlich gestartet?“ über die laufende Aufnahme zu legen.
         if isRecording {
@@ -604,4 +615,12 @@ struct MeetingEndWatch {
     }
 
     mutating func dismiss() { dismissed = true }
+}
+
+/// Ein Meeting zwischen Beenden und fertigem Protokoll.
+struct PendingMeeting: Identifiable, Equatable {
+    let folder: URL
+    let startedAt: Date
+    let title: String
+    var id: String { folder.standardizedFileURL.path }
 }
