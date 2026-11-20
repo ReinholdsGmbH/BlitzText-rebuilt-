@@ -91,8 +91,17 @@ final class KeyboardViewController: UIInputViewController {
         refreshTimer = nil
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // Die System-Gesten am Fenster halten Berührungen am Bildschirmrand zurück; Tasten der
+        // obersten und untersten Reihe reagieren sonst verzögert oder gar nicht.
+        view.window?.gestureRecognizers?.forEach { $0.delaysTouchesBegan = false }
+    }
+
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
+        // Während der Cursorfahrt meldet die Ziel-App jede Verschiebung; das wird am Ende nachgeholt.
+        guard cursorNavigator == nil else { return }
         detectNumericField()
         reloadKeys()
         updateSuggestions()
@@ -272,15 +281,26 @@ final class KeyboardViewController: UIInputViewController {
             afterEdit()
         case .deleteWord:
             deleteWordBackward()
-        case .moveCursorLine(let direction):
-            moveCursorLine(direction)
+        case .cursorTo(let target):
+            guard var navigator = cursorNavigator else { break }
+            let delta = target - navigator.position
+            navigator.position = target
+            cursorNavigator = navigator
+            if delta != 0 { textDocumentProxy.adjustTextPosition(byCharacterOffset: delta) }
+        case .cursorBegan:
+            let navigator = CursorNavigator(before: textDocumentProxy.documentContextBeforeInput ?? "",
+                                            after: textDocumentProxy.documentContextAfterInput ?? "",
+                                            lineWidth: estimatedLineWidth,
+                                            advance: { [weak self] in self?.advance(of: $0) ?? 8.4 })
+            cursorNavigator = navigator
+            keyboard.showCursorPreview(navigator)
             lastSwipeInsert = nil
             spaceAfterWordAt = nil
-            updateSuggestions()
-        case .moveCursor(let offset):
-            textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
-            lastSwipeInsert = nil
-            spaceAfterWordAt = nil
+        case .cursorEnded:
+            // Vorschläge erst nach der Fahrt: Neuaufbau bei jedem Schritt bremst spürbar.
+            cursorNavigator = nil
+            updateAutoShift()
+            reloadKeys()
             updateSuggestions()
         case .space:
             insertSpace()
@@ -306,40 +326,24 @@ final class KeyboardViewController: UIInputViewController {
         lastCharWasWord = text.last.map { $0.isLetter || $0.isNumber } ?? false
     }
 
-    /// Ungefähre Zeichen je sichtbarer Zeile; lange Absätze ohne Umbruch springen um so viel.
-    private static let charactersPerLine = 38
+    /// Cursorfahrt über die Leertaste; lebt vom Halten bis zum Loslassen.
+    private var cursorNavigator: CursorNavigator?
 
-    /// Eine Zeile hoch oder runter, möglichst in derselben Spalte. iOS gibt der Tastatur nur
-    /// Zeichen-Verschiebungen; Zeilen ergeben sich aus Umbrüchen im Text, sonst aus der Schätzung.
-    private func moveCursorLine(_ direction: Int) {
-        let before = textDocumentProxy.documentContextBeforeInput ?? ""
-        let after = textDocumentProxy.documentContextAfterInput ?? ""
-        let lineStart = before.lastIndex(of: "\n").map { before.index(after: $0) } ?? before.startIndex
-        let column = before.distance(from: lineStart, to: before.endIndex)
-        let perLine = Self.charactersPerLine
-        var offset = 0
-        if direction < 0 {
-            if column >= perLine || lineStart == before.startIndex {
-                // Innerhalb eines langen Absatzes eine sichtbare Zeile zurück.
-                offset = -min(perLine, column > 0 ? column : before.count)
-            } else {
-                let previousEnd = before.index(before: lineStart)
-                let previousStart = before[..<previousEnd].lastIndex(of: "\n").map { before.index(after: $0) } ?? before.startIndex
-                let previousLength = before.distance(from: previousStart, to: previousEnd)
-                offset = -(column + 1 + max(0, previousLength - column))
-            }
-        } else {
-            let restOfLine = after.firstIndex(of: "\n").map { after.distance(from: after.startIndex, to: $0) }
-            if let rest = restOfLine, rest < perLine {
-                let nextStart = after.index(after: after.index(after.startIndex, offsetBy: rest))
-                let nextLength = after[nextStart...].firstIndex(of: "\n").map { after.distance(from: nextStart, to: $0) }
-                    ?? after.distance(from: nextStart, to: after.endIndex)
-                offset = rest + 1 + min(column, nextLength)
-            } else {
-                offset = min(perLine, after.count)
-            }
-        }
-        if offset != 0 { textDocumentProxy.adjustTextPosition(byCharacterOffset: offset) }
+    /// Geschätzte Textbreite einer Zeile in der Ziel-App, in Punkt. Die Tastatur sieht das Textfeld
+    /// nicht; ausgelegt ist sie auf Nachrichtenfelder (WhatsApp, Teams), die neben den Knöpfen rund
+    /// 142 pt schmaler sind als der Bildschirm. Gemessen an einem WhatsApp-Screenshot auf 440 pt
+    /// Bildschirmbreite: Zeilen bis 292 pt passten, ab 306 pt wurde umbrochen.
+    private var estimatedLineWidth: CGFloat { max(160, view.bounds.width - 142) }
+
+    /// Zeichenbreiten der Systemschrift in 17 pt, wie sie Nachrichten-Apps verwenden.
+    private static let cursorFont = UIFont.systemFont(ofSize: 17)
+    private var advanceCache: [Character: CGFloat] = [:]
+
+    private func advance(of character: Character) -> CGFloat {
+        if let cached = advanceCache[character] { return cached }
+        let width = (String(character) as NSString).size(withAttributes: [.font: Self.cursorFont]).width
+        advanceCache[character] = width
+        return width
     }
 
     private func setEmojiPanel(visible: Bool) {
