@@ -51,7 +51,12 @@ targets:
   BlitzTextKeyboard:
     type: app-extension
     platform: iOS
-    sources: [Keyboard, Shared]
+    sources:
+      - Keyboard
+      - Shared
+      # Feste Diktat-Regeln, auch für das Diktat direkt in der Tastatur.
+      - App/Store/DictationFormatter.swift
+      - App/Store/EmojiReplacer.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.reinholds.blitztext.ios.keyboard
@@ -60,6 +65,8 @@ targets:
       path: Keyboard/Info.plist
       properties:
         CFBundleDisplayName: BlitzText
+        NSMicrophoneUsageDescription: "Die BlitzText-Tastatur nimmt Diktate auf und transkribiert sie auf dem Gerät."
+        NSSpeechRecognitionUsageDescription: "Die BlitzText-Tastatur wandelt Diktate auf dem Gerät in Text um."
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController

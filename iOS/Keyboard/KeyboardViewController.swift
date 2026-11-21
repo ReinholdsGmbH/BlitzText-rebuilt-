@@ -28,6 +28,22 @@ final class KeyboardViewController: UIInputViewController {
     private var refreshTimer: Timer?
     private var lastInsertedID: String?
     private var lastState: Blitz.State?
+    /// Diktat direkt in der Tastatur, wenn keine Session läuft.
+    private lazy var dictation: KeyboardDictation = {
+        let dictation = KeyboardDictation(host: view)
+        dictation.onState = { [weak self] _ in
+            self?.lastState = nil
+            self?.refreshMic()
+        }
+        dictation.onText = { [weak self] text in self?.insertTranscript(DictationFormatter.apply(text)) }
+        dictation.onFailure = { [weak self] message in
+            self?.lastState = nil
+            self?.refreshMic()
+            self?.statusLabel.text = message
+            self?.showStatusOnly()
+        }
+        return dictation
+    }()
     /// Formvergleich-Decoder; lädt das von der App gebaute Wörterbuch im Hintergrund.
     private var swipeDecoder: SwipeDecoder?
 
@@ -81,6 +97,7 @@ final class KeyboardViewController: UIInputViewController {
         reloadKeys()
         refreshMic()
         updateSuggestions()
+        if hasFullAccess { dictation.prepare() }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshMic() }
         }
@@ -89,6 +106,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         usage.save()
+        dictation.cancel()
         refreshTimer?.invalidate()
         refreshTimer = nil
     }
@@ -644,6 +662,10 @@ final class KeyboardViewController: UIInputViewController {
     // MARK: - Diktat
 
     private func refreshMic() {
+        if dictation.state != .idle {
+            showDirectDictation()
+            return
+        }
         let state: Blitz.State = hasFullAccess ? Blitz.state : .off
         guard state != lastState || micButton.currentImage == nil else { return }
         lastState = state
@@ -655,7 +677,7 @@ final class KeyboardViewController: UIInputViewController {
         spinner.stopAnimating()
         switch state {
         case .off:
-            statusLabel.text = hasFullAccess ? "Mikro tippen startet die Session" : "Für Diktat „Vollen Zugriff“ erlauben"
+            statusLabel.text = hasFullAccess ? "Mikro tippen zum Diktieren" : "Für Diktat „Vollen Zugriff“ erlauben"
             if !hasFullAccess { symbol = "mic.slash" }
         case .idle:
             symbol = "mic.fill"; tint = .white; background = .systemOrange
@@ -675,11 +697,43 @@ final class KeyboardViewController: UIInputViewController {
         micButton.backgroundColor = background
     }
 
+    /// Knopf während des Diktats direkt in der Tastatur.
+    private func showDirectDictation() {
+        let config = UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+        spinner.stopAnimating()
+        micButton.isEnabled = true
+        switch dictation.state {
+        case .starting, .recording:
+            micButton.setImage(UIImage(systemName: "stop.fill", withConfiguration: config), for: .normal)
+            micButton.tintColor = .white
+            micButton.backgroundColor = .systemRed
+            statusLabel.text = dictation.state == .starting ? "Mikrofon startet …" : "Hört zu … tippen zum Beenden"
+        case .transcribing:
+            micButton.setImage(nil, for: .normal)
+            micButton.backgroundColor = .secondarySystemFill
+            spinner.startAnimating()
+            statusLabel.text = "Schreibt …"
+        case .idle:
+            break
+        }
+        showStatusOnly()
+    }
+
     @objc private func micTapped() {
         guard hasFullAccess else { return }
+        switch dictation.state {
+        case .starting, .recording:
+            dictation.stop()
+            return
+        case .transcribing:
+            return
+        case .idle:
+            break
+        }
         switch Blitz.state {
         case .off:
-            if !openContainingApp(Blitz.sessionURL) { statusLabel.text = "App konnte nicht geöffnet werden" }
+            // Ohne Session diktiert die Tastatur selbst; die App braucht es nur noch für Meetings.
+            dictation.start()
         case .idle:
             Blitz.post(Blitz.Note.start)
         case .recording:
@@ -699,6 +753,10 @@ final class KeyboardViewController: UIInputViewController {
         guard let id = Blitz.defaults?.string(forKey: Blitz.Key.resultID), id != lastInsertedID,
               let text = Blitz.defaults?.string(forKey: Blitz.Key.result) else { return }
         lastInsertedID = id
+        insertTranscript(text)
+    }
+
+    private func insertTranscript(_ text: String) {
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
         let needsSpace = !(before.isEmpty || before.hasSuffix(" ") || before.hasSuffix("\n"))
         textDocumentProxy.insertText((needsSpace ? " " : "") + text)
