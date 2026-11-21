@@ -12,7 +12,7 @@ actor ParakeetEngine {
         if let loading { return try await loading.value }
         let task = Task {
             let manager = AsrManager(config: .default)
-            try await manager.loadModels(AsrModels.downloadAndLoad())
+            try await manager.loadModels(AsrModels.load(from: ParakeetLocation.ensureModels()))
             return manager
         }
         loading = task
