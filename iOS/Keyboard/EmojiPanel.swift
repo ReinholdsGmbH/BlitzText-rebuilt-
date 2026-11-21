@@ -9,6 +9,8 @@ final class EmojiPanel: UIView {
     var onInsert: ((String) -> Void)?
     var onBackspace: (() -> Void)?
     var onClose: (() -> Void)?
+    /// Suchfeld oben angetippt.
+    var onSearch: (() -> Void)?
 
     private static let recentKey = "recentEmojis"
     /// Gewählte Hautfarbe je Figur, wie bei Apple: Grundform → Variante.
@@ -101,7 +103,17 @@ final class EmojiPanel: UIView {
         return CTLineGetTypographicBounds(measured, nil, nil, nil) <= single * 1.5
     }
 
-    private func remember(_ emoji: String) {
+    /// Zuletzt verwendete Emojis, für die Suche ohne Eingabe.
+    static var recentEmojis: [String] { Blitz.defaults?.stringArray(forKey: recentKey) ?? [] }
+
+    /// Bei Figuren die zuletzt gewählte Hautfarbe, auch für Suchtreffer.
+    static func withPreferredTone(_ emoji: String) -> String {
+        (Blitz.defaults?.dictionary(forKey: toneKey) as? [String: String])?[emoji] ?? emoji
+    }
+
+    private func remember(_ emoji: String) { Self.remember(emoji) }
+
+    static func remember(_ emoji: String) {
         var list = (Blitz.defaults?.stringArray(forKey: Self.recentKey) ?? []).filter { $0 != emoji }
         list.insert(emoji, at: 0)
         Blitz.defaults?.set(Array(list.prefix(Self.recentLimit)), forKey: Self.recentKey)
@@ -163,12 +175,28 @@ final class EmojiPanel: UIView {
         abc.widthAnchor.constraint(equalToConstant: 50).isActive = true
         delete.widthAnchor.constraint(equalToConstant: 50).isActive = true
 
-        for view in [collection, bottom] as [UIView] {
+        // Suchfeld wie bei Apple; antippen wechselt auf die Buchstaben mit Trefferleiste.
+        var searchConfig = UIButton.Configuration.filled()
+        searchConfig.baseBackgroundColor = .tertiarySystemFill
+        searchConfig.baseForegroundColor = .secondaryLabel
+        searchConfig.background.cornerRadius = 10
+        searchConfig.image = UIImage(systemName: "magnifyingglass")
+        searchConfig.imagePadding = 8
+        searchConfig.attributedTitle = AttributedString("Emoji suchen", attributes: AttributeContainer([.font: UIFont.systemFont(ofSize: 17)]))
+        let search = UIButton(configuration: searchConfig)
+        search.contentHorizontalAlignment = .leading
+        search.addAction(UIAction { [weak self] _ in self?.onSearch?() }, for: .touchUpInside)
+
+        for view in [search, collection, bottom] as [UIView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
         NSLayoutConstraint.activate([
-            collection.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+            search.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+            search.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            search.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            search.heightAnchor.constraint(equalToConstant: 34),
+            collection.topAnchor.constraint(equalTo: search.bottomAnchor, constant: 4),
             collection.leadingAnchor.constraint(equalTo: leadingAnchor),
             collection.trailingAnchor.constraint(equalTo: trailingAnchor),
             collection.bottomAnchor.constraint(equalTo: bottom.topAnchor, constant: -4),
