@@ -55,6 +55,8 @@ final class KeyboardViewController: UIInputViewController {
     private var digits: Blitz.DigitsMode = .longPress
     /// Reines Ziffernfeld (Zahl, Dezimalzahl, Einmalcode) erkannt: Ziffernblock statt Buchstaben.
     private var numericField: KeyboardLayer?
+    /// URL- oder Adressfeld: „/“ und „.“ neben der Leertaste.
+    private var urlField = false
     /// Mit „ABC“ verlassen; gilt bis zum nächsten anderen Feld.
     private var numberPadDismissed = false
     private var fieldSignature = ""
@@ -115,6 +117,17 @@ final class KeyboardViewController: UIInputViewController {
         super.viewDidAppear(animated)
         // Die System-Gesten am Fenster halten Berührungen am Bildschirmrand zurück; Tasten der
         // obersten und untersten Reihe reagieren sonst verzögert oder gar nicht.
+        releaseEdgeTouches()
+    }
+
+    /// Schaltet das Zurückhalten an allen Ebenen über der Tastatur ab, nicht nur am Fenster: Schnelle
+    /// Tipps in der untersten Reihe wurden sonst verzögert und von der Home-Geste verworfen.
+    private func releaseEdgeTouches() {
+        var current: UIView? = view
+        while let layer = current {
+            layer.gestureRecognizers?.forEach { $0.delaysTouchesBegan = false }
+            current = layer.superview
+        }
         view.window?.gestureRecognizers?.forEach { $0.delaysTouchesBegan = false }
     }
 
@@ -250,6 +263,7 @@ final class KeyboardViewController: UIInputViewController {
         guard signature != fieldSignature else { return }
         fieldSignature = signature
         numberPadDismissed = false
+        urlField = type == .URL || type == .webSearch || content == .URL
         switch type {
         case .numberPad, .asciiCapableNumberPad: numericField = .numberPad(decimal: false)
         case .decimalPad: numericField = .numberPad(decimal: true)
@@ -266,7 +280,7 @@ final class KeyboardViewController: UIInputViewController {
     /// Baut die Tasten nur neu, wenn sich Ebene, Umschalt-Zustand oder Return-Beschriftung ändern.
     private func reloadKeys() {
         let layer = visibleLayer
-        let signature = "\(layer)|\(shift)|\(returnLabel)|\(needsInputModeSwitchKey)|\(digits)"
+        let signature = "\(layer)|\(shift)|\(returnLabel)|\(needsInputModeSwitchKey)|\(digits)|\(urlField)"
         guard signature != layoutSignature else { return }
         layoutSignature = signature
         keyboard.layer_ = layer
@@ -274,7 +288,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.compactFirstRow = digitRow
         heightConstraint?.constant = Self.barHeight + Self.keysHeight + (digitRow ? Self.digitRowHeight : 0)
         keyboard.rows = KeyLayout.rows(layer: layer, shift: shift, returnLabel: returnLabel,
-                                       showGlobe: needsInputModeSwitchKey, digits: digits)
+                                       showGlobe: needsInputModeSwitchKey, digits: digits, urlField: urlField)
     }
 
     private var returnLabel: String {
@@ -398,7 +412,10 @@ final class KeyboardViewController: UIInputViewController {
     private func setEmojiPanel(visible: Bool) {
         emojiPanel.isHidden = !visible
         keyboard.isHidden = visible
-        if visible { emojiPanel.refresh() }
+        if visible {
+            emojiPanel.refresh()
+            releaseEdgeTouches()
+        }
         if !visible {
             layer = .letters
             reloadKeys()

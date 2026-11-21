@@ -1,8 +1,8 @@
 import CoreText
 import UIKit
 
-/// Emoji-Auswahl der Tastatur: alle Apple-Emojis in Kategorien, durchgehend scrollbar wie bei
-/// Apple, unten die Sprungleiste über „ABC“ und Löschen. Hautfarben per langem Druck, die
+/// Emoji-Auswahl der Tastatur: alle Apple-Emojis in Kategorien, waagerecht durchgehend
+/// scrollbar wie bei Apple, unten eine Leiste aus „ABC“, Kategorien und Löschen. Hautfarben per langem Druck, die
 /// gewählte Farbe gilt danach als Standard für diese Figur.
 /// Apples eigene Emoji-Tastatur lässt sich aus einer fremden Tastatur nicht einblenden.
 final class EmojiPanel: UIView {
@@ -22,8 +22,8 @@ final class EmojiPanel: UIView {
     private var preferredTones: [String: String] = [:]
     private static let recentLimit = 32
     private static let perRow: CGFloat = 8
-    private static let rowHeight: CGFloat = 42
-    private static let headerHeight: CGFloat = 26
+    private static let minRowHeight: CGFloat = 40
+    private static let sectionGap: CGFloat = 12
 
     /// Kategorien ohne Emojis, die das installierte iOS nicht zeichnen kann. Die Liste kommt aus
     /// dem neuesten Unicode-Stand; was iOS noch nicht kennt, würde als Kästchen erscheinen.
@@ -35,12 +35,14 @@ final class EmojiPanel: UIView {
     private let collection: UICollectionView
     private var tonePicker: UIView?
     private var selected = -1
+    private var deleteTimer: Timer?
+    private let bottomBar = TouchBar()
 
     override init(frame: CGRect) {
         let layout = UICollectionViewFlowLayout()
         layout.minimumLineSpacing = 0
         layout.minimumInteritemSpacing = 0
-        layout.sectionHeadersPinToVisibleBounds = false
+        layout.scrollDirection = .horizontal
         collection = UICollectionView(frame: .zero, collectionViewLayout: layout)
         super.init(frame: frame)
         build()
@@ -133,54 +135,96 @@ final class EmojiPanel: UIView {
         for (index, symbol) in symbols.enumerated() {
             let button = UIButton(type: .system)
             button.setImage(UIImage(systemName: symbol), for: .normal)
+            button.setPreferredSymbolConfiguration(.init(pointSize: 15, weight: .regular), forImageIn: .normal)
             button.tintColor = .secondaryLabel
             button.tag = index
             button.accessibilityLabel = titles[index]
-            button.addAction(UIAction { [weak self] _ in self?.jump(to: index, animated: false) }, for: .touchUpInside)
             categoryBar.addArrangedSubview(button)
         }
 
         collection.backgroundColor = .clear
-        collection.showsVerticalScrollIndicator = false
+        collection.showsHorizontalScrollIndicator = false
+        collection.alwaysBounceHorizontal = true
         collection.dataSource = self
         collection.delegate = self
         collection.register(EmojiCell.self, forCellWithReuseIdentifier: EmojiCell.id)
-        collection.register(EmojiHeader.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
-                            withReuseIdentifier: EmojiHeader.id)
         let longPress = UILongPressGestureRecognizer(target: self, action: #selector(longPressed(_:)))
         longPress.minimumPressDuration = 0.35
         collection.addGestureRecognizer(longPress)
 
-        let abc = UIButton(type: .system)
-        abc.setTitle("ABC", for: .normal)
-        abc.titleLabel?.font = .systemFont(ofSize: 16, weight: .medium)
-        abc.tintColor = .label
-        abc.addAction(UIAction { [weak self] _ in self?.onClose?() }, for: .touchUpInside)
-        let delete = UIButton(type: .system)
-        delete.setImage(UIImage(systemName: "delete.left"), for: .normal)
-        delete.tintColor = .label
-        delete.addAction(UIAction { [weak self] _ in self?.onBackspace?() }, for: .touchUpInside)
-        let bottom = UIStackView(arrangedSubviews: [abc, UIView(), delete])
+        // Eine Leiste wie bei Apple: „ABC“, Kategorien, Löschen. „ABC“ und Löschen als echte Tasten,
+        // als reiner Text war „ABC“ nur etwa 30 pt breit und Tipps daneben gingen ins Leere.
+        let abc = Self.bottomKey(title: "ABC")
+        let delete = Self.bottomKey(symbol: "delete.left")
+        let bottom = bottomBar
+        [abc, categoryBar, delete].forEach(bottom.addArrangedSubview)
         bottom.axis = .horizontal
+        bottom.spacing = 4
+        abc.widthAnchor.constraint(equalToConstant: 50).isActive = true
+        delete.widthAnchor.constraint(equalToConstant: 50).isActive = true
 
-        for view in [collection, categoryBar, bottom] as [UIView] {
+        for view in [collection, bottom] as [UIView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
         NSLayoutConstraint.activate([
-            collection.topAnchor.constraint(equalTo: topAnchor, constant: 2),
-            collection.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
-            collection.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-            collection.bottomAnchor.constraint(equalTo: categoryBar.topAnchor, constant: -2),
-            categoryBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            categoryBar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
-            categoryBar.heightAnchor.constraint(equalToConstant: 30),
-            categoryBar.bottomAnchor.constraint(equalTo: bottom.topAnchor),
-            bottom.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            bottom.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            collection.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+            collection.leadingAnchor.constraint(equalTo: leadingAnchor),
+            collection.trailingAnchor.constraint(equalTo: trailingAnchor),
+            collection.bottomAnchor.constraint(equalTo: bottom.topAnchor, constant: -4),
+            bottom.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            bottom.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -3),
             bottom.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
-            bottom.heightAnchor.constraint(equalToConstant: 36),
+            bottom.heightAnchor.constraint(equalToConstant: 40),
         ])
+        bottom.onPress = { [weak self] index in
+            guard let self else { return }
+            hideTonePicker()
+            switch index {
+            case 0: onClose?()
+            case categoryBar.arrangedSubviews.count + 1: startDeleting()
+            default: jump(to: index - 1, animated: false)
+            }
+        }
+        bottom.onRelease = { [weak self] in self?.stopDeleting() }
+    }
+
+    /// Löschen gedrückt halten wiederholt wie auf der Tastatur.
+    private func startDeleting() {
+        stopDeleting()
+        onBackspace?()
+        deleteTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.deleteTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+                    MainActor.assumeIsolated { self?.onBackspace?() }
+                }
+            }
+        }
+    }
+
+    private func stopDeleting() {
+        deleteTimer?.invalidate()
+        deleteTimer = nil
+    }
+
+    override func layoutSubviews() {
+        let height = collection.bounds.height
+        super.layoutSubviews()
+        if collection.bounds.height != height { collection.collectionViewLayout.invalidateLayout() }
+    }
+
+    /// Taste im Stil der Sondertasten der Tastatur; löst schon beim Aufsetzen aus wie dort.
+    private static func bottomKey(title: String? = nil, symbol: String? = nil) -> UIButton {
+        var config = UIButton.Configuration.filled()
+        config.baseBackgroundColor = KeyCap.specialColor
+        config.baseForegroundColor = .label
+        config.background.cornerRadius = 6
+        if let title {
+            config.attributedTitle = AttributedString(title, attributes: AttributeContainer([.font: UIFont.systemFont(ofSize: 16)]))
+        }
+        if let symbol { config.image = UIImage(systemName: symbol) }
+        config.contentInsets = .zero
+        return UIButton(configuration: config)
     }
 
     /// Abschnitt 0 = zuletzt verwendet, 1 … = Kategorien.
@@ -191,11 +235,12 @@ final class EmojiPanel: UIView {
     private func jump(to section: Int, animated: Bool) {
         hideTonePicker()
         guard section < collection.numberOfSections, collection.numberOfItems(inSection: section) > 0 else { return }
-        let header = IndexPath(item: 0, section: section)
-        if let attributes = collection.layoutAttributesForSupplementaryElement(
-            ofKind: UICollectionView.elementKindSectionHeader, at: header) {
-            let maxOffset = max(collection.contentSize.height - collection.bounds.height, 0)
-            collection.setContentOffset(CGPoint(x: 0, y: min(attributes.frame.minY, maxOffset)), animated: animated)
+        // Läuft das Raster nach einem Wisch noch aus, überschreibt der Schwung sonst den Sprung.
+        collection.setContentOffset(collection.contentOffset, animated: false)
+        if let attributes = collection.layoutAttributesForItem(at: IndexPath(item: 0, section: section)) {
+            let maxOffset = max(collection.contentSize.width - collection.bounds.width, 0)
+            let x = min(max(attributes.frame.minX - Self.sectionGap / 2, 0), maxOffset)
+            collection.setContentOffset(CGPoint(x: x, y: 0), animated: animated)
         }
         highlight(section)
     }
@@ -253,7 +298,8 @@ final class EmojiPanel: UIView {
         row.frame = bubble.bounds.insetBy(dx: 4, dy: 2)
         bubble.addSubview(row)
         overlay.addSubview(bubble)
-        addSubview(overlay)
+        // Unter der Leiste, damit ein Tipp auf ABC oder eine Kategorie nicht nur die Auswahl schließt.
+        insertSubview(overlay, belowSubview: bottomBar)
         tonePicker = overlay
     }
 
@@ -278,23 +324,17 @@ extension EmojiPanel: UICollectionViewDataSource, UICollectionViewDelegateFlowLa
         return cell
     }
 
-    func collectionView(_ collectionView: UICollectionView, viewForSupplementaryElementOfKind kind: String,
-                        at indexPath: IndexPath) -> UICollectionReusableView {
-        let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: EmojiHeader.id,
-                                                                     for: indexPath)
-        (header as? EmojiHeader)?.label.text = indexPath.section == 0
-            ? "ZULETZT VERWENDET" : categories[indexPath.section - 1].title.uppercased()
-        return header
-    }
-
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout,
-                        referenceSizeForHeaderInSection section: Int) -> CGSize {
-        emojis(in: section).isEmpty ? .zero : CGSize(width: collectionView.bounds.width, height: Self.headerHeight)
+                        insetForSectionAt section: Int) -> UIEdgeInsets {
+        emojis(in: section).isEmpty ? .zero : UIEdgeInsets(top: 0, left: Self.sectionGap / 2, bottom: 0, right: Self.sectionGap / 2)
     }
 
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout,
                         sizeForItemAt indexPath: IndexPath) -> CGSize {
-        CGSize(width: floor(collectionView.bounds.width / Self.perRow), height: Self.rowHeight)
+        // Spalten von oben nach unten gefüllt wie bei Apple; so viele Reihen, wie in die Höhe passen.
+        let height = collectionView.bounds.height
+        let rows = max(floor(height / Self.minRowHeight), 1)
+        return CGSize(width: floor((collectionView.bounds.width - Self.sectionGap) / Self.perRow), height: floor(height / rows))
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -302,10 +342,10 @@ extension EmojiPanel: UICollectionViewDataSource, UICollectionViewDelegateFlowLa
         insert(displayed(emojis(in: indexPath.section)[indexPath.item]))
     }
 
-    /// Die Kategorie oben im sichtbaren Bereich hervorheben.
+    /// Die Kategorie am linken Rand des sichtbaren Bereichs hervorheben.
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         hideTonePicker()
-        let probe = CGPoint(x: 10, y: scrollView.contentOffset.y + Self.headerHeight + 4)
+        let probe = CGPoint(x: scrollView.contentOffset.x + Self.sectionGap + 4, y: 10)
         if let path = collection.indexPathForItem(at: probe) { highlight(path.section) }
     }
 }
@@ -329,18 +369,45 @@ private final class EmojiCell: UICollectionViewCell {
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
 }
 
-private final class EmojiHeader: UICollectionReusableView {
-    static let id = "header"
-    let label = UILabel()
+/// Untere Leiste mit eigener Touch-Behandlung wie die Buchstabentastatur: Ein Tipp löst sofort beim
+/// Aufsetzen aus und trifft immer das nächstgelegene Feld, auch zwischen zwei Symbolen. Mit einzelnen
+/// UIButtons gingen Tipps am unteren Bildschirmrand verloren.
+private final class TouchBar: UIStackView {
+    /// Index über alle Felder: 0 = ABC, dann die Kategorien, zuletzt Löschen.
+    var onPress: ((Int) -> Void)?
+    var onRelease: (() -> Void)?
+    private var pressed: UIButton?
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        label.font = .systemFont(ofSize: 12, weight: .semibold)
-        label.textColor = .secondaryLabel
-        label.frame = bounds.insetBy(dx: 8, dy: 0)
-        label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        addSubview(label)
+    private var targets: [UIButton] {
+        arrangedSubviews.flatMap { view -> [UIButton] in
+            if let stack = view as? UIStackView { return stack.arrangedSubviews.compactMap { $0 as? UIButton } }
+            return (view as? UIButton).map { [$0] } ?? []
+        }
     }
 
-    required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+    override func didAddSubview(_ subview: UIView) {
+        super.didAddSubview(subview)
+        subview.isUserInteractionEnabled = false
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let x = touch.location(in: self).x
+        let all = targets
+        guard let index = all.indices.min(by: {
+            abs(all[$0].convert(all[$0].bounds, to: self).midX - x) < abs(all[$1].convert(all[$1].bounds, to: self).midX - x)
+        }) else { return }
+        pressed = all[index]
+        pressed?.isHighlighted = true
+        onPress?(index)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { release() }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { release() }
+
+    private func release() {
+        pressed?.isHighlighted = false
+        pressed = nil
+        onRelease?()
+    }
 }
