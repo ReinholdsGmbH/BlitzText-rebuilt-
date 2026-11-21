@@ -42,7 +42,7 @@ struct KeySpec {
 
     /// Kleiner Hinweis oben rechts auf der Taste: die Ziffer beim langen Druck.
     var hint: String? {
-        guard let alternate, alternate.count == 1, alternate.first?.isNumber == true else { return nil }
+        guard let alternate, alternate.count == 1, alternate.first?.isLetter == false else { return nil }
         return alternate
     }
 
@@ -71,9 +71,9 @@ enum KeyLayout {
     static let unitsPerRow: CGFloat = 11
 
     static func rows(layer: KeyboardLayer, shift: ShiftState, returnLabel: String, showGlobe: Bool,
-                     digits: Blitz.DigitsMode = .off) -> [[KeySpec]] {
+                     digits: Blitz.DigitsMode = .off, urlField: Bool = false) -> [[KeySpec]] {
         switch layer {
-        case .letters: letters(shift: shift, returnLabel: returnLabel, showGlobe: showGlobe, digits: digits)
+        case .letters: letters(shift: shift, returnLabel: returnLabel, showGlobe: showGlobe, digits: digits, urlField: urlField)
         case .numbers: numbers(returnLabel: returnLabel, showGlobe: showGlobe)
         case .symbols: symbols(returnLabel: returnLabel, showGlobe: showGlobe)
         case .numberPad(let decimal): numberPad(decimal: decimal)
@@ -85,7 +85,8 @@ enum KeyLayout {
         "q": "1", "w": "2", "e": "3", "r": "4", "t": "5", "z": "6", "u": "7", "i": "8", "o": "9", "p": "0",
     ]
 
-    private static func letters(shift: ShiftState, returnLabel: String, showGlobe: Bool, digits: Blitz.DigitsMode) -> [[KeySpec]] {
+    private static func letters(shift: ShiftState, returnLabel: String, showGlobe: Bool, digits: Blitz.DigitsMode,
+                                urlField: Bool) -> [[KeySpec]] {
         let upper = shift != .off
         func keys(_ string: String) -> [KeySpec] {
             string.map { character in
@@ -105,7 +106,7 @@ enum KeyLayout {
             keys("qwertzuiopü"),
             keys("asdfghjklöä"),
             [.special(.shift, symbol: shiftSymbol, width: 2)] + keys("yxcvbnm") + [.special(.backspace, symbol: "delete.left", width: 2)],
-            bottomRow(switchLabel: "123", switchTo: .numbers, returnLabel: returnLabel, showGlobe: showGlobe),
+            bottomRow(switchLabel: "123", switchTo: .numbers, returnLabel: returnLabel, showGlobe: showGlobe, urlField: urlField),
         ]
     }
 
@@ -148,13 +149,19 @@ enum KeyLayout {
         return row.map { var key = $0; key.width *= factor; return key }
     }
 
-    private static func bottomRow(switchLabel: String, switchTo: KeyboardLayer, returnLabel: String, showGlobe: Bool) -> [KeySpec] {
+    /// In URL-Feldern stehen „/“ links und „.“ (lang „:“) rechts neben der Leertaste.
+    private static func bottomRow(switchLabel: String, switchTo: KeyboardLayer, returnLabel: String, showGlobe: Bool,
+                                  urlField: Bool = false) -> [KeySpec] {
         var row: [KeySpec] = [.special(.layer(switchTo), label: switchLabel, width: 1.4),
                               .special(.emoji, symbol: "face.smiling", width: 1.2)]
         if showGlobe { row.append(.special(.globe, symbol: "globe", width: 1.2)) }
         let returnKey = KeySpec.special(.returnKey, label: returnLabel, width: 2.4)
+        let beside: (left: KeySpec, right: KeySpec)? = urlField ? (.char("/"), .char(".", alternate: ":")) : nil
         let used = row.reduce(0) { $0 + $1.width } + returnKey.width
+            + (beside.map { $0.left.width + $0.right.width } ?? 0)
+        if let beside { row.append(beside.left) }
         row.append(KeySpec(action: .space, label: "Leerzeichen", symbol: nil, width: unitsPerRow - used, alternate: nil))
+        if let beside { row.append(beside.right) }
         row.append(returnKey)
         return row
     }
