@@ -5,6 +5,10 @@ import UIKit
 final class KeyboardViewController: UIInputViewController {
     private let keyboard = KeyboardView()
     private let emojiPanel = EmojiPanel()
+    private let searchStrip = EmojiSearchStrip()
+    /// Emoji-Suche läuft: Buchstaben tippen in die Suche statt in die App.
+    private var searchQuery: String?
+    private var keyboardTop: NSLayoutConstraint?
     private let usage = WordUsage()
     private let micButton = UIButton(type: .system)
     /// Gegenüber dem Mikro: öffnet die BlitzText-App auf den Einstellungen.
@@ -109,6 +113,7 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillDisappear(animated)
         usage.save()
         dictation.cancel()
+        endEmojiSearch(showPanel: false)
         refreshTimer?.invalidate()
         refreshTimer = nil
     }
@@ -227,8 +232,10 @@ final class KeyboardViewController: UIInputViewController {
     private func buildKeyboard() {
         keyboard.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(keyboard)
+        let top = keyboard.topAnchor.constraint(equalTo: view.topAnchor, constant: Self.barHeight)
+        keyboardTop = top
         NSLayoutConstraint.activate([
-            keyboard.topAnchor.constraint(equalTo: view.topAnchor, constant: Self.barHeight),
+            top,
             keyboard.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             keyboard.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             keyboard.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -248,8 +255,27 @@ final class KeyboardViewController: UIInputViewController {
         }
         emojiPanel.onBackspace = { [weak self] in self?.handle(.backspace) }
         emojiPanel.onClose = { [weak self] in self?.setEmojiPanel(visible: false) }
+        emojiPanel.onSearch = { [weak self] in self?.beginEmojiSearch() }
+
+        searchStrip.translatesAutoresizingMaskIntoConstraints = false
+        searchStrip.isHidden = true
+        view.addSubview(searchStrip)
+        NSLayoutConstraint.activate([
+            searchStrip.topAnchor.constraint(equalTo: view.topAnchor),
+            searchStrip.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            searchStrip.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            searchStrip.bottomAnchor.constraint(equalTo: keyboard.topAnchor),
+        ])
+        searchStrip.onPick = { [weak self] emoji in
+            EmojiPanel.remember(emoji)
+            self?.textDocumentProxy.insertText(emoji)
+        }
+        searchStrip.onClose = { [weak self] in self?.endEmojiSearch(showPanel: true) }
         keyboard.onAction = { [weak self] in self?.handle($0) }
-        keyboard.onInsertAlternate = { [weak self] in self?.insert($0) }
+        keyboard.onInsertAlternate = { [weak self] text in
+            guard let self else { return }
+            if searchQuery != nil { handle(.character(text)) } else { insert(text) }
+        }
         keyboard.onSwipe = { [weak self] path, corners, points in self?.handleSwipe(path: path, corners: corners, points: points) }
     }
 
@@ -286,7 +312,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.layer_ = layer
         let digitRow = layer == .letters && digits == .row
         keyboard.compactFirstRow = digitRow
-        heightConstraint?.constant = Self.barHeight + Self.keysHeight + (digitRow ? Self.digitRowHeight : 0)
+        heightConstraint?.constant = topHeight + Self.keysHeight + (digitRow ? Self.digitRowHeight : 0)
         keyboard.rows = KeyLayout.rows(layer: layer, shift: shift, returnLabel: returnLabel,
                                        showGlobe: needsInputModeSwitchKey, digits: digits, urlField: urlField)
     }
@@ -306,6 +332,7 @@ final class KeyboardViewController: UIInputViewController {
     // MARK: - Tasten
 
     private func handle(_ action: KeyAction) {
+        if searchQuery != nil, handleSearch(action) { return }
         switch action {
         case .character(let text):
             insert(text)
@@ -407,6 +434,75 @@ final class KeyboardViewController: UIInputViewController {
         let width = (String(character) as NSString).size(withAttributes: [.font: Self.cursorFont]).width
         advanceCache[character] = width
         return width
+    }
+
+    // MARK: - Emoji-Suche
+
+    /// Über den Tasten: Vorschlagsleiste oder, während der Suche, Suchfeld mit Treffern.
+    private var topHeight: CGFloat { searchQuery == nil ? Self.barHeight : EmojiSearchStrip.height }
+
+    /// Wie bei Apple: Buchstaben einblenden, Eingaben gehen in die Suche, Treffer stehen darüber.
+    private func beginEmojiSearch() {
+        searchQuery = ""
+        emojiPanel.isHidden = true
+        keyboard.isHidden = false
+        keyboard.swipeEnabled = false
+        bar.isHidden = true
+        searchStrip.isHidden = false
+        keyboardTop?.constant = EmojiSearchStrip.height
+        layer = .letters
+        shift = .off
+        layoutSignature = ""
+        reloadKeys()
+        refreshSearch()
+    }
+
+    private func endEmojiSearch(showPanel: Bool) {
+        guard searchQuery != nil else { return }
+        searchQuery = nil
+        searchStrip.isHidden = true
+        bar.isHidden = false
+        keyboard.swipeEnabled = Blitz.isSwipeEnabled
+        keyboardTop?.constant = Self.barHeight
+        layoutSignature = ""
+        if showPanel {
+            setEmojiPanel(visible: true)
+        } else {
+            updateAutoShift()
+            reloadKeys()
+        }
+    }
+
+    private func refreshSearch() {
+        guard let query = searchQuery else { return }
+        let found = query.isEmpty ? EmojiPanel.recentEmojis : EmojiSearch.results(for: query)
+        searchStrip.show(query: query, emojis: found.map(EmojiPanel.withPreferredTone))
+    }
+
+    /// Tasten während der Suche. Gibt `false` zurück, wenn die Taste normal wirken soll.
+    private func handleSearch(_ action: KeyAction) -> Bool {
+        guard var query = searchQuery else { return false }
+        switch action {
+        case .character(let text):
+            query += text
+            if shift == .on { shift = .off; reloadKeys() }
+        case .space:
+            query += " "
+        case .backspace:
+            if !query.isEmpty { query.removeLast() }
+        case .deleteWords:
+            query = ""
+        case .returnKey, .emoji:
+            endEmojiSearch(showPanel: true)
+            return true
+        case .cursorBegan, .cursorEnded, .cursorTo, .cursorReload:
+            return true
+        default:
+            return false
+        }
+        searchQuery = query
+        refreshSearch()
+        return true
     }
 
     private func setEmojiPanel(visible: Bool) {
